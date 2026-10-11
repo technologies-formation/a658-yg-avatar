@@ -90,3 +90,35 @@ test('HTTP : authentification, requetes et quota sans connexion externe', async 
     assert.equal((await fetch(url, { method: 'GET' })).status, 404)
   } finally { await new Promise(resolve => server.close(resolve)) }
 })
+
+test('simulation : recherche et parcours suivent les formats attendus', async () => {
+  const { server } = createServer({ token, maxDailyRequests: 2, maxTotalRequests: 2 })
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
+  try {
+    const url = 'http://127.0.0.1:' + server.address().port + '/test/request'
+    const post = payload => fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+      body: JSON.stringify(payload),
+    })
+    const search = await post({ type: 'search', profile: body.profile, query: 'Formation gestion de projet' })
+    assert.equal(search.status, 200)
+    assert.equal((await search.json()).mode, 'simulation')
+    const pathway = await post(body)
+    assert.equal(pathway.status, 200)
+    assert.equal((await pathway.json()).quota.total, 2)
+    assert.equal((await post(body)).status, 429)
+  } finally { await new Promise(resolve => server.close(resolve)) }
+})
+test('simulation : erreurs HTTP et profils non conformes ne consomment pas le quota', async () => {
+  const { server } = createServer({ token, maxDailyRequests: 1, maxTotalRequests: 1 })
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
+  try {
+    const url = 'http://127.0.0.1:' + server.address().port + '/test/request'
+    const headers = { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token }
+    assert.equal((await fetch(url, { method: 'POST', headers, body: '{' })).status, 400)
+    assert.equal((await fetch(url, { method: 'POST', headers, body: JSON.stringify({ ...body, profile: { ...body.profile, personnelCategory: 'INVALID' } }) })).status, 400)
+    assert.equal((await fetch(url, { method: 'POST', headers: { ...headers, 'Content-Type': 'text/plain' }, body: JSON.stringify(body) })).status, 415)
+    assert.equal((await fetch(url, { method: 'POST', headers, body: JSON.stringify(body) })).status, 200)
+  } finally { await new Promise(resolve => server.close(resolve)) }
+})
