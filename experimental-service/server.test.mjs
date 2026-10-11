@@ -68,3 +68,25 @@ test('stockage corrompu refuse et interrupteur externe', () => {
     assert.equal(guard.check(token, body).status, 503)
   } finally { rmSync(dir, { recursive: true, force: true }) }
 })
+
+test('HTTP : authentification, requetes et quota sans connexion externe', async () => {
+  const { server } = createServer({ token, maxDailyRequests: 1, maxTotalRequests: 1 })
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
+  try {
+    const url = 'http://127.0.0.1:' + server.address().port + '/test/request'
+    const post = (auth, payload = body) => fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + auth },
+      body: JSON.stringify(payload),
+    })
+    assert.equal((await post('incorrect')).status, 401)
+    assert.equal((await post(token, { ...body, profile: { ...body.profile, objective: '' } })).status, 400)
+    const accepted = await post(token)
+    assert.equal(accepted.status, 200)
+    const result = await accepted.json()
+    assert.equal(result.mode, 'simulation')
+    assert.equal(result.quota.total, 1)
+    assert.equal((await post(token)).status, 429)
+    assert.equal((await fetch(url, { method: 'GET' })).status, 404)
+  } finally { await new Promise(resolve => server.close(resolve)) }
+})
