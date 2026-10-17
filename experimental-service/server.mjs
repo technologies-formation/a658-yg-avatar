@@ -2,11 +2,11 @@
 import http from 'node:http'
 import { timingSafeEqual, randomUUID } from 'node:crypto'
 import { readFileSync, writeFileSync, renameSync, unlinkSync } from 'node:fs'
+import { validateProfileFields } from './profile-validation.mjs'
 
 const MAX_BODY_BYTES = 16_000
 const DAY_MS = 86_400_000
 const CATEGORIES = new Set(['PAT', 'PE', 'PU Police', 'PU Prison', 'PJ'])
-const FIELD_LIMITS = { personnelCategory: 80, role: 300, objective: 1000, existingSkills: 1000, timeAvailable: 300, constraints: 1000 }
 const REQUEST_TYPES = new Set(['search', 'pathway'])
 
 export function validateRequest(body) {
@@ -15,13 +15,8 @@ export function validateRequest(body) {
   if (!body.profile || typeof body.profile !== 'object' || Array.isArray(body.profile)) return 'Profil invalide'
   const profile = body.profile
   if (!CATEGORIES.has(profile.personnelCategory)) return 'Categorie de personnel invalide'
-  for (const [field, limit] of Object.entries(FIELD_LIMITS)) {
-    if (profile[field] === undefined) continue
-    if (typeof profile[field] !== 'string' || profile[field].length > limit) return 'Champ invalide : ' + field
-  }
-  if (!profile.role?.trim() || !profile.objective?.trim()) return 'Fonction et objectif obligatoires'
-  if (profile.role.trim().length < 2) return 'Fonction trop courte'
-  if (profile.objective.trim().length < 10) return 'Objectif trop court'
+  const profileIssue = validateProfileFields(profile)
+  if (profileIssue) return profileIssue
   if (body.type === 'search' && (typeof body.query !== 'string' || !body.query.trim() || body.query.length > 1000)) return 'Recherche invalide'
   return null
 }
