@@ -17,4 +17,4 @@ jobs:
         with:
           node-version: '22'
       - name: Run local simulation tests
-        run: node --test experimental-service/server.test.mjs
+        run: node --test experimental-service/*.test.mjs
