@@ -14,14 +14,16 @@ if (start < 0 || end < 0) throw new Error('Interface V5 modifiee : adaptation ne
 const replacement = `async function previewRequest(){
  const issues=validateDraft();
  if(issues.length){bubble('Demande invalide : '+issues.join(', '));return}
+ invalidateSimulation();
+ const revision=requestRevision;
  const type=intent==='Parcours de formation'?'pathway':'search';
  const profile=pathwayPayload();
  const payload=type==='search'?{type,profile,query:searchDraft().query}:{type,profile};
  try{
   const response=await fetch('/local/validate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
   const result=await response.json();
-  bubble(response.ok?'Service local : '+result.message+' ('+result.quota.total+'/'+result.quota.maxTotalRequests+')':'Simulation refusee ('+response.status+') : '+result.error);
- }catch{bubble('Service local indisponible. Aucun appel distant effectue.')}
+  showSimulation(response.ok?'Service local : '+result.message+' ('+result.quota.total+'/'+result.quota.maxTotalRequests+')':'Simulation refusee ('+response.status+') : '+result.error,revision);
+ }catch{showSimulation('Service local indisponible. Aucun appel distant effectue.',revision)}
 }`
 const page = (source.slice(0,start)+replacement+source.slice(end))
  .replace('Démonstration · aucun appel API','Simulation locale · aucun appel OpenAI')
