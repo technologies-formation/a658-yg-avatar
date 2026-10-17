@@ -2,6 +2,7 @@ name: Avatar service safety tests
 on:
   push:
     paths:
+      - 'index.html'
       - 'experimental-service/**'
       - '.github/workflows/avatar-tests.yml'
   workflow_dispatch:
