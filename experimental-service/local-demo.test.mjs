@@ -17,7 +17,7 @@ test('interface interactive locale : aucune cle dans la page, validation et quot
   assert.match(html,/\/local\/validate/)
   assert.match(html,/Ton assistant formation/)
   assert.doesNotMatch(html,/Bearer /)
-  const body={type:'pathway',profile:{personnelCategory:'PAT',role:'Conseiller',objective:'Formation'}}
+  const body={type:'pathway',profile:{personnelCategory:'PAT',role:'Conseiller',objective:'Suivre une formation'}}
   const request=(headers={})=>fetch(origin+'/local/validate',{method:'POST',headers:{'Content-Type':'application/json',Origin:origin,...headers},body:JSON.stringify(body)})
   assert.equal((await request({Origin:'https://example.com'})).status,403)
   assert.equal((await request({Origin:''})).status,403)

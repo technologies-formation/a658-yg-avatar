@@ -7,6 +7,15 @@ import { createGuard, createServer, validateRequest } from './server.mjs'
 
 const token = 'abcdefghijklmnopqrstuvwxyz1234567890'
 const body = { type: 'pathway', profile: { personnelCategory: 'PAT', role: 'Chef de projet', objective: 'Renforcer mes competences' } }
+test('rejet des reponses trop courtes', () => {
+  assert.match(validateRequest({ ...body, profile: { ...body.profile, role: 'f' } }), /Fonction trop courte/)
+  assert.match(validateRequest({ ...body, profile: { ...body.profile, objective: 'r' } }), /Objectif trop court/)
+  assert.equal(validateRequest({ ...body, profile: { ...body.profile, role: 'RH' } }), null)
+  assert.equal(validateRequest({ ...body, profile: { ...body.profile, objective: 'Apprendre Excel' } }), null)
+  const guard = createGuard({ token, maxDailyRequests: 1, maxTotalRequests: 1 })
+  assert.equal(guard.check(token, { ...body, profile: { ...body.profile, role: 'f' } }).status, 400)
+  assert.equal(guard.check(token, body).status, 200)
+})
 test('validation du profil', () => {
   assert.equal(validateRequest(body), null)
   assert.match(validateRequest({ ...body, profile: { ...body.profile, personnelCategory: 'autre' } }), /Categorie/)

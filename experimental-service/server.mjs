@@ -20,6 +20,8 @@ export function validateRequest(body) {
     if (typeof profile[field] !== 'string' || profile[field].length > limit) return 'Champ invalide : ' + field
   }
   if (!profile.role?.trim() || !profile.objective?.trim()) return 'Fonction et objectif obligatoires'
+  if (profile.role.trim().length < 2) return 'Fonction trop courte'
+  if (profile.objective.trim().length < 10) return 'Objectif trop court'
   if (body.type === 'search' && (typeof body.query !== 'string' || !body.query.trim() || body.query.length > 1000)) return 'Recherche invalide'
   return null
 }
