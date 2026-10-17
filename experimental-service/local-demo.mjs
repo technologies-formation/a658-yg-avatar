@@ -28,11 +28,11 @@ const page = (source.slice(0,start)+replacement+source.slice(end))
  .replace('V5 renforcée : validation locale des données API, sans connexion au moteur.','Simulation interactive locale, sans connexion au moteur.')
  .replace('Prototype de démonstration indépendant :','Mode de test local indépendant :')
 
-export function createLocalDemo({ port=8799, stateFile=join(homedir(),'.a658-yg-avatar-local-quotas.json'), enabled=()=>true }={}) {
+export function createLocalDemo({ port=8799, stateFile=join(homedir(),'.a658-yg-avatar-local-quotas.json'), enabled=()=>true, maxDailyRequests=5, maxTotalRequests=20 }={}) {
  if(!Number.isInteger(port)||port<1||port>65535) throw new Error('Port invalide')
  const origin='http://127.0.0.1:'+port
  const token=randomBytes(32).toString('hex')
- const guard=createGuard({token,stateFile,enabled})
+ const guard=createGuard({token,stateFile,enabled,maxDailyRequests,maxTotalRequests})
  const server=http.createServer(async(req,res)=>{
   res.setHeader('Cache-Control','no-store')
   res.setHeader('X-Content-Type-Options','nosniff')
@@ -57,6 +57,8 @@ export function createLocalDemo({ port=8799, stateFile=join(homedir(),'.a658-yg-
 
 if(process.argv[1]&&import.meta.url===new URL('file://'+process.argv[1]).href){
  const port=Number(process.env.AVATAR_LOCAL_PORT||8799)
- const {server,origin}=createLocalDemo({port,enabled:()=>process.env.AVATAR_TEST_ENABLED==='true'})
+ const maxDailyRequests=Number(process.env.AVATAR_MAX_DAILY_REQUESTS||5)
+ const maxTotalRequests=Number(process.env.AVATAR_MAX_TOTAL_REQUESTS||20)
+ const {server,origin}=createLocalDemo({port,maxDailyRequests,maxTotalRequests,enabled:()=>process.env.AVATAR_TEST_ENABLED==='true'})
  server.listen(port,'127.0.0.1',()=>console.log('Avatar local : '+origin))
 }
