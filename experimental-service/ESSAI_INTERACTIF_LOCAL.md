@@ -121,7 +121,7 @@ Il n'y a pas de minimum local de 2 caractères pour le rôle ni de 10 pour l'obj
 dans le mode référencé ou l'adaptateur : des chaînes non vides après trim suffisent.
 
 L'adaptateur conserve un délai parcours de 10 secondes par défaut, configurable
-jusqu'à 120 secondes. Ce défaut reste à ajuster explicitement avant toute activation
+jusqu'à 210 secondes. Ce défaut reste à ajuster explicitement avant toute activation
 réelle, car le moteur peut prendre plus de temps. Une annulation côté client ne
 prouve pas l'arrêt d'un traitement serveur ni l'absence de coût.
 
@@ -130,3 +130,10 @@ réponses synthétiques. L'identité des testeurs, l'accès distant, la concurre
 les quotas et le budget réels, et le schéma complet des résultats restent à cadrer avant raccordement. Le référentiel
 Infomaniak a été vérifié accessible le 18 octobre ; cette disponibilité ne raccorde
 pas automatiquement le simulateur local au backend.
+
+La préparation serveur `pathway-session.mjs` est décrite dans
+[PLAN_ENVIRONNEMENT_TEST.md](PLAN_ENVIRONNEMENT_TEST.md). Elle exige un délai et des
+quotas explicites, réserve les tentatives dans un fichier privé persistant et
+refuse concurrence et relances du même identifiant dans l'instance. Elle reste
+désactivée par défaut, sans route ni import par ce simulateur. Aucune variable
+d'environnement de ce mode local ne l'active.

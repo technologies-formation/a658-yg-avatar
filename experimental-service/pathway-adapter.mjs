@@ -42,14 +42,70 @@ function validateResult(data) {
       if (item.course.sourceUrl != null && !officialLink(item.course.sourceUrl)) {
         fail('invalid_response', 'Lien de formation non autorise')
       }
+      if (item.course.durationHours != null &&
+          (typeof item.course.durationHours !== 'number' || !Number.isFinite(item.course.durationHours) || item.course.durationHours < 0)) {
+        fail('invalid_response', 'Duree de formation invalide')
+      }
     }
     count += data[category].length
   }
   if (data.gaps !== undefined && (!Array.isArray(data.gaps) || data.gaps.some(gap => typeof gap !== 'string'))) {
     fail('invalid_response', 'Limites du catalogue non conformes')
   }
+  if ((data.abstain !== undefined && typeof data.abstain !== 'boolean') ||
+      (data.mode !== undefined && !text(data.mode)) ||
+      (data.interpretedGoal !== undefined && typeof data.interpretedGoal !== 'string')) {
+    fail('invalid_response', 'Metadonnees du parcours invalides')
+  }
+  if (data.durationSummary !== undefined) {
+    const duration = data.durationSummary
+    if (!object(duration)) fail('invalid_response', 'Synthese des durees invalide')
+    for (const name of ['budgetHours', 'recommendedHours', 'excessHours']) {
+      if (duration[name] != null && (typeof duration[name] !== 'number' || !Number.isFinite(duration[name]) || duration[name] < 0)) {
+        fail('invalid_response', 'Synthese des durees invalide')
+      }
+    }
+    for (const name of ['verified', 'durationsKnown', 'budgetVerified', 'withinBudget']) {
+      if (duration[name] != null && typeof duration[name] !== 'boolean') fail('invalid_response', 'Verification des durees invalide')
+    }
+  }
+  if (data.usage !== undefined) {
+    if (!object(data.usage)) fail('invalid_response', 'Mesures de consommation invalides')
+    for (const name of ['pass1', 'pass2', 'total']) {
+      const usage = data.usage[name]
+      if (usage == null) continue
+      if (!object(usage)) fail('invalid_response', 'Mesures de consommation invalides')
+      for (const field of ['input', 'output', 'cached', 'written', 'uncached', 'cost']) {
+        const value = usage[field]
+        if (value !== undefined && (typeof value !== 'number' || !Number.isFinite(value) || value < 0 ||
+            (field !== 'cost' && !Number.isSafeInteger(value)))) fail('invalid_response', 'Mesures de consommation invalides')
+      }
+    }
+  }
   // Ne pas aplatir les categories, remplacer les liens ou completer les formations.
   return { mode: 'historical-pathway', empty: count === 0, result: data }
+}
+
+async function readResult(response, maxBytes, signal) {
+  const length = response.headers.get('content-length')
+  if (length && (!/^\d+$/.test(length) || Number(length) > maxBytes)) fail('oversized_response', 'Reponse parcours trop volumineuse')
+  const reader = response.body?.getReader()
+  if (!reader) fail('invalid_response', 'Corps JSON du parcours absent')
+  const chunks = []; let size = 0
+  const cancel = () => { reader.cancel().catch(() => {}) }
+  signal.addEventListener('abort', cancel, { once: true })
+  try {
+    while (true) {
+      const { value, done } = await reader.read()
+      if (signal.aborted) fail('cancelled', 'Lecture du parcours annulee')
+      if (done) break
+      size += value.byteLength
+      if (size > maxBytes) { cancel(); fail('oversized_response', 'Reponse parcours trop volumineuse') }
+      chunks.push(value)
+    }
+    try { return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(Buffer.concat(chunks))) }
+    catch { fail('invalid_response', 'Reponse historique JSON illisible ou vide') }
+  } finally { signal.removeEventListener('abort', cancel); reader.releaseLock() }
 }
 
 export function createPathwayAdapter({
@@ -57,6 +113,7 @@ export function createPathwayAdapter({
   endpoint = '',
   referencesClient = null,
   timeoutMs = 10_000,
+  maxResponseBytes = 256 * 1024,
   fetchImpl = globalThis.fetch,
 } = {}) {
   if (typeof enabled !== 'boolean') fail('configuration', 'Activation booleenne explicite requise')
@@ -66,7 +123,8 @@ export function createPathwayAdapter({
     if (url.protocol !== 'https:' || url.pathname !== '/api/pathway' || url.username || url.password || url.search || url.hash) {
       fail('configuration', 'URL HTTPS /api/pathway sans identifiants ni parametres requise')
     }
-    if (!Number.isInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 120_000 || typeof fetchImpl !== 'function') {
+    if (!Number.isInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 210_000 || typeof fetchImpl !== 'function' ||
+        !Number.isInteger(maxResponseBytes) || maxResponseBytes < 1 || maxResponseBytes > 1024 * 1024) {
       fail('configuration', 'Transport ou delai invalide')
     }
     if (typeof referencesClient?.refresh !== 'function' || typeof referencesClient?.getCurrent !== 'function') {
@@ -83,6 +141,9 @@ export function createPathwayAdapter({
       if (typeof referenceRevision !== 'string' || !/^[a-f0-9]{64}$/.test(referenceRevision)) {
         fail('references_changed', 'Choix à actualiser et confirmer avant envoi')
       }
+      let confirmedProfile
+      try { confirmedProfile = structuredClone(profile) }
+      catch { fail('invalid_profile', 'Profil invalide') }
       let references
       try {
         references = await referencesClient.refresh({ signal })
@@ -94,7 +155,7 @@ export function createPathwayAdapter({
       if (signal?.aborted) fail('cancelled', 'Demande annulee')
       if (referenceRevision !== references.revision) fail('references_changed', 'Choix modifiés : nouvelle confirmation requise')
       let normalized
-      try { normalized = normalizePathwayProfile(profile, references) }
+      try { normalized = normalizePathwayProfile(confirmedProfile, references) }
       catch (error) {
         fail(error.code === 'removed_value' ? 'unvalidated_value' : 'invalid_profile', error.message)
       }
@@ -122,14 +183,13 @@ export function createPathwayAdapter({
             credentials: 'omit',
             signal: controller.signal,
           })
+          if (response.redirected) fail('invalid_response', 'Redirection du parcours refusee')
           if (!response.ok) fail('http_error', 'Service historique en erreur HTTP', response.status)
           if (response.status === 204) fail('empty_response', 'Reponse historique vide')
-          if (!response.headers.get('content-type')?.toLowerCase().includes('application/json')) {
+          if (!/^application\/json(?:\s*;|$)/i.test(response.headers.get('content-type') || '')) {
             fail('invalid_response', 'Reponse JSON attendue')
           }
-          let data
-          try { data = await response.json() }
-          catch { fail('invalid_response', 'Reponse historique JSON illisible ou vide') }
+          const data = await readResult(response, maxResponseBytes, controller.signal)
           return validateResult(data)
         })()])
       } catch (error) {

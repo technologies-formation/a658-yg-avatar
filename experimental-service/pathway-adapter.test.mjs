@@ -52,7 +52,7 @@ test('activation explicite : URL fixe HTTPS, delai et politiques obligatoires', 
     { endpoint: 'https://catalogue.example.invalid/api/search' },
     { endpoint: 'https://user:secret@catalogue.example.invalid/api/pathway' },
     { endpoint: settings.endpoint + '?token=test' }, { endpoint: settings.endpoint + '#fragment' },
-    { referencesClient: null }, { referencesClient: { refresh() {} } }, { timeoutMs: 0 }, { timeoutMs: 120001 }, { fetchImpl: null },
+    { referencesClient: null }, { referencesClient: { refresh() {} } }, { timeoutMs: 0 }, { timeoutMs: 210001 }, { fetchImpl: null },
   ]) {
     assert.throws(() => createPathwayAdapter({ ...settings, fetchImpl: transport, ...override }), hasCode('configuration'))
   }
@@ -240,7 +240,7 @@ test('entité libre, champs courts et propriétés additives suivent le contrat 
 test('delai total couvre aussi un corps de reponse qui reste en attente', async t => {
   t.mock.timers.enable({ apis: ['setTimeout'] })
   const adapter = createPathwayAdapter({ ...settings, timeoutMs: 100, fetchImpl: async () => ({
-    ok: true, status: 200, headers: new Headers({ 'Content-Type': 'application/json' }), json: () => new Promise(() => {}),
+    ok: true, status: 200, headers: new Headers({ 'Content-Type': 'application/json' }), body: new ReadableStream({ start() {} }),
   }) })
   const pending = adapter.buildPathway(profile, { confirmed: true, referenceRevision: contract.revision })
   await new Promise(resolve => setImmediate(resolve))
@@ -272,4 +272,47 @@ test('annulation : aucun appel si deja annule et aucune reponse tardive livree',
   await rejected
   assert.equal(transportSignal.aborted, true)
   assert.equal(calls, 1)
+})
+
+test('profil confirmé figé avant la lecture réseau des référentiels', async () => {
+ let release
+ const client={refresh:()=>new Promise(resolve=>{release=resolve}),getCurrent:()=>contract}
+ const input={...profile}, adapter=createPathwayAdapter({...settings,referencesClient:client,fetchImpl:async(_,options)=>{
+  assert.deepEqual(JSON.parse(options.body),profile)
+  return json(result())
+ }})
+ const request=adapter.buildPathway(input,{confirmed:true,referenceRevision:contract.revision})
+ input.objective='Texte modifié après confirmation';input.personnelCategory='PE'
+ release(contract);await request
+})
+
+test('réponse bornée : taille déclarée, flux réel, UTF-8, type MIME et redirection', async () => {
+ const redirected=json(result());Object.defineProperty(redirected,'redirected',{value:true})
+ for(const [response,code] of [
+  [new Response('{}',{headers:{'Content-Type':'application/json','Content-Length':'999999'}}),'oversized_response'],
+  [new Response(' '.repeat(4096),{headers:{'Content-Type':'application/json'}}),'oversized_response'],
+  [new Response(new Uint8Array([0xff]),{headers:{'Content-Type':'application/json'}}),'invalid_response'],
+  [new Response('{}',{headers:{'Content-Type':'text/x-application/json'}}),'invalid_response'],
+  [redirected,'invalid_response'],
+ ]){
+  const adapter=createPathwayAdapter({...settings,maxResponseBytes:2048,fetchImpl:async()=>response})
+  await assert.rejects(adapter.buildPathway(profile,{confirmed:true,referenceRevision:contract.revision}),hasCode(code))
+ }
+ assert.throws(()=>createPathwayAdapter({...settings,maxResponseBytes:1048577}),hasCode('configuration'))
+ assert.doesNotThrow(()=>createPathwayAdapter({...settings,timeoutMs:200000}))
+})
+
+test('mesures de durée et consommation contrôlées, valeurs nulles historiques conservées', async () => {
+ for(const fields of [
+  {durationSummary:{recommendedHours:-1}}, {durationSummary:{budgetHours:'40'}},
+  {durationSummary:{withinBudget:'oui'}}, {usage:{total:{input:1.5}}},
+  {usage:{total:{cost:-1}}}, {usage:{pass1:[]}}, {abstain:'non'},
+  {recommendedSteps:[{...step('TEST'),course:{...step('TEST').course,durationHours:-1}}]},
+ ]){
+  const adapter=createPathwayAdapter({...settings,fetchImpl:async()=>json({...result(),...fields})})
+  await assert.rejects(adapter.buildPathway(profile,{confirmed:true,referenceRevision:contract.revision}),hasCode('invalid_response'))
+ }
+ const expected={...result(),abstain:false,durationSummary:{budgetHours:null,recommendedHours:7,excessHours:null,withinBudget:null},usage:{pass1:{input:10,output:2,cached:0,written:0,uncached:10,cost:0.00001},pass2:null,total:{input:10,output:2,cost:0.00001}}}
+ const adapter=createPathwayAdapter({...settings,fetchImpl:async()=>json(expected)})
+ assert.deepEqual((await adapter.buildPathway(profile,{confirmed:true,referenceRevision:contract.revision})).result,expected)
 })

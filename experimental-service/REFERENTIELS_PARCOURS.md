@@ -137,7 +137,10 @@ pas de test Safari, appareil physique, clavier tactile ou réseau institutionnel
 2. Le référentiel Infomaniak est déjà opérationnel : relevé SSH et contrôles HTTP
    200/304/CORS vérifiés le 18 octobre ; voir le guide de reprise du catalogue.
    Le mode local reste hors ligne et consomme son fichier explicitement configuré.
-3. Cadrer le raccordement serveur de l'adaptateur existant, encore désactivé.
+3. Le raccordement serveur est préparé dans `pathway-session.mjs`, sans activation,
+   route ou import par le simulateur ; voir [le plan](PLAN_ENVIRONNEMENT_TEST.md).
+   Délai et quotas explicites, profil figé, revalidation avant réservation, instance
+   unique et compteurs persistants sont testés avec des transports simulés.
 4. Valider la destination, l'accès, les quotas/budget, la concurrence, les délais,
    les réponses et le réseau avant tout essai réel.
 
