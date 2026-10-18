@@ -2,10 +2,10 @@
 import { createPilotAuthenticator } from './pilot-auth.mjs'
 import { createPrivatePathwayHandler } from './private-pathway-handler.mjs'
 
-export function createPilotPrivateHandler({ enabled = false, publicOrigin, session, users, maxAttempts, windowMs, isSecureRequest, now } = {}) {
+export function createPilotPrivateHandler({ enabled = false, publicOrigin, session, users, maxAttempts, windowMs, isSecureRequest, now, serveResource } = {}) {
   if (!enabled) return createPrivatePathwayHandler({ enabled })
   const access = createPilotAuthenticator({ enabled, users, maxAttempts, windowMs, isSecureRequest, now })
-  const gateway = createPrivatePathwayHandler({ enabled, publicOrigin, session, authenticate: access.authenticate, now })
+  const gateway = createPrivatePathwayHandler({ enabled, publicOrigin, session, authenticate: access.authenticate, now, serveResource })
   let stopped = false
   return {
     handler: gateway.handler,

@@ -2,7 +2,7 @@
 import { randomUUID } from 'node:crypto'
 
 export function createPrivatePathwayHandler({
-  enabled = false, publicOrigin, authenticate, session, now = Date.now,
+  enabled = false, publicOrigin, authenticate, session, now = Date.now, serveResource = null,
 } = {}) {
   if (typeof enabled !== 'boolean') throw Error('Activation booléenne requise')
   const send = (res, status, body) => {
@@ -15,7 +15,8 @@ export function createPrivatePathwayHandler({
   const origin = new URL(publicOrigin)
   if (origin.protocol !== 'https:' || origin.origin !== publicOrigin ||
       typeof authenticate !== 'function' || typeof session?.getReferences !== 'function' ||
-      typeof session?.buildPathway !== 'function' || typeof session?.stop !== 'function' || typeof now !== 'function') {
+      typeof session?.buildPathway !== 'function' || typeof session?.stop !== 'function' || typeof now !== 'function' ||
+      (serveResource !== null && typeof serveResource !== 'function')) {
     throw Error('Origine HTTPS, identité vérifiée côté serveur et session explicites requises')
   }
   let stopped = false
@@ -40,6 +41,7 @@ export function createPrivatePathwayHandler({
       const cancel = () => { if (!res.writableEnded) controller.abort() }
       res.on('close', cancel)
       try {
+        if (serveResource && await serveResource(req, res, { signal: controller.signal }) === true) return
         prune()
         if (req.method === 'GET' && req.url === '/private/profile-references') {
           if (tickets.size >= 32) return send(res, 429, { error: 'Trop de confirmations en attente' })

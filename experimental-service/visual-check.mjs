@@ -109,7 +109,7 @@ try {
  assert.equal(errors.length, 0, JSON.stringify(errors))
  assert.equal(external.length, 0, JSON.stringify(external))
  for (const measurement of measurements) assert.equal(measurement.horizontalOverflow, false)
- const pilotAccess = await checkPilotBrowser(browser)
+ const pilotAccess = await checkPilotBrowser(browser, output)
  const result = { pilotAccess, chromium: await browser.version(), revision: references.revision, browserErrors: errors, externalRequests: external,
   resultPreview: true, simulationRequests: requests.length, quota: guard.status().total, measurements }
  writeFileSync(join(output, 'avatar-visual-check.json'), JSON.stringify(result, null, 2))
