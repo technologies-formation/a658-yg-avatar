@@ -19,7 +19,9 @@ choix et exige une confirmation. Avant le POST, le navigateur obtient une confir
 serveur liée à l’identité et à la révision ; une révision différente bloque l’envoi
 et conserve les réponses. Une correction pendant l’échange invalide et annule le
 consommateur ; un résultat tardif est ignoré. Après erreur ou quota, la page ne se
-présente pas comme un succès et n’effectue aucune relance automatique.
+présente pas comme un succès et n’effectue aucune relance automatique. Le statut
+reste affiché hors du défilement de la conversation ; sur mobile le récapitulatif
+se replie après une réponse pour laisser davantage de place au résultat.
 
 Les réponses proviennent de `pilot-simulation.mjs`, qui n’importe ni l’adaptateur
 ni la session du moteur réel. Il relit un contrat local, valide un cliché du profil,
@@ -82,8 +84,22 @@ l’annulation, le contrat échappé, le service désactivé, la page et les mod
 sous HTTPS, le refus de chemins privés, le doublon, le quota, la révocation et l’arrêt.
 Les identifiants et certificats des tests sont synthétiques et temporaires.
 
-Le contrôle Chromium de cette révision sera consigné après publication. Il exerce
-le parcours privé complet sur ordinateur et mobile, en plus des contrôles précédents.
+Les [99 tests Node](https://github.com/technologies-formation/a658-yg-avatar/actions/runs/39164462051)
+et le [contrôle Chromium](https://github.com/technologies-formation/a658-yg-avatar/actions/runs/39164462058)
+réussissent au commit final de code `4a5d834ac665e555f520206c737a90f5cc4cc87a`
+(après l’assemblage initial `f563ffc76266276d97d62b0bf52e41bdf595c9b3`).
+Le rapport de l’artefact a été relu : page privée, trois simulations acceptées,
+une tentative refusée au quota, aucune requête automatique au rechargement,
+brouillon restauré et libellé de choix actualisé sans perte du code.
+Aucune erreur navigateur ni requête distante, aucun débordement horizontal aux
+formats 1280 × 900 et 390 × 844. L’essai d’accès HTTPS précédent et les cinq
+simulations du questionnaire historique passent aussi en régression.
+Les cinq captures privées sont dans l’artefact `avatar-browser-simulation`
+(rétention 14 jours). Les trois captures finales du résultat ordinateur/mobile
+et du quota mobile ont été examinées : aucun problème bloquant observé.
+Ce contrôle ne couvre pas Safari, les appareils physiques, le clavier tactile,
+la confiance du certificat sur le PC de l’utilisateur, Infomaniak ou le réseau
+institutionnel. Les certificats/identifiants restent synthétiques et temporaires.
 Coût OpenAI API : 0 token / 0 $. Quota de travail Codex distinct.
 
 ## Point de reprise

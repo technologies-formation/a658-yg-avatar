@@ -1,5 +1,7 @@
 # A658-YG Avatar — préparation de l'environnement d'essai
 
+> Jalon historique : les constats ci-dessous décrivent cette étape. La page et le serveur HTTPS local ont depuis été assemblés en simulation ; voir [SERVEUR_PRIVE_SIMULATION.md](SERVEUR_PRIVE_SIMULATION.md). Aucun déploiement distant ni raccordement réel n’en découle.
+
 Statut : **préparation uniquement, aucun déploiement autorisé par ce document**.
 
 ## État vérifié

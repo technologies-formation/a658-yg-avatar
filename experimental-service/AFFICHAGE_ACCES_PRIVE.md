@@ -1,5 +1,7 @@
 # Avatar — affichage du parcours et accès privé préparés
 
+> Jalon historique : les constats ci-dessous décrivent cette étape. La page et le serveur HTTPS local ont depuis été assemblés en simulation ; voir [SERVEUR_PRIVE_SIMULATION.md](SERVEUR_PRIVE_SIMULATION.md). Aucun déploiement distant ni raccordement réel n’en découle.
+
 Jalon du 18 octobre 2026. Branche existante `feat/avatar-interactive-local`.
 Statut : préparation et essais hors ligne uniquement ; aucun hébergement ni appel
 au backend catalogue ou à OpenAI activé par ce jalon.
