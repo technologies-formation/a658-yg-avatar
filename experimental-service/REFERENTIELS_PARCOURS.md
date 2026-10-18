@@ -116,12 +116,24 @@ pas un benchmark indépendant du moteur. Aucun appel OpenAI : 0 token / 0 $.
 
 Le second jalon ajoute huit cas : confirmation, brouillon restauré ou corrompu,
 stockage indisponible, changement de libellé, retrait de choix, contraintes réduites,
-échec d’actualisation, réponse tardive, 409 et conservation des quotas. Le contrôle
-Chromium de ce nouveau flux est à vérifier séparément de celui du jalon précédent.
+échec d’actualisation, réponse tardive, 409 et conservation des quotas.
+
+Le contrôle du nouveau flux a réussi au commit `045a0c48b5ca77831a0c6316f64de09fe8071dc7` :
+[Chromium 39142566949](https://github.com/technologies-formation/a658-yg-avatar/actions/runs/39142566949)
+et [60 tests Node 39142566897](https://github.com/technologies-formation/a658-yg-avatar/actions/runs/39142566897).
+Les sept captures ont été examinées en 1280 × 900 et 390 × 844 : saisie, confirmation,
+restauration, retrait de choix, correction et fin de simulation sont utilisables.
+Le défilement mobile garde la fin de l'échange visible quand le récapitulatif s'ouvre.
+Cinq simulations explicitement confirmées, quota de cinq, aucune erreur navigateur,
+aucune requête externe et aucun débordement horizontal. La zone de saisie est masquée
+pendant la vérification du profil et les réponses facultatives vides sont affichées
+« Non renseigné ». Les captures et mesures sont dans `avatar-browser-simulation`,
+rétention de 14 jours. Les limites Chromium du premier jalon restent applicables :
+pas de test Safari, appareil physique, clavier tactile ou réseau institutionnel.
 
 ## Suite à cadrer
 
-1. Vérifier le nouveau flux de confirmation et de reprise dans Chromium ordinateur/mobile.
+1. Le nouveau flux de confirmation et de reprise est vérifié dans Chromium ordinateur/mobile.
 2. Le référentiel Infomaniak est déjà opérationnel : relevé SSH et contrôles HTTP
    200/304/CORS vérifiés le 18 octobre ; voir le guide de reprise du catalogue.
    Le mode local reste hors ligne et consomme son fichier explicitement configuré.
