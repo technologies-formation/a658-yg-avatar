@@ -4,18 +4,21 @@ import assert from 'node:assert/strict'
 import { createPathwayAdapter, PathwayAdapterError } from './pathway-adapter.mjs'
 import { PROFILE_FIELD_LIMITS } from './profile-validation.mjs'
 import { validateRequest } from './server.mjs'
+import { references } from './reference-test-fixtures.mjs'
 
 const profile = {
   personnelCategory: 'PAT', entity: 'OPE', managerStatus: 'Nouveau manager',
   role: 'Conseiller', objective: 'Developper mes competences', existingSkills: 'Bases',
   timeAvailable: 'Deux jours', constraints: 'Aucune',
 }
+const contract = references(x => {
+  x.pathway.fields.personnelCategory.options = [{ value: 'PAT', label: 'Groupe A' }, { value: 'PE', label: 'Groupe B' }]
+  x.pathway.fields.managerStatus.options = [{ value: 'Nouveau manager', label: 'Situation A' }]
+})
 const settings = {
+  referencesClient: { refresh: async () => contract, getCurrent: () => contract },
   enabled: true,
   endpoint: 'https://catalogue.example.invalid/api/pathway',
-  allowedPersonnelCategories: ['PAT', 'PE'],
-  allowedEntities: ['OPE'],
-  allowedManagerStatuses: ['Nouveau manager'],
 }
 function step(code) {
   return {
@@ -38,7 +41,7 @@ test('adaptateur desactive par defaut : aucun transport, aucune URL requise', as
   let calls = 0
   const adapter = createPathwayAdapter({ fetchImpl: () => { calls++; throw Error('Envoi interdit') } })
   assert.equal(adapter.enabled, false)
-  await assert.rejects(adapter.buildPathway(profile, { confirmed: true }), hasCode('disabled'))
+  await assert.rejects(adapter.buildPathway(profile, { confirmed: true, referenceRevision: contract.revision }), hasCode('disabled'))
   assert.equal(calls, 0)
 })
 
@@ -49,8 +52,7 @@ test('activation explicite : URL fixe HTTPS, delai et politiques obligatoires', 
     { endpoint: 'https://catalogue.example.invalid/api/search' },
     { endpoint: 'https://user:secret@catalogue.example.invalid/api/pathway' },
     { endpoint: settings.endpoint + '?token=test' }, { endpoint: settings.endpoint + '#fragment' },
-    { allowedPersonnelCategories: [] }, { allowedEntities: [' OPE'] },
-    { allowedManagerStatuses: null }, { timeoutMs: 0 }, { timeoutMs: 120001 }, { fetchImpl: null },
+    { referencesClient: null }, { referencesClient: { refresh() {} } }, { timeoutMs: 0 }, { timeoutMs: 120001 }, { fetchImpl: null },
   ]) {
     assert.throws(() => createPathwayAdapter({ ...settings, fetchImpl: transport, ...override }), hasCode('configuration'))
   }
@@ -79,7 +81,7 @@ test('contrat HTTP : profil seul, huit champs, aucun secret ni redirection', asy
     assert.equal(options.signal.aborted, false)
     return json(expected)
   } })
-  const actual = await adapter.buildPathway(profile, { confirmed: true })
+  const actual = await adapter.buildPathway(profile, { confirmed: true, referenceRevision: contract.revision })
   assert.equal(actual.mode, 'historical-pathway')
   assert.equal(actual.empty, false)
   assert.deepEqual(actual.result, expected)
@@ -93,20 +95,19 @@ test('champs optionnels absents et espaces : profil normalise sans mutation', as
     assert.deepEqual(JSON.parse(options.body), { personnelCategory: 'PAT', role: 'Conseiller', objective: 'Apprendre la gestion' })
     return json(result())
   } })
-  await adapter.buildPathway(input, { confirmed: true })
+  await adapter.buildPathway(input, { confirmed: true, referenceRevision: contract.revision })
   assert.deepEqual(input, saved)
 })
 
 test('validation des huit champs, des obligatoires et refus des enveloppes', async () => {
   let calls = 0
   const adapter = createPathwayAdapter({ ...settings, fetchImpl: () => { calls++ } })
-  const invalidProfiles = [null, [], {}, { type: 'pathway', profile }, { ...profile, unexpected: 'valeur' },
-    { ...profile, role: 'x' }, { ...profile, objective: 'court' }, { ...profile, role: ' ' }]
+  const invalidProfiles = [null, [], {}, { type: 'pathway', profile },  { ...profile, role: ' ' }]
   for (const [field, limit] of Object.entries(PROFILE_FIELD_LIMITS)) {
     invalidProfiles.push({ ...profile, [field]: 42 }, { ...profile, [field]: 'x'.repeat(limit + 1) })
   }
   for (const input of invalidProfiles) {
-    await assert.rejects(adapter.buildPathway(input, { confirmed: true }), hasCode('invalid_profile'))
+    await assert.rejects(adapter.buildPathway(input, { confirmed: true, referenceRevision: contract.revision }), hasCode('invalid_profile'))
   }
   assert.equal(calls, 0)
   assert.match(validateRequest({ type: 'pathway', profile: { ...profile, entity: 'x'.repeat(121) } }), /entity/)
@@ -118,9 +119,9 @@ test('nomenclatures non validees : blocage sans conversion ni appel', async () =
   const adapter = createPathwayAdapter({ ...settings, fetchImpl: () => { calls++ } })
   for (const changes of [
     { personnelCategory: 'PU Police' }, { personnelCategory: 'POL' }, { personnelCategory: '' },
-    { personnelCategory: undefined }, { entity: 'DIP' }, { managerStatus: 'Manager experimente' },
+    { personnelCategory: undefined }, { managerStatus: 'Manager experimente' },
   ]) {
-    await assert.rejects(adapter.buildPathway({ ...profile, ...changes }, { confirmed: true }), hasCode('unvalidated_value'))
+    await assert.rejects(adapter.buildPathway({ ...profile, ...changes }, { confirmed: true, referenceRevision: contract.revision }), error => hasCode('unvalidated_value')(error) || hasCode('invalid_profile')(error))
   }
   assert.equal(calls, 0)
 })
@@ -132,7 +133,7 @@ test('HTTP en erreur : statut conserve sans exposer le corps ni relancer', async
       calls++
       return new Response('Contenu prive a ne pas exposer', { status })
     } })
-    await assert.rejects(adapter.buildPathway(profile, { confirmed: true }), error =>
+    await assert.rejects(adapter.buildPathway(profile, { confirmed: true, referenceRevision: contract.revision }), error =>
       hasCode('http_error')(error) && error.status === status && !error.message.includes('prive'))
     assert.equal(calls, 1)
   }
@@ -140,7 +141,7 @@ test('HTTP en erreur : statut conserve sans exposer le corps ni relancer', async
 
 test('indisponibilite du transport : erreur generique sans fuite du profil', async () => {
   const adapter = createPathwayAdapter({ ...settings, fetchImpl: async () => { throw Error('Secret reseau') } })
-  await assert.rejects(adapter.buildPathway(profile, { confirmed: true }), error =>
+  await assert.rejects(adapter.buildPathway(profile, { confirmed: true, referenceRevision: contract.revision }), error =>
     hasCode('unavailable')(error) && !error.message.includes('Secret'))
 })
 
@@ -152,7 +153,7 @@ test('reponses absentes, non JSON ou mal formees refusees', async () => {
     new Response('<html>Erreur</html>'), json(null), json({}), json([]),
   ]) {
     const adapter = createPathwayAdapter({ ...settings, fetchImpl: async () => response })
-    await assert.rejects(adapter.buildPathway(profile, { confirmed: true }), error =>
+    await assert.rejects(adapter.buildPathway(profile, { confirmed: true, referenceRevision: contract.revision }), error =>
       error.code === 'empty_response' || error.code === 'invalid_response')
   }
 })
@@ -160,7 +161,7 @@ test('reponses absentes, non JSON ou mal formees refusees', async () => {
 test('parcours sans recommandation : vide explicite, limites conservees, aucun cours invente', async () => {
   const empty = { ok: true, summary: 'Aucune correspondance', recommendedSteps: [], optionalSteps: [], informationalCourses: [], gaps: ['Catalogue insuffisant'] }
   const adapter = createPathwayAdapter({ ...settings, fetchImpl: async () => json(empty) })
-  const actual = await adapter.buildPathway(profile, { confirmed: true })
+  const actual = await adapter.buildPathway(profile, { confirmed: true, referenceRevision: contract.revision })
   assert.equal(actual.empty, true)
   assert.deepEqual(actual.result, empty)
 })
@@ -168,7 +169,7 @@ test('parcours sans recommandation : vide explicite, limites conservees, aucun c
 test('compatibilite steps : les anciennes categories et liens restent inchanges', async () => {
   const legacy = { ok: true, summary: 'Parcours historique', steps: [step('TEST-004')] }
   const adapter = createPathwayAdapter({ ...settings, fetchImpl: async () => json(legacy) })
-  assert.deepEqual((await adapter.buildPathway(profile, { confirmed: true })).result, legacy)
+  assert.deepEqual((await adapter.buildPathway(profile, { confirmed: true, referenceRevision: contract.revision })).result, legacy)
 })
 
 test('formations, categories et liens dangereux non conformes refuses', async () => {
@@ -184,7 +185,7 @@ test('formations, categories et liens dangereux non conformes refuses', async ()
     { ...result(), recommendedSteps: [{ ...step('TEST-001'), course: { title: 'Sans code' } }] },
   ]) {
     const adapter = createPathwayAdapter({ ...settings, fetchImpl: async () => json(bad) })
-    await assert.rejects(adapter.buildPathway(profile, { confirmed: true }), hasCode('invalid_response'))
+    await assert.rejects(adapter.buildPathway(profile, { confirmed: true, referenceRevision: contract.revision }), hasCode('invalid_response'))
   }
 })
 
@@ -195,7 +196,8 @@ test('delai total borne y compris si le transport ignore AbortSignal', async t =
     transportSignal = options.signal
     return new Promise(() => {})
   } })
-  const pending = adapter.buildPathway(profile, { confirmed: true })
+  const pending = adapter.buildPathway(profile, { confirmed: true, referenceRevision: contract.revision })
+  await new Promise(resolve => setImmediate(resolve))
   const rejected = assert.rejects(pending, hasCode('timeout'))
   t.mock.timers.tick(100)
   await rejected
@@ -203,9 +205,36 @@ test('delai total borne y compris si le transport ignore AbortSignal', async t =
   const abortingTransport = createPathwayAdapter({ ...settings, timeoutMs: 100, fetchImpl: (_, options) =>
     new Promise((_, reject) => options.signal.addEventListener('abort', () => reject(Error('Transport annule')), { once: true })),
   })
-  const abortingRequest = assert.rejects(abortingTransport.buildPathway(profile, { confirmed: true }), hasCode('timeout'))
+  const abortingRequest = assert.rejects(abortingTransport.buildPathway(profile, { confirmed: true, referenceRevision: contract.revision }), hasCode('timeout'))
+  await new Promise(resolve => setImmediate(resolve))
   t.mock.timers.tick(100)
   await abortingRequest
+})
+
+test('référentiel indisponible ou révision modifiée : aucun appel parcours et profil conservé', async () => {
+  let calls = 0
+  const input = { ...profile }
+  for (const referencesClient of [
+    { refresh: async () => { throw Error('Secret de transport') }, getCurrent: () => contract },
+    { refresh: async () => references(), getCurrent: () => references() },
+    { refresh: async () => contract, getCurrent: () => { throw Error('Cache obsolète') } },
+  ]) {
+    const adapter = createPathwayAdapter({ ...settings, referencesClient, fetchImpl: () => { calls++ } })
+    await assert.rejects(adapter.buildPathway(input, { confirmed: true, referenceRevision: contract.revision }),
+      error => ['references_unavailable', 'references_changed'].includes(error.code) && !error.message.includes('Secret'))
+  }
+  assert.deepEqual(input, profile)
+  assert.equal(calls, 0)
+})
+
+test('entité libre, champs courts et propriétés additives suivent le contrat du catalogue', async () => {
+  const input = { personnelCategory: 'PAT', entity: 'Mon service libre', role: ' x ', objective: ' y ', unexpected: 'ignoré', constraints: null }
+  const adapter = createPathwayAdapter({ ...settings, fetchImpl: async (_, options) => {
+    assert.deepEqual(JSON.parse(options.body), { personnelCategory: 'PAT', entity: 'Mon service libre', role: 'x', objective: 'y' })
+    return json(result())
+  } })
+  await adapter.buildPathway(input, { confirmed: true, referenceRevision: contract.revision })
+  assert.equal(input.unexpected, 'ignoré')
 })
 
 test('delai total couvre aussi un corps de reponse qui reste en attente', async t => {
@@ -213,7 +242,8 @@ test('delai total couvre aussi un corps de reponse qui reste en attente', async 
   const adapter = createPathwayAdapter({ ...settings, timeoutMs: 100, fetchImpl: async () => ({
     ok: true, status: 200, headers: new Headers({ 'Content-Type': 'application/json' }), json: () => new Promise(() => {}),
   }) })
-  const pending = adapter.buildPathway(profile, { confirmed: true })
+  const pending = adapter.buildPathway(profile, { confirmed: true, referenceRevision: contract.revision })
+  await new Promise(resolve => setImmediate(resolve))
   const rejected = assert.rejects(pending, hasCode('timeout'))
   await Promise.resolve()
   t.mock.timers.tick(100)
@@ -231,11 +261,12 @@ test('annulation : aucun appel si deja annule et aucune reponse tardive livree',
   } })
   const controller = new AbortController()
   controller.abort()
-  await assert.rejects(adapter.buildPathway(profile, { confirmed: true, signal: controller.signal }), hasCode('cancelled'))
+  await assert.rejects(adapter.buildPathway(profile, { confirmed: true, referenceRevision: contract.revision, signal: controller.signal }), hasCode('cancelled'))
   assert.equal(calls, 0)
   const current = new AbortController()
-  const pending = adapter.buildPathway(profile, { confirmed: true, signal: current.signal })
+  const pending = adapter.buildPathway(profile, { confirmed: true, referenceRevision: contract.revision, signal: current.signal })
   const rejected = assert.rejects(pending, hasCode('cancelled'))
+  await new Promise(resolve => setImmediate(resolve))
   current.abort()
   reply(json(result()))
   await rejected

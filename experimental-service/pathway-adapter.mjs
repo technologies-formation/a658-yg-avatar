@@ -1,6 +1,6 @@
 // Preparation serveur uniquement : aucun import par le simulateur ou le navigateur.
 // L'activation et toutes les nomenclatures exigent une configuration explicite.
-import { PROFILE_FIELD_LIMITS, validateProfileFields } from './profile-validation.mjs'
+import { normalizePathwayProfile } from './profile-references.mjs'
 
 export class PathwayAdapterError extends Error {
   constructor(code, message, status) {
@@ -13,13 +13,6 @@ export class PathwayAdapterError extends Error {
 
 function fail(code, message, status) {
   throw new PathwayAdapterError(code, message, status)
-}
-
-function validatedValues(values) {
-  if (!Array.isArray(values) || values.some(value => typeof value !== 'string' || !value || value !== value.trim())) {
-    fail('configuration', 'Nomenclature autorisee invalide')
-  }
-  return new Set(values)
 }
 
 function officialLink(value) {
@@ -62,14 +55,12 @@ function validateResult(data) {
 export function createPathwayAdapter({
   enabled = false,
   endpoint = '',
-  allowedPersonnelCategories = [],
-  allowedEntities = [],
-  allowedManagerStatuses = [],
+  referencesClient = null,
   timeoutMs = 10_000,
   fetchImpl = globalThis.fetch,
 } = {}) {
   if (typeof enabled !== 'boolean') fail('configuration', 'Activation booleenne explicite requise')
-  let url, categories, entities, managerStatuses
+  let url
   if (enabled) {
     try { url = new URL(endpoint) } catch { fail('configuration', 'URL parcours explicite requise') }
     if (url.protocol !== 'https:' || url.pathname !== '/api/pathway' || url.username || url.password || url.search || url.hash) {
@@ -78,31 +69,35 @@ export function createPathwayAdapter({
     if (!Number.isInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 120_000 || typeof fetchImpl !== 'function') {
       fail('configuration', 'Transport ou delai invalide')
     }
-    categories = validatedValues(allowedPersonnelCategories)
-    entities = validatedValues(allowedEntities)
-    managerStatuses = validatedValues(allowedManagerStatuses)
-    if (!categories.size) fail('configuration', 'Aucune categorie de personnel explicitement validee')
+    if (typeof referencesClient?.refresh !== 'function' || typeof referencesClient?.getCurrent !== 'function') {
+      fail('configuration', 'Lecteur de référentiels explicite requis')
+    }
   }
 
   return {
     enabled,
-    async buildPathway(profile, { confirmed = false, signal } = {}) {
+    async buildPathway(profile, { confirmed = false, referenceRevision, signal } = {}) {
       if (!enabled) fail('disabled', 'Adaptateur historique desactive')
       if (confirmed !== true) fail('unconfirmed', 'Confirmation explicite du profil requise')
-      const issue = validateProfileFields(profile)
-      if (issue) fail('invalid_profile', issue)
-      if (Object.keys(profile).some(field => !Object.hasOwn(PROFILE_FIELD_LIMITS, field))) {
-        fail('invalid_profile', 'Champ de profil inconnu')
+      if (signal?.aborted) fail('cancelled', 'Demande annulee')
+      if (typeof referenceRevision !== 'string' || !/^[a-f0-9]{64}$/.test(referenceRevision)) {
+        fail('references_changed', 'Choix à actualiser et confirmer avant envoi')
       }
-      const normalized = Object.fromEntries(Object.keys(PROFILE_FIELD_LIMITS)
-        .filter(field => typeof profile[field] === 'string' && profile[field].trim())
-        .map(field => [field, profile[field].trim()]))
-      if (!categories.has(normalized.personnelCategory) ||
-          (normalized.entity && !entities.has(normalized.entity)) ||
-          (normalized.managerStatus && !managerStatuses.has(normalized.managerStatus))) {
-        fail('unvalidated_value', 'Valeur de nomenclature non explicitement validee')
+      let references
+      try {
+        references = await referencesClient.refresh({ signal })
+        if (referencesClient.getCurrent().revision !== references.revision) throw new Error('Référentiel obsolète')
+      } catch {
+        if (signal?.aborted) fail('cancelled', 'Demande annulee')
+        fail('references_unavailable', 'Référentiel indisponible ou incompatible ; brouillon conservé')
       }
       if (signal?.aborted) fail('cancelled', 'Demande annulee')
+      if (referenceRevision !== references.revision) fail('references_changed', 'Choix modifiés : nouvelle confirmation requise')
+      let normalized
+      try { normalized = normalizePathwayProfile(profile, references) }
+      catch (error) {
+        fail(error.code === 'removed_value' ? 'unvalidated_value' : 'invalid_profile', error.message)
+      }
 
       const controller = new AbortController()
       let timer, onAbort

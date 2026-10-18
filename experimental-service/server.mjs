@@ -3,20 +3,26 @@ import http from 'node:http'
 import { timingSafeEqual, randomUUID } from 'node:crypto'
 import { readFileSync, writeFileSync, renameSync, unlinkSync } from 'node:fs'
 import { validateProfileFields } from './profile-validation.mjs'
+import { normalizePathwayProfile, validateProfileReferences } from './profile-references.mjs'
 
 const MAX_BODY_BYTES = 16_000
 const DAY_MS = 86_400_000
 const CATEGORIES = new Set(['PAT', 'PE', 'PU Police', 'PU Prison', 'PJ'])
 const REQUEST_TYPES = new Set(['search', 'pathway'])
 
-export function validateRequest(body) {
+export function validateRequest(body, { profileReferences = null } = {}) {
   if (!body || typeof body !== 'object' || Array.isArray(body)) return 'Corps JSON invalide'
   if (!REQUEST_TYPES.has(body.type)) return 'Type de demande invalide'
   if (!body.profile || typeof body.profile !== 'object' || Array.isArray(body.profile)) return 'Profil invalide'
   const profile = body.profile
-  if (!CATEGORIES.has(profile.personnelCategory)) return 'Categorie de personnel invalide'
-  const profileIssue = validateProfileFields(profile)
-  if (profileIssue) return profileIssue
+  if (profileReferences) {
+    try { normalizePathwayProfile(profile, profileReferences) }
+    catch (error) { return error.message }
+  } else {
+    if (!CATEGORIES.has(profile.personnelCategory)) return 'Categorie de personnel invalide'
+    const profileIssue = validateProfileFields(profile)
+    if (profileIssue) return profileIssue
+  }
   if (body.type === 'search' && (typeof body.query !== 'string' || !body.query.trim() || body.query.length > 1000)) return 'Recherche invalide'
   return null
 }
@@ -28,7 +34,8 @@ export function safeEqual(a, b) {
   return x.length === y.length && timingSafeEqual(x, y)
 }
 
-export function createGuard({ token, maxDailyRequests = 5, maxTotalRequests = 20, now = Date.now, stateFile = '', enabled = () => true } = {}) {
+export function createGuard({ token, maxDailyRequests = 5, maxTotalRequests = 20, now = Date.now, stateFile = '', enabled = () => true, profileReferences = null } = {}) {
+  const references = profileReferences === null ? null : validateProfileReferences(profileReferences)
   if (typeof token !== 'string' || token.length < 32) throw new Error('AVATAR_TEST_TOKEN doit contenir au moins 32 caracteres')
   if (!Number.isInteger(maxDailyRequests) || maxDailyRequests < 1 || !Number.isInteger(maxTotalRequests) || maxTotalRequests < 1) throw new Error('Quotas invalides')
   let state = { day: Math.floor(now() / DAY_MS), daily: 0, total: 0, stopped: false }
@@ -62,7 +69,7 @@ export function createGuard({ token, maxDailyRequests = 5, maxTotalRequests = 20
     check(auth, body) {
       if (state.stopped || !enabled()) return { status: 503, error: 'Service desactive' }
       if (!safeEqual(auth, token)) return { status: 401, error: 'Acces refuse' }
-      const issue = validateRequest(body)
+      const issue = validateRequest(body, { profileReferences: references })
       if (issue) return { status: 400, error: issue }
       const day = Math.floor(now() / DAY_MS)
       if ((day === state.day ? state.daily : 0) >= maxDailyRequests || state.total >= maxTotalRequests) return { status: 429, error: 'Quota atteint' }

@@ -22,6 +22,7 @@ function frontendPayload(type, personnelCategory) {
     return match[0]
   })
   const context = {
+    referenceFields: null,
     profiles: ['PAT', 'PE', 'PU Police', 'PU Prison', 'PJ'],
     categoryCodes: ['PAT', 'PE', 'PU Police', 'PU Prison', 'PJ'],
     answers: {

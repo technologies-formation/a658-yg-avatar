@@ -4,6 +4,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createLocalDemo } from './local-demo.mjs'
+import { references } from './reference-test-fixtures.mjs'
 
 test('interface interactive locale : aucune cle dans la page, validation et quotas', async()=>{
  const dir=mkdtempSync(join(tmpdir(),'avatar-local-'))
@@ -31,6 +32,25 @@ test('interface interactive locale : aucune cle dans la page, validation et quot
   await new Promise(resolve=>server.close(resolve))
   rmSync(dir,{recursive:true,force:true})
  }
+})
+
+test('simulation référencée : révision périmée refusée avant quota et libellés échappés', async () => {
+ const contract=references(x=>{x.pathway.fields.personnelCategory.options[0].label='</script><script>alerte</script>'})
+ const port=19000+Math.floor(Math.random()*20000)
+ const {server,guard,origin}=createLocalDemo({port,stateFile:'',profileReferences:contract})
+ try{
+  await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(port,'127.0.0.1',resolve)})
+  const page=await(await fetch(origin)).text()
+  assert.doesNotMatch(page,/<\/script><script>alerte/)
+  assert.equal((page.match(/<script>/g)||[]).length,1)
+  const body={type:'pathway',profile:{personnelCategory:'TEST-A',role:'x',objective:'y'},referenceRevision:'ancienne'}
+  const request=()=>fetch(origin+'/local/validate',{method:'POST',headers:{'Content-Type':'application/json',Origin:origin},body:JSON.stringify(body)})
+  assert.equal((await request()).status,409)
+  assert.equal(guard.status().total,0)
+  body.referenceRevision=contract.revision
+  assert.equal((await request()).status,200)
+  assert.equal(guard.status().total,1)
+ }finally{await new Promise(resolve=>server.close(resolve))}
 })
 
 test('quotas locaux personnalisables et valeurs invalides', async()=>{

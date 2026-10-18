@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs'
 import { runInNewContext } from 'node:vm'
 import { createLocalDemo } from './local-demo.mjs'
 import { createGuard } from './server.mjs'
+import { references } from './reference-test-fixtures.mjs'
 
 const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8')
 
@@ -27,9 +28,9 @@ class Element {
 function questionnaire(page = html, fetch = () => { throw new Error('Envoi inattendu') }) {
   const ids = Object.fromEntries(['chat', 'form', 'input', 'reset', 'details'].map(id => [id, new Element()]))
   const send = new Element('button'); send.type = 'submit'; ids.form.append(ids.input); ids.form.append(send)
-  for (const key of ['profile', 'intent', 'role', 'objective', 'skills', 'time', 'constraints']) {
+  for (const key of ['profile', 'entity', 'manager', 'intent', 'role', 'objective', 'skills', 'time', 'constraints']) {
     const fact = new Element(), label = new Element('span'), value = new Element('strong')
-    label.textContent = key; fact.append(label); fact.append(value); ids['sum-' + key] = value
+    label.textContent = key; fact.append(label); fact.append(value); ids['sum-' + key] = value; ids['fact-' + key] = fact
   }
   const document = { querySelector: selector => ids[selector.slice(1)], getElementById: id => ids[id], createElement: tag => new Element(tag) }
   runInNewContext(page.match(/<script>([\s\S]*?)<\/script>/)[1], { document, matchMedia: () => ({ matches: false }), fetch })
@@ -64,6 +65,65 @@ test('correction en cours : pre remplissage, conservation et reprise avec le bro
   assert.match(app.messages(), /Quel objectif souhaites-tu atteindre \?$/)
   app.submit('Apprendre la gestion de projet')
   assert.equal(app.value('objective'), 'Apprendre la gestion de projet')
+})
+
+test('questionnaire référencé : choix du contrat, huit champs et corrections sans nouvel envoi', async () => {
+  const contract = references()
+  const port = 19000 + Math.floor(Math.random() * 20000)
+  const { server, origin, guard } = createLocalDemo({ port, stateFile: '', profileReferences: contract })
+  await new Promise((resolve, reject) => { server.once('error', reject); server.listen(port, '127.0.0.1', resolve) })
+  try {
+    const page = await (await fetch(origin)).text()
+    const payloads = [], requests = []
+    const localFetch = (url, options) => {
+      payloads.push(JSON.parse(options.body))
+      const request = fetch(origin + url, { ...options, headers: { ...options.headers, Origin: origin } })
+      requests.push(request)
+      return request
+    }
+    const app = questionnaire(page, localFetch)
+    app.choose('Groupe de test A')
+    app.choose('Entité de test'); app.choose('Situation de test'); app.choose('Construire un parcours')
+    app.submit('x'); app.submit('y')
+    app.choose('Quelques bases'); app.choose('1 à 2 jours'); app.choose('Aucune')
+    assert.equal(payloads.length, 1)
+    assert.equal((await requests[0]).status, 200)
+    assert.equal(payloads[0].referenceRevision, contract.revision)
+    assert.deepEqual(payloads[0].profile, {
+      personnelCategory: 'TEST-A', entity: 'TEST-ENTITY', managerStatus: 'TEST-MANAGER',
+      role: 'x', objective: 'y', existingSkills: 'Quelques bases', timeAvailable: '1 à 2 jours', constraints: 'Aucune',
+    })
+    app.edit('entity'); app.submit('Mon service libre')
+    assert.equal(app.value('role'), 'x')
+    assert.equal(payloads.length, 1)
+    app.choose('Actualiser la simulation')
+    assert.equal(payloads[1].profile.entity, 'Mon service libre')
+    assert.equal((await requests[1]).status, 200)
+    assert.equal(guard.status().total, 2)
+  } finally { await new Promise(resolve => server.close(resolve)) }
+})
+
+test('questionnaire référencé : champs facultatifs laissés vides, champs courts et limites dynamiques', async () => {
+  const contract = references(x => { x.pathway.fields.role.maxLength = 5 })
+  const port = 19000 + Math.floor(Math.random() * 20000)
+  const { server, origin } = createLocalDemo({ port, stateFile: '', profileReferences: contract })
+  await new Promise((resolve, reject) => { server.once('error', reject); server.listen(port, '127.0.0.1', resolve) })
+  try {
+    const page = await (await fetch(origin)).text()
+    let payload
+    const app = questionnaire(page, async (_url, options) => {
+      payload = JSON.parse(options.body)
+      return { ok: true, json: async () => ({ message: 'Simulation', quota: { total: 1, maxTotalRequests: 20 } }) }
+    })
+    app.choose('Groupe de test B')
+    assert.equal(app.ids.input.required, false)
+    app.submit(''); app.submit(''); app.choose('Construire un parcours')
+    app.submit('x'); app.submit('y'); app.submit(''); app.submit(''); app.submit('')
+    assert.deepEqual(payload.profile, { personnelCategory: 'TEST-B', role: 'x', objective: 'y' })
+    app.edit('role'); assert.equal(app.ids.input.maxLength, 5)
+    app.submit('123456'); assert.equal(app.value('role'), 'x'); app.cancel()
+    assert.equal(app.value('objective'), 'y')
+  } finally { await new Promise(resolve => server.close(resolve)) }
 })
 
 test('annulation et correction invalide conservent la reponse et la simulation', () => {

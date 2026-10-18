@@ -35,63 +35,85 @@ Le service refuse toute validation si `AVATAR_TEST_ENABLED` n'est pas `true`. Po
 
 Aucune connexion externe n'est necessaire pour ces tests.
 
-## Jalon 1 : adaptateur historique prepare, non active
+## Jalon du 18 octobre : contrat des référentiels
 
-`pathway-adapter.mjs` prepare un appel serveur `POST /api/pathway` avec le profil
-JSON directement dans le corps. Il n'est importe ni par `local-demo.mjs`, ni par
-`server.mjs`, ni par la page. Le simulateur reste le seul fonctionnement expose.
-La presence de ce module ne permet donc pas d'appeler le moteur depuis l'interface.
+Le mode avec référentiel est décrit dans [REFERENTIELS_PARCOURS.md](REFERENTIELS_PARCOURS.md).
+Il charge un document produit par le catalogue, valide sa version et son empreinte,
+puis en déduit les choix, contraintes et huit champs du questionnaire. Il n'utilise
+pas les listes historiques du simulateur comme référentiel métier.
 
-Reference du contrat etudie : `technologies-formation/catalogue-formations`, commit
-`3efb6c40ec8c42229ccb30611d489aeb9f25fbd1`, interfaces `server/pathwayAssistant.mjs`,
-`server/searchApi.mjs` et `src/components/PathwayAssistant.jsx`. L'implementation
-Luna n'a pas ete reprise. Aucun catalogue ni moteur n'est duplique.
+Pour préparer le fichier **hors ligne**, depuis le dépôt catalogue, à une révision
+contenant `server/profileReferences.mjs` :
 
-La fabrique `createPathwayAdapter()` est desactivee par defaut, sans URL ni secret.
-Elle ne lit aucune variable d'environnement et n'effectue rien a l'import.
-Une activation ulterieure exige un GO distinct puis une integration serveur avec :
+```bash
+node --input-type=module -e "import {writeFileSync} from 'node:fs'; import {buildProfileReferences} from './server/profileReferences.mjs'; writeFileSync('../avatar-profile-references.json', JSON.stringify(buildProfileReferences()))"
+```
 
-- `enabled: true`, une URL HTTPS explicite dont le chemin est `/api/pathway`, sans
-  identifiants, parametres ni fragment ; aucune adresse de production par defaut ;
-- des listes `allowedPersonnelCategories`, `allowedEntities` et
-  `allowedManagerStatuses` validees par le metier ; aucune conversion automatique
-  entre `PU Police` et `POL`, par exemple. La liste des categories doit etre non vide.
-  Les deux autres listes peuvent rester vides : une valeur renseignee sera alors refusee ;
-- un transport HTTP, `fetchImpl` (fetch Node par defaut), et un delai `timeoutMs`
-  compris entre 1 et 120 000 ms (10 000 ms par defaut) ;
-- un appel `buildPathway(profile, { confirmed: true, signal })` uniquement apres
-  confirmation explicite du profil. La confirmation est une precondition logicielle,
-  pas une authentification ni une preuve de consentement cote serveur.
+Conserver ce fichier de session hors des dépôts et ne pas le modifier à la main.
+Depuis le dépôt avatar, activer ce mode avec le chemin du fichier :
 
-Les huit champs prepares sont `personnelCategory`, `entity`, `managerStatus`,
-`role`, `objective`, `existingSkills`, `timeAvailable` et `constraints`. La categorie,
-la fonction (minimum 2 caracteres) et l'objectif (minimum 10) sont obligatoires.
-Les limites de longueur sont partagees avec le simulateur dans `profile-validation.mjs`.
-Les champs inconnus, types invalides et valeurs de nomenclature non autorisees sont refuses
-avant tout transport. Les champs optionnels vides sont omis, sans modifier le profil fourni.
+```bash
+AVATAR_PROFILE_REFERENCES_FILE=../avatar-profile-references.json AVATAR_TEST_ENABLED=true node experimental-service/local-demo.mjs
+```
 
-Le resultat conserve les rubriques historiques : `recommendedSteps` ou `steps`,
-`optionalSteps`, `informationalCourses`, les justifications, les liens et les limites.
-Le module retourne `{ mode: 'historical-pathway', empty, result }` sans inventer
-ni fusionner de cours. Un parcours valide sans cours donne `empty: true` ; une reponse
-absente, non JSON ou mal formee est une erreur. Les liens fournis doivent etre HTTPS,
-sans identifiants, sous `outils.ge.ch/referentiel/formation/` ; une absence de lien
-reste autorisee comme dans l'interface historique. Ce controle ne prouve ni l'existence
-actuelle d'une fiche ni l'eligibilite metier du cours : ces garanties restent au moteur.
+Sous PowerShell :
 
-Les erreurs `PathwayAdapterError` distinguent configuration, desactivation, profil
-non confirme/invalide, nomenclature, annulation, delai, HTTP et reponse invalide.
-Le statut HTTP est conserve, mais pas le corps d'erreur distant. Aucune relance ni
-redirection automatique. Le delai couvre la reception et la lecture JSON ; le signal
-d'annulation permet d'ignorer une reponse tardive. Une annulation ne garantit pas que
-le serveur distant arrete un traitement deja lance ni qu'un cout soit evite.
+```powershell
+$env:AVATAR_PROFILE_REFERENCES_FILE='../avatar-profile-references.json'
+$env:AVATAR_TEST_ENABLED='true'
+node experimental-service/local-demo.mjs
+```
 
-Avant toute activation reelle restent a valider : nomenclatures, URL et politique de
-liens, authentification, budgets/quotas, concurrence partagee avec le moteur, delai
-compatible avec ses traitements, schema complet de reponse et presentation utilisateur.
-L'integration devra conserver `requestRevision` : toute modification du profil invalide
-la confirmation et les anciens resultats ; aucune correction ne doit lancer une recherche.
-Le jalon actuel laisse ces mecanismes et l'interface entierement inchanges.
+Le serveur local n'appelle aucune adresse distante. Un fichier absent, incompatible
+ou incohérent provoque un refus de démarrage, sans retour silencieux aux anciennes
+listes. Le questionnaire présente la catégorie, l'entité libre avec suggestions,
+la situation managériale et les autres champs. Les champs facultatifs peuvent
+rester vides ; les contraintes viennent du document chargé. Une révision de
+simulation différente de celle du serveur est refusée avant consommation du quota.
+Le brouillon courant n'est pas effacé par cette erreur ; ne pas recharger la page
+avant d'avoir conservé les réponses. La reprise automatique après un changement
+à chaud de référentiel dans le navigateur n'est pas implémentée à ce jalon.
 
-Les tests de l'adaptateur utilisent exclusivement des transports injectes et des
-reponses synthetiques, avec un domaine `.invalid`. Ils n'appellent jamais le backend.
+Sans `AVATAR_PROFILE_REFERENCES_FILE`, le mode de démonstration historique reste
+accessible en simulation avec ses limites locales anciennes. Ce mode n'alimente
+jamais l'adaptateur de parcours et ne constitue pas un repli pour un envoi réel.
+
+## Adaptateur de parcours : toujours préparé et désactivé
+
+`pathway-adapter.mjs` n'est importé ni par `local-demo.mjs`, ni par `server.mjs`,
+ni par la page. Il ne connecte donc pas le questionnaire au moteur. Aucune
+activation réelle n'est réalisée par ce jalon.
+
+L'adaptateur conserve l'URL explicite HTTPS `/api/pathway`, l'interdiction des
+redirections, l'annulation, le délai de réception et lecture JSON, ainsi que le
+contrôle des catégories de résultats et des liens officiels. Aucun moteur ou
+catalogue de cours n'est dupliqué et aucune destination de production n'est fournie.
+
+Les anciennes listes `allowedPersonnelCategories`, `allowedEntities` et
+`allowedManagerStatuses` sont remplacées par un `referencesClient` explicitement
+fourni. Pour une activation future, il devra revalider le contrat avant chaque
+soumission et vérifier que sa révision correspond au profil confirmé :
+
+```js
+const reader = createProfileReferencesClient({ endpoint, allowedOrigins })
+const adapter = createPathwayAdapter({ enabled: true, endpoint: pathwayEndpoint, referencesClient: reader })
+// Configuration et activation réelles à cadrer séparément.
+await adapter.buildPathway(profile, { confirmed: true, referenceRevision, signal })
+```
+
+Une révision modifiée nécessite une nouvelle sélection/confirmation ; un cache
+indisponible ou incompatible bloque l'envoi sans effacer le profil. Les suggestions
+d'entités restent des suggestions et une entité libre est acceptée. La catégorie
+est obligatoire dans le questionnaire ; l'API conserve sa validation propre.
+Il n'y a pas de minimum local de 2 caractères pour le rôle ni de 10 pour l'objectif
+dans le mode référencé ou l'adaptateur : des chaînes non vides après trim suffisent.
+
+L'adaptateur conserve un délai parcours de 10 secondes par défaut, configurable
+jusqu'à 120 secondes. Ce défaut reste à ajuster explicitement avant toute activation
+réelle, car le moteur peut prendre plus de temps. Une annulation côté client ne
+prouve pas l'arrêt d'un traitement serveur ni l'absence de coût.
+
+Les tests de l'adaptateur utilisent uniquement des référentiels, transports et
+réponses synthétiques. L'identité des testeurs, l'accès distant, la concurrence,
+les quotas et le budget réels, le schéma complet des résultats et la mise en service
+du référentiel Infomaniak restent à cadrer avant raccordement.
