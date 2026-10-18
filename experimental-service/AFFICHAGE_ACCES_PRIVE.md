@@ -74,9 +74,17 @@ inconnues, l’aperçu local explicite, l’accès refusé, les en-têtes usurp�
 l’expiration, la capacité, les doublons, les erreurs, l’arrêt et un essai HTTP avec
 la vraie session utilisant exclusivement un transport simulé.
 
-Le contrôle Chromium de ce commit est à vérifier après publication. Il exerce aussi
-le rendu dans l’avatar après confirmation, en formats ordinateur et mobile, sans
-requête distante. Les preuves et limites seront consignées après examen des captures.
+Les [84 tests Node de la CI](https://github.com/technologies-formation/a658-yg-avatar/actions/runs/39156186306)
+et le [contrôle Chromium](https://github.com/technologies-formation/a658-yg-avatar/actions/runs/39156186284)
+réussissent au commit `d838d06894b49cfe21ba104849e6cf23f379caa5`.
+Chromium 151.0.7922.34 a exercé cinq simulations confirmées, avec aperçu de résultat,
+actualisation, correction, choix retiré et brouillon restauré, sans erreur navigateur
+ni requête distante. Aucun débordement horizontal à 1280 × 900 et 390 × 844.
+Neuf captures sont produites dans l’artefact `avatar-browser-simulation`
+(rétention 14 jours). Les quatre captures de résultat/d’état final sur ordinateur
+et mobile ont été examinées : rendu lisible, sans problème bloquant observé.
+Ce contrôle ne couvre pas Safari, les appareils physiques, le clavier tactile,
+un accès authentifié réel, le réseau institutionnel ou le moteur de production.
 
 Coût OpenAI API : 0 token / 0 $.
 
