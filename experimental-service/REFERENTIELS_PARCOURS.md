@@ -70,16 +70,26 @@ pas implémentées. Il faut conserver le brouillon avant un rechargement manuel.
   catalogue : huit champs acceptés, révision
   `68da05c1b2668874873373762cd10897b6cd26e31422c9c300ecedab5845a60d`.
   Cette révision est une observation datée, pas une constante exigée par le lecteur.
-- Le lancement de Chromium a échoué, le binaire n'étant pas installé. Son
-  téléchargement n'a pas fourni une archive exploitable. Aucune validation visuelle
-  dans un navigateur réel n'est donc revendiquée pour ce jalon.
+- Le contrôle navigateur du 18 octobre a ensuite réussi sur le runner GitHub :
+  [exécution 39140642621](https://github.com/technologies-formation/a658-yg-avatar/actions/runs/39140642621),
+  commit `9670b6fd58b9b196205d25c4178b9ffffbaa9053`, Chromium 151.0.7922.34.
+  Les quatre captures initiales/finales ont été examinées en formats 1280 × 900
+  et 390 × 844 : aucun débordement horizontal ni problème bloquant observé.
+  Le questionnaire, les champs facultatifs, l'entité libre et sa correction
+  fonctionnent ; une correction invalide la simulation sans nouvel envoi automatique.
+  Trois requêtes de simulation, quota de trois, aucune erreur navigateur et aucune
+  requête externe ont été relevés. Le moteur réel reste déconnecté.
+  Les captures et mesures sont dans l'artefact `avatar-browser-simulation`, conservé
+  14 jours. Ce contrôle Chromium ne couvre pas Safari, les appareils physiques,
+  le clavier tactile ni le réseau institutionnel.
 
 Ces contrôles sont techniques, fonctionnels simulés et de régression. Ils ne sont
 pas un benchmark indépendant du moteur. Aucun appel OpenAI : 0 token / 0 $.
 
 ## Suite à cadrer
 
-1. Vérifier visuellement ce questionnaire sur ordinateur et mobile dans un navigateur.
+1. Le contrôle Chromium ordinateur/mobile est effectué ; cadrer maintenant
+   l'actualisation des choix et la conservation du brouillon après rechargement.
 2. Préparer séparément la mise en service de l'endpoint de référentiels Infomaniak :
    le déploiement du 18 octobre n'a remplacé que `pathwayEngine.mjs`.
 3. Définir le flux utilisateur d'actualisation des choix, la conservation du brouillon
