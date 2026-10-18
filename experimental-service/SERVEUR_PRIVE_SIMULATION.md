@@ -110,3 +110,49 @@ Infomaniak séparé avant de proposer un déploiement distinct. Le transport der
 proxy, le réseau institutionnel et la gestion durable des comptes restent à valider.
 Le raccordement au moteur réel, ses plafonds et le premier appel payant gardent leur
 validation séparée. La démonstration publique avatar et le catalogue sont inchangés.
+
+## Mise en place assistée sur le poste Windows
+
+Le 18 octobre, l’utilisateur a mis à jour sa copie déplacée jusqu’à `930a5ac`,
+confirmé un état propre et un `git fsck --connectivity-only` sans erreur. Le
+nettoyage automatique de Git a demandé plusieurs confirmations de suppression
+de dossiers internes ; répondre `n` a permis de terminer l’avance rapide. La cause
+exacte n’est pas établie ; OneDrive reste un facteur possible, pas un diagnostic.
+Les 99 tests du jalon précédent passent sur Windows avec Node 24.19.0 et OpenSSL
+fourni par Git (`C:\Program Files\Git\usr\bin\openssl.exe`).
+
+`setup-local-pilot.mjs` prépare désormais une session sous
+`%LOCALAPPDATA%\A658-YG\pilote-prive`, hors Git et hors OneDrive. Il limite les
+droits du nouveau dossier à l’utilisateur courant, SYSTEM et aux administrateurs,
+puis crée un compte aléatoire, son empreinte, un certificat local non-CA de 24 h
+et la configuration de cinq simulations. Il récupère seulement le contrat public
+par GET sur `/api/profile-references` ; aucun appel à `/api/pathway`, aucune clé
+OpenAI et aucune configuration de moteur réel. Les exemples d’affichage restent
+synthétiques, sans faux lien de fiche officielle ni montant de consommation inventé.
+
+Le mot de passe reste dans `ACCES_LOCAL_PRIVE.txt` dans ce dossier privé. Il n’est
+ni imprimé dans la console, ni stocké dans le dépôt, ni à coller dans le chat.
+Le script ne lance pas le serveur et ne modifie aucun certificat de confiance
+Windows. Le navigateur peut donc demander une exception pour ce certificat de test
+local : ne pas confondre cet essai limité à `127.0.0.1` avec un déploiement distant.
+Aucun réglage global de validation TLS ne doit être désactivé.
+
+Chaque invocation crée une session distincte sans remplacer les précédentes.
+En cas d’échec, seul le dossier neuf de cette invocation est retiré. Les quatre
+tests supplémentaires portent sur le provisionnement, le certificat, le refus des
+destinations inadéquates, la conservation des sessions et le nettoyage en échec.
+103 tests passent localement ; le résultat de la CI Linux et Windows est à consigner.
+
+Pour récupérer ce script sans relancer le nettoyage Git à cette occasion :
+
+```powershell
+git -c gc.auto=0 -c maintenance.auto=false pull --ff-only
+if ($LASTEXITCODE -eq 0) {
+    node .\experimental-service\setup-local-pilot.mjs 'C:\Program Files\Git\usr\bin\openssl.exe'
+}
+```
+
+Ces options Git concernent uniquement cette commande ; aucun réglage global ou
+local du dépôt n’est changé. Attendre les chemins de configuration et d’accès
+retournés avant de lancer le serveur. Aucun compte ou certificat sur le PC de
+l’utilisateur ne doit être considéré comme créé sans ce retour.
