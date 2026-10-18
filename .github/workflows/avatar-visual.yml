@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
-      PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/avatar-browsers
+      PLAYWRIGHT_BROWSERS_PATH: /tmp/avatar-browsers
     steps:
       - uses: actions/checkout@v4
       - uses: actions/checkout@v4
