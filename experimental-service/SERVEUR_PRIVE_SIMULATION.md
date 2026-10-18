@@ -141,7 +141,16 @@ Chaque invocation crée une session distincte sans remplacer les précédentes.
 En cas d’échec, seul le dossier neuf de cette invocation est retiré. Les quatre
 tests supplémentaires portent sur le provisionnement, le certificat, le refus des
 destinations inadéquates, la conservation des sessions et le nettoyage en échec.
-103 tests passent localement ; le résultat de la CI Linux et Windows est à consigner.
+Les [contrôles CI du commit `c4054ec`](https://github.com/technologies-formation/a658-yg-avatar/actions/runs/39166441339)
+réussissent : 103 tests sous Linux et les quatre tests de mise en place sous Windows
+avec Node 24. Les droits privés, le certificat, le compte, l’absence de remplacement
+et les refus sont exercés sous Windows. Les transports de référentiel sont simulés
+dans ces tests ; le GET public depuis le PC reste à constater lors de la commande.
+La première exécution Windows du test avait utilisé le répertoire temporaire du
+runner, extérieur au profil local ; le test a été corrigé pour respecter le même
+répertoire privé que le lanceur, sans assouplir cette restriction.
+La syntaxe des droits est vérifiée dans la [documentation Microsoft icacls](https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/icacls).
+Aucun certificat de confiance Windows n’est installé par cette procédure.
 
 Pour récupérer ce script sans relancer le nettoyage Git à cette occasion :
 
