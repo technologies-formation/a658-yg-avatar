@@ -11,7 +11,8 @@ import { createPilotSimulationServer } from './pilot-server.mjs'
 
 const opensslPath = process.platform === 'win32' ? join(process.env.ProgramFiles ?? 'C:\\Program Files', 'Git', 'usr', 'bin', 'openssl.exe') : '/usr/bin/openssl'
 const directory = t => {
-  const value = mkdtempSync(join(tmpdir(), 'avatar-setup-'))
+  const privateBase = process.platform === 'win32' ? process.env.LOCALAPPDATA : tmpdir()
+  const value = mkdtempSync(join(privateBase, 'avatar-setup-'))
   t.after(() => rmSync(value, { recursive: true, force: true }))
   return value
 }
