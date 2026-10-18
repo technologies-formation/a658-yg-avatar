@@ -5,6 +5,7 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { randomBytes } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
+import { validatePathwayResult } from './pathway-result.mjs'
 import { createGuard } from './server.mjs'
 import { validateProfileReferences, MAX_REFERENCE_BYTES } from './profile-references.mjs'
 
@@ -26,6 +27,11 @@ const replacement = `async function previewRequest(){
   const result=await response.json();
   if(revision!==requestRevision)return;
   if(response.status===409||response.status===503){referencesReady=false;confirmedRevision=null;setReferenceStatus('Les choix doivent être revalidés. Tes réponses sont conservées : actualise les choix, puis vérifie et confirme le profil.');}
+  if(response.ok&&result.preview&&type==='pathway'){
+   const {renderPathwayResult}=await import('/local/pathway-result-view.mjs');
+   if(revision!==requestRevision)return;
+   chat.append(renderPathwayResult(document,result.preview,{replay:true}));chat.scrollTop=chat.scrollHeight;
+  }
   showSimulation(response.ok?'Service local : '+result.message+' ('+result.quota.total+'/'+result.quota.maxTotalRequests+')':'Simulation refusee ('+response.status+') : '+result.error,revision);
  }catch{showSimulation('Service local indisponible. Aucun appel distant effectue.',revision)}
 }`
@@ -34,8 +40,9 @@ const page = (source.slice(0,start)+replacement+source.slice(end))
  .replace('V5 renforcée : validation locale des données API, sans connexion au moteur.','Simulation interactive locale, sans connexion au moteur.')
  .replace('Prototype de démonstration indépendant :','Mode de test local indépendant :')
 
-export function createLocalDemo({ port=8799, stateFile=join(homedir(),'.a658-yg-avatar-local-quotas.json'), enabled=()=>true, maxDailyRequests=5, maxTotalRequests=20, profileReferences=null, loadProfileReferences=null }={}) {
+export function createLocalDemo({ port=8799, stateFile=join(homedir(),'.a658-yg-avatar-local-quotas.json'), enabled=()=>true, maxDailyRequests=5, maxTotalRequests=20, profileReferences=null, loadProfileReferences=null, pathwayPreview=null }={}) {
  if(!Number.isInteger(port)||port<1||port>65535) throw new Error('Port invalide')
+ const preview=pathwayPreview===null?null:structuredClone(validatePathwayResult(pathwayPreview).result)
  const origin='http://127.0.0.1:'+port
  const token=randomBytes(32).toString('hex')
  let references=loadProfileReferences?validateProfileReferences(loadProfileReferences()):profileReferences===null?null:validateProfileReferences(profileReferences)
@@ -51,9 +58,14 @@ export function createLocalDemo({ port=8799, stateFile=join(homedir(),'.a658-yg-
  const server=http.createServer(async(req,res)=>{
   res.setHeader('Cache-Control','no-store')
   res.setHeader('X-Content-Type-Options','nosniff')
-  res.setHeader('Content-Security-Policy',"default-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'")
+  res.setHeader('Content-Security-Policy',"default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'")
   const json=(status,data)=>{res.writeHead(status,{'Content-Type':'application/json; charset=utf-8'});res.end(JSON.stringify(data))}
   if(req.headers.host!=='127.0.0.1:'+port) return json(403,{error:'Hote interdit'})
+  const modules={'/local/pathway-result-view.mjs':'pathway-result-view.mjs','/local/pathway-result.mjs':'pathway-result.mjs'}
+  if(req.method==='GET'&&Object.hasOwn(modules,req.url)){
+   if(!preview)return json(404,{error:'Aperçu non configuré'})
+   res.writeHead(200,{'Content-Type':'text/javascript; charset=utf-8'});res.end(readFileSync(new URL(modules[req.url],import.meta.url),'utf8'));return
+  }
   if(req.method==='GET'&&(req.url==='/'||req.url==='/local/profile-references')){
    if(req.headers.origin&&req.headers.origin!==origin)return json(403,{error:'Origine interdite'})
    try{readReferences()}catch{return json(503,{error:'Référentiel indisponible : brouillon conservé.'})}
@@ -73,7 +85,7 @@ export function createLocalDemo({ port=8799, stateFile=join(homedir(),'.a658-yg-
    if(references&&body?.referenceRevision!==references.revision)return json(409,{error:'Référentiel modifié : conserver le brouillon et recharger les choix.'})
    if(references&&body.confirmed!==true)return json(400,{error:'Confirmation du profil requise.'})
    const result=guard.check(token,body)
-   return json(result.status,result)
+   return json(result.status,preview&&result.status===200&&body.type==='pathway'?{...result,preview}:result)
   }catch{if(!res.writableEnded)json(400,{error:'Requete interrompue'})}
  })
  return {server,guard,origin}

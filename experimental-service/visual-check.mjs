@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import { writeFileSync, mkdirSync } from 'node:fs'
 import { resolve, join } from 'node:path'
 import { pathToFileURL } from 'node:url'
+import { data as resultPreview } from './result-test-fixtures.mjs'
 import { createLocalDemo } from './local-demo.mjs'
 import { validateProfileReferences, normalizePathwayProfile } from './profile-references.mjs'
 if (!process.env.AVATAR_PLAYWRIGHT_MODULE || !process.env.AVATAR_CATALOGUE_MODULE) throw Error('Modules de test explicites requis')
@@ -13,7 +14,7 @@ const output = resolve(process.env.AVATAR_VISUAL_OUTPUT || 'visual-check')
 mkdirSync(output, { recursive: true })
 const references = validateProfileReferences(buildProfileReferences())
 let currentReferences = references
-const { server, origin, guard } = createLocalDemo({ port: 8799, stateFile: '', loadProfileReferences: () => currentReferences })
+const { server, origin, guard } = createLocalDemo({ port: 8799, stateFile: '', loadProfileReferences: () => currentReferences, pathwayPreview: resultPreview() })
 await new Promise(resolve => server.listen(8799, '127.0.0.1', resolve))
 let browser
 try {
@@ -32,11 +33,20 @@ try {
   await page.getByRole('button', { name: 'Construire un parcours', exact: true }).click()
   await submit('Collaborateur administratif'); await submit('Organiser et suivre des projets')
   await submit(''); await submit(''); await submit('')
-  assert.equal(await page.locator('.simulation').count(), 0)
+  assert.equal(await page.locator('.msg.simulation').count(), 0)
   if(page.viewportSize().width===390)await page.screenshot({path:join(output,'avatar-mobile-confirmation.png'),fullPage:true})
   await page.getByRole('button', { name: 'Confirmer le profil et simuler', exact: true }).click()
-  await page.locator('.simulation').waitFor()
-  assert.match(await page.locator('.simulation').innerText(), /Requete validee/)
+  await page.locator('.msg.simulation').waitFor()
+  assert.match(await page.locator('.msg.simulation').innerText(), /Requete validee/)
+  const resultView=page.locator('.pathway-result');await resultView.waitFor()
+  assert.match(await resultView.innerText(), /elles ne répondent pas à ton profil/)
+  assert.deepEqual(await resultView.locator('h3').allTextContents(), ['Étapes recommandées','Compléments','Pour information','Limites du catalogue','Temps de formation','Consommation figurant dans les données de test'])
+  assert.equal(await resultView.locator('article').count(),3)
+  assert.equal(await resultView.locator('a').first().getAttribute('rel'),'noopener noreferrer')
+  await resultView.evaluate(element=>element.scrollIntoView({block:'start'}))
+  await page.screenshot({path:join(output,page.viewportSize().width===390?'avatar-mobile-result.png':'avatar-desktop-result.png'),fullPage:true})
+  await page.locator('#chat').evaluate(element=>{element.scrollTop=element.scrollHeight})
+
  }
  await page.route('**/*', route => route.request().url().startsWith(origin + '/') ? route.continue() : route.abort())
  await page.goto(origin)
@@ -47,23 +57,23 @@ try {
  await page.getByRole('button', { name: 'Modifier : Entité ou service', exact: true }).click()
  await submit('Autre service libre')
  assert.equal(requests.length, 1)
- assert.equal(await page.locator('.simulation').count(), 0)
+ assert.equal(await page.locator('.msg.simulation').count(), 0)
  await page.getByRole('button', { name: 'Confirmer le profil et simuler', exact: true }).click()
- await page.locator('.simulation').waitFor()
+ await page.locator('.msg.simulation').waitFor()
  assert.equal(requests[1].profile.entity, 'Autre service libre')
  assert.equal(guard.status().total, 2)
  measurements.push(await page.evaluate(() => ({ width: innerWidth, horizontalOverflow: document.documentElement.scrollWidth > innerWidth, entry: document.querySelector('#form').getBoundingClientRect().toJSON() })))
  await page.getByRole('button', { name: 'Actualiser les choix', exact: true }).click()
  await page.getByRole('status').filter({ hasText: 'Choix actualisés.' }).waitFor()
  assert.equal(requests.length, 2)
- assert.equal(await page.locator('.simulation').count(), 0)
+ assert.equal(await page.locator('.msg.simulation').count(), 0)
  await page.reload()
  assert.equal(await page.locator('#sum-entity').innerText(), 'Autre service libre')
- assert.equal(await page.locator('.simulation').count(), 0)
+ assert.equal(await page.locator('.msg.simulation').count(), 0)
  assert.equal(requests.length, 2)
  await page.screenshot({ path: join(output, 'avatar-desktop-confirmation.png'), fullPage: true })
  await page.getByRole('button', { name: 'Confirmer le profil et simuler', exact: true }).click()
- await page.locator('.simulation').waitFor()
+ await page.locator('.msg.simulation').waitFor()
  assert.equal(requests.length, 3)
  const changed = structuredClone(references.pathway)
  changed.fields.personnelCategory.options.shift()
@@ -79,7 +89,7 @@ try {
  await page.getByRole('button', { name: changed.fields.personnelCategory.options[0].label, exact: true }).click()
  await page.locator('#form button[type=submit]').click()
  await page.getByRole('button', { name: 'Confirmer le profil et simuler', exact: true }).click()
- await page.locator('.simulation').waitFor()
+ await page.locator('.msg.simulation').waitFor()
  assert.equal(requests.length, 4)
  await page.screenshot({ path: join(output, 'avatar-desktop-completed.png'), fullPage: true })
  currentReferences = references
@@ -99,7 +109,7 @@ try {
  assert.equal(external.length, 0, JSON.stringify(external))
  for (const measurement of measurements) assert.equal(measurement.horizontalOverflow, false)
  const result = { chromium: await browser.version(), revision: references.revision, browserErrors: errors, externalRequests: external,
-  simulationRequests: requests.length, quota: guard.status().total, measurements }
+  resultPreview: true, simulationRequests: requests.length, quota: guard.status().total, measurements }
  writeFileSync(join(output, 'avatar-visual-check.json'), JSON.stringify(result, null, 2))
  console.log(JSON.stringify(result))
 } finally { if (browser) await browser.close(); await new Promise(resolve => server.close(resolve)) }
