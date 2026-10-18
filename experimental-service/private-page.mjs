@@ -7,17 +7,20 @@ const end = source.indexOf('\nfunction summary(){', start)
 if (start < 0 || end < 0) throw Error('Interface du questionnaire modifiée : adaptation requise')
 
 const submit = `async function previewRequest(){
+ privateSucceeded=false;
  if(intent!=='Parcours de formation'){bubble('Ce pilote permet uniquement de construire un parcours. Modifie le type de demande.');return}
  if(!canSimulate()||validateDraft().length){bubble('Vérifie et confirme le profil avant la simulation privée.');return}
  const profile=pathwayPayload();
- privateSucceeded=false;
  invalidateSimulation();const revision=requestRevision;
  const controller=new AbortController();privateAbort=controller;
  const timer=setTimeout(()=>controller.abort(),privateTimeoutMs);
  const options={signal:controller.signal,credentials:'same-origin',cache:'no-store',redirect:'error'};
  const failStatus=status=>{
+  if(matchMedia('(max-width:750px)').matches)document.getElementById('details').open=false;
   if(status===401){referencesReady=false;setReferenceStatus('Accès privé refusé. Tes réponses sont conservées. Reconnecte-toi avant de confirmer.');}
   else if(status===409||status===503){referencesReady=false;setReferenceStatus('Choix ou service à revalider. Tes réponses sont conservées : actualise les choix avant de confirmer.');}
+  else if(status===429)setReferenceStatus('Plafond de simulation atteint. Tes réponses sont conservées. Aucune relance automatique.');
+  else setReferenceStatus('Simulation privée non aboutie. Tes réponses sont conservées. Aucune relance automatique.');
   showSimulation(status===429?'Plafond de simulation atteint. Aucune relance automatique.':'Simulation privée non aboutie ('+status+'). Tes réponses sont conservées. Aucune relance automatique.',revision);
  };
  try{
@@ -37,8 +40,10 @@ const submit = `async function previewRequest(){
   if(revision!==requestRevision)return;
   chat.append(renderPathwayResult(document,value.preview,{replay:true}));
   privateSucceeded=true;
+  if(matchMedia('(max-width:750px)').matches)document.getElementById('details').open=false;
+  setReferenceStatus('Simulation privée terminée. Tu peux revoir le profil ou commencer une nouvelle demande.');
   showSimulation('Simulation privée terminée, sans appel au moteur. Tentatives : '+value.quota.total+'/'+value.quota.maxTotalRequests+'.',revision);
- }catch{showSimulation('Simulation privée interrompue ou indisponible. Tes réponses sont conservées ; aucune relance automatique.',revision)}
+ }catch{if(revision===requestRevision){setReferenceStatus('Simulation privée interrompue ou indisponible. Tes réponses sont conservées ; aucune relance automatique.');showSimulation('Simulation privée interrompue ou indisponible. Tes réponses sont conservées ; aucune relance automatique.',revision)}}
  finally{clearTimeout(timer);if(privateAbort===controller)privateAbort=null}
 }`
 
