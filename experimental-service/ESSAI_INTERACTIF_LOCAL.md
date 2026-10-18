@@ -15,7 +15,7 @@ Depuis la racine du depot, dans un terminal :
 - macOS / Linux : `AVATAR_TEST_ENABLED=true node experimental-service/local-demo.mjs`
 - Windows PowerShell : `$env:AVATAR_TEST_ENABLED='true'; node experimental-service/local-demo.mjs`
 
-Ouvrir **http://127.0.0.1:8799/** sur le meme ordinateur. Remplir le questionnaire et verifier la reponse « Service local : Requete validee sans appel API ».
+Ouvrir **http://127.0.0.1:8799/** sur le meme ordinateur. Remplir le questionnaire ; en mode référencé, vérifier le récapitulatif et cliquer sur **Confirmer le profil et simuler**. Verifier ensuite la reponse « Service local : Requete validee sans appel API ».
 
 Le service refuse toute validation si `AVATAR_TEST_ENABLED` n'est pas `true`. Pour l'arreter, utiliser Ctrl+C dans le terminal. Les quotas de simulation sont limites par defaut a **5 demandes par jour et 20 au total** et sont enregistres dans `~/.a658-yg-avatar-local-quotas.json`. Ce fichier reste prive sur l'ordinateur ; ne pas le publier dans Git.
 
@@ -70,9 +70,21 @@ listes. Le questionnaire présente la catégorie, l'entité libre avec suggestio
 la situation managériale et les autres champs. Les champs facultatifs peuvent
 rester vides ; les contraintes viennent du document chargé. Une révision de
 simulation différente de celle du serveur est refusée avant consommation du quota.
-Le brouillon courant n'est pas effacé par cette erreur ; ne pas recharger la page
-avant d'avoir conservé les réponses. La reprise automatique après un changement
-à chaud de référentiel dans le navigateur n'est pas implémentée à ce jalon.
+Le bouton **Actualiser les choix** relit le même fichier côté serveur sans
+rechargement de page ni appel distant. Régénérer ce fichier avec le générateur
+canonique pour tester une évolution ; ne pas le modifier à la main. Le serveur
+vérifie aussi ce fichier avant chaque simulation et refuse un fichier devenu invalide.
+
+Les réponses et la saisie en cours sont restaurées après rechargement dans le même
+onglet (`sessionStorage`). Aucun résultat ni confirmation n'est restauré. Recommencer
+efface le brouillon ; une correction non enregistrée n'est pas sauvegardée. Si le
+stockage du navigateur est bloqué, un message invite à garder la page ouverte.
+
+Après une actualisation, vérifier les réponses marquées **À revérifier**, corriger
+les valeurs retirées ou devenues trop longues, puis confirmer explicitement. Une
+entité libre et les autres réponses restent conservées. Une actualisation échouée
+bloque la confirmation sans effacer le profil ; réessayer l'actualisation. Aucun
+envoi de simulation ni quota n'est consommé par une correction ou une actualisation.
 
 Sans `AVATAR_PROFILE_REFERENCES_FILE`, le mode de démonstration historique reste
 accessible en simulation avec ses limites locales anciennes. Ce mode n'alimente
@@ -115,5 +127,6 @@ prouve pas l'arrêt d'un traitement serveur ni l'absence de coût.
 
 Les tests de l'adaptateur utilisent uniquement des référentiels, transports et
 réponses synthétiques. L'identité des testeurs, l'accès distant, la concurrence,
-les quotas et le budget réels, le schéma complet des résultats et la mise en service
-du référentiel Infomaniak restent à cadrer avant raccordement.
+les quotas et le budget réels, et le schéma complet des résultats restent à cadrer avant raccordement. Le référentiel
+Infomaniak a été vérifié accessible le 18 octobre ; cette disponibilité ne raccorde
+pas automatiquement le simulateur local au backend.

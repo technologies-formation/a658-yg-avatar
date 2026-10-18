@@ -51,13 +51,41 @@ ne négocie pas de révision attendue sur `POST /api/pathway` à ce jour.
 
 Dans la simulation locale, une révision divergente est refusée avant quota. Les
 réponses du questionnaire restent dans l'onglet et les corrections invalident les
-anciens résultats sans lancer un nouvel envoi. La récupération automatique du
-brouillon après rechargement de page et la mise à jour à chaud des choix ne sont
-pas implémentées. Il faut conserver le brouillon avant un rechargement manuel.
+anciens résultats sans lancer un nouvel envoi.
+
+### Brouillon, actualisation et confirmation : second jalon du 18 octobre
+
+Le mode référencé attend désormais le bouton **Confirmer le profil et simuler**
+après la dernière réponse. Une correction, une actualisation ou un rechargement
+annule toute confirmation antérieure ; aucun de ces événements ne simule automatiquement.
+Une simulation en cours ne peut pas être confirmée une seconde fois ; sa réponse
+est ignorée si le profil a changé entre-temps.
+
+Le brouillon est sauvegardé dans `sessionStorage`, pour cet onglet et cette origine
+locale seulement : réponses, codes des choix, étape et saisie en cours. Les résultats,
+jetons et confirmations ne sont jamais sauvegardés. **Recommencer** ou **Nouvelle demande**
+efface le brouillon. Un stockage indisponible laisse le formulaire utilisable avec
+un message explicite. Une correction non enregistrée n'est pas restaurée ; les
+réponses précédemment enregistrées et la saisie interrompue sont conservées.
+
+**Actualiser les choix** relit uniquement le document du serveur local, avec un délai
+de cinq secondes. Le serveur valide version, empreinte et taille du fichier configuré
+avant de le fournir. Il n'appelle pas Infomaniak. Les valeurs sont conservées sous
+leur code, ce qui permet un changement de libellé sans perdre la sélection. Une
+valeur retirée ou une limite réduite reste visible avec **À revérifier** ; la
+confirmation est bloquée jusqu'à correction. Les champs facultatifs laissés vides
+restent modifiables depuis le récapitulatif. Un échec d'actualisation garde les
+réponses mais bloque la confirmation jusqu'à une actualisation réussie.
+
+Le serveur relit le document avant chaque simulation. Une révision divergente (409),
+un référentiel indisponible (503) ou une confirmation manquante sont refusés avant
+quota. Les quotas restent ceux du même garde-fou, sans remise à zéro lors d'une
+actualisation. Le booléen de confirmation est un contrôle de flux de simulation,
+pas un mécanisme d'authentification ni une activation de l'adaptateur réel.
 
 ## Validation effectuée
 
-- **52 tests réussis**, aucun échec ni test ignoré, avec
+- **60 tests réussis**, aucun échec ni test ignoré, avec
   `node --test experimental-service/*.test.mjs`.
 - Les 35 tests du jalon précédent restent couverts, notamment corrections,
   annulation, résultats obsolètes, quotas et protections du simulateur.
@@ -86,14 +114,18 @@ pas implémentées. Il faut conserver le brouillon avant un rechargement manuel.
 Ces contrôles sont techniques, fonctionnels simulés et de régression. Ils ne sont
 pas un benchmark indépendant du moteur. Aucun appel OpenAI : 0 token / 0 $.
 
+Le second jalon ajoute huit cas : confirmation, brouillon restauré ou corrompu,
+stockage indisponible, changement de libellé, retrait de choix, contraintes réduites,
+échec d’actualisation, réponse tardive, 409 et conservation des quotas. Le contrôle
+Chromium de ce nouveau flux est à vérifier séparément de celui du jalon précédent.
+
 ## Suite à cadrer
 
-1. Le contrôle Chromium ordinateur/mobile est effectué ; cadrer maintenant
-   l'actualisation des choix et la conservation du brouillon après rechargement.
-2. Préparer séparément la mise en service de l'endpoint de référentiels Infomaniak :
-   le déploiement du 18 octobre n'a remplacé que `pathwayEngine.mjs`.
-3. Définir le flux utilisateur d'actualisation des choix, la conservation du brouillon
-   et la confirmation, puis le raccordement serveur de l'adaptateur existant.
+1. Vérifier le nouveau flux de confirmation et de reprise dans Chromium ordinateur/mobile.
+2. Le référentiel Infomaniak est déjà opérationnel : relevé SSH et contrôles HTTP
+   200/304/CORS vérifiés le 18 octobre ; voir le guide de reprise du catalogue.
+   Le mode local reste hors ligne et consomme son fichier explicitement configuré.
+3. Cadrer le raccordement serveur de l'adaptateur existant, encore désactivé.
 4. Valider la destination, l'accès, les quotas/budget, la concurrence, les délais,
    les réponses et le réseau avant tout essai réel.
 

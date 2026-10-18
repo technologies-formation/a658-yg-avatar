@@ -34,7 +34,7 @@ export function safeEqual(a, b) {
   return x.length === y.length && timingSafeEqual(x, y)
 }
 
-export function createGuard({ token, maxDailyRequests = 5, maxTotalRequests = 20, now = Date.now, stateFile = '', enabled = () => true, profileReferences = null } = {}) {
+export function createGuard({ token, maxDailyRequests = 5, maxTotalRequests = 20, now = Date.now, stateFile = '', enabled = () => true, profileReferences = null, getProfileReferences = null } = {}) {
   const references = profileReferences === null ? null : validateProfileReferences(profileReferences)
   if (typeof token !== 'string' || token.length < 32) throw new Error('AVATAR_TEST_TOKEN doit contenir au moins 32 caracteres')
   if (!Number.isInteger(maxDailyRequests) || maxDailyRequests < 1 || !Number.isInteger(maxTotalRequests) || maxTotalRequests < 1) throw new Error('Quotas invalides')
@@ -69,7 +69,10 @@ export function createGuard({ token, maxDailyRequests = 5, maxTotalRequests = 20
     check(auth, body) {
       if (state.stopped || !enabled()) return { status: 503, error: 'Service desactive' }
       if (!safeEqual(auth, token)) return { status: 401, error: 'Acces refuse' }
-      const issue = validateRequest(body, { profileReferences: references })
+      let current = references
+      try { if (getProfileReferences) current = validateProfileReferences(getProfileReferences()) }
+      catch { return { status: 503, error: 'Référentiel indisponible' } }
+      const issue = validateRequest(body, { profileReferences: current })
       if (issue) return { status: 400, error: issue }
       const day = Math.floor(now() / DAY_MS)
       if ((day === state.day ? state.daily : 0) >= maxDailyRequests || state.total >= maxTotalRequests) return { status: 429, error: 'Quota atteint' }

@@ -43,7 +43,7 @@ test('simulation référencée : révision périmée refusée avant quota et lib
   const page=await(await fetch(origin)).text()
   assert.doesNotMatch(page,/<\/script><script>alerte/)
   assert.equal((page.match(/<script>/g)||[]).length,1)
-  const body={type:'pathway',profile:{personnelCategory:'TEST-A',role:'x',objective:'y'},referenceRevision:'ancienne'}
+  const body={type:'pathway',profile:{personnelCategory:'TEST-A',role:'x',objective:'y'},referenceRevision:'ancienne',confirmed:true}
   const request=()=>fetch(origin+'/local/validate',{method:'POST',headers:{'Content-Type':'application/json',Origin:origin},body:JSON.stringify(body)})
   assert.equal((await request()).status,409)
   assert.equal(guard.status().total,0)
@@ -87,4 +87,37 @@ test('quotas locaux personnalisables et valeurs invalides', async()=>{
   await new Promise(resolve=>server.close(resolve))
   rmSync(dir,{recursive:true,force:true})
  }
+})
+
+test('actualisation locale : confirmation et révision courantes avant quota, aucune remise à zéro', async () => {
+ let current = references(), unavailable = false
+ const port = 19000 + Math.floor(Math.random()*20000)
+ const {server,guard,origin} = createLocalDemo({port,stateFile:'',loadProfileReferences:()=>{
+  if(unavailable)throw Error('Fichier invalide')
+  return current
+ }})
+ await new Promise(resolve=>server.listen(port,'127.0.0.1',resolve))
+ const body={type:'pathway',profile:{personnelCategory:'TEST-A',role:'x',objective:'y'},referenceRevision:current.revision}
+ const send=()=>fetch(origin+'/local/validate',{method:'POST',headers:{Origin:origin,'Content-Type':'application/json'},body:JSON.stringify(body)})
+ try{
+  assert.equal((await send()).status,400)
+  assert.equal(guard.status().total,0)
+  body.confirmed=true;assert.equal((await send()).status,200)
+  current=references(x=>{x.pathway.fields.personnelCategory.options=[{value:'NEW',label:'Nouveau groupe'}]})
+  assert.equal((await send()).status,409)
+  assert.equal(guard.status().total,1)
+  const refreshed=await fetch(origin+'/local/profile-references')
+  assert.equal(refreshed.status,200);assert.deepEqual(await refreshed.json(),current)
+  body.referenceRevision=current.revision;body.profile.personnelCategory='NEW'
+  assert.equal((await send()).status,200)
+  assert.equal(guard.status().total,2)
+  unavailable=true
+  assert.equal((await fetch(origin+'/local/profile-references')).status,503)
+  assert.equal((await send()).status,503)
+  assert.equal(guard.status().total,2)
+  unavailable=false
+  assert.equal((await fetch(origin+'/local/profile-references',{headers:{Origin:'https://example.invalid'}})).status,403)
+  assert.equal((await send()).status,200)
+  assert.equal(guard.status().total,3)
+ }finally{await new Promise(resolve=>server.close(resolve))}
 })
