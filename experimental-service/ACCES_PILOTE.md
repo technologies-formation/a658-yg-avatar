@@ -98,11 +98,20 @@ supplémentaires couvrent comptes/empreintes, refus, mauvais identifiants, forma
 TLS attesté, débit, concurrence, révocation, arrêt et assemblage HTTP avec moteur
 simulé. Aucun compte réel ni appel au backend catalogue n’est utilisé.
 
-Le contrôle Chromium de ce jalon est à vérifier après publication. Il ajoute un
-essai HTTPS local avec certificat éphémère : refus anonyme, authentification,
-confirmation, doublon, révocation et arrêt. L’acceptation du certificat auto-signé
-est limitée au contexte de test et ne sera pas une option de déploiement.
-Les scénarios visuels de l’avatar existants restent exécutés en régression.
+Les [93 tests Node de la CI](https://github.com/technologies-formation/a658-yg-avatar/actions/runs/39157868026)
+et le [contrôle Chromium](https://github.com/technologies-formation/a658-yg-avatar/actions/runs/39157868062)
+réussissent au commit `fcaab9d030e541e1cd9f3113c0368e13ebdfb03b`.
+Le rapport de l’artefact `avatar-browser-simulation` a été relu : Chromium
+151.0.7922.34, TLS local réel, anonyme 401, authentifié 200, doublon 409,
+révoqué 401, arrêté 503 ; un parcours simulé seulement pour cet essai d’accès.
+L’acceptation du certificat auto-signé est limitée au contexte local de test et
+ne sera pas une option de déploiement. Aucun appel distant ni erreur navigateur.
+Les scénarios de l’interface passent en régression : cinq simulations, brouillon,
+confirmation, correction et choix retiré ; aucun débordement horizontal à 1280 × 900
+et 390 × 844. Artefact conservé 14 jours. Les captures de ce jalon n’ont pas été
+réexaminées visuellement ; le dernier examen détaillé reste celui du jalon précédent.
+Ces résultats ne valident ni le proxy Infomaniak, ni les appareils physiques,
+ni le réseau institutionnel, ni une connexion à un moteur ou compte réels.
 
 Coût OpenAI API : 0 token / 0 $. Le quota Codex est distinct.
 
