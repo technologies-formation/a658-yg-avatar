@@ -31,7 +31,7 @@ export function createPrivatePathwayHandler({
           (req.headers.origin && req.headers.origin !== publicOrigin) ||
           req.headers['sec-fetch-site'] === 'cross-site') return send(res, 403, { error: 'Origine refusée' })
       let identity
-      try { identity = await authenticate(req) } catch {}
+      try { identity = await authenticate(req, res) } catch {}
       if (!identity || typeof identity.id !== 'string' || !identity.id.trim() || identity.id.length > 256) {
         return send(res, 401, { error: 'Authentification requise' })
       }

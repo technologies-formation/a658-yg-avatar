@@ -4,6 +4,7 @@ import { writeFileSync, mkdirSync } from 'node:fs'
 import { resolve, join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { data as resultPreview } from './result-test-fixtures.mjs'
+import { checkPilotBrowser } from './pilot-browser-check.mjs'
 import { createLocalDemo } from './local-demo.mjs'
 import { validateProfileReferences, normalizePathwayProfile } from './profile-references.mjs'
 if (!process.env.AVATAR_PLAYWRIGHT_MODULE || !process.env.AVATAR_CATALOGUE_MODULE) throw Error('Modules de test explicites requis')
@@ -108,7 +109,8 @@ try {
  assert.equal(errors.length, 0, JSON.stringify(errors))
  assert.equal(external.length, 0, JSON.stringify(external))
  for (const measurement of measurements) assert.equal(measurement.horizontalOverflow, false)
- const result = { chromium: await browser.version(), revision: references.revision, browserErrors: errors, externalRequests: external,
+ const pilotAccess = await checkPilotBrowser(browser)
+ const result = { pilotAccess, chromium: await browser.version(), revision: references.revision, browserErrors: errors, externalRequests: external,
   resultPreview: true, simulationRequests: requests.length, quota: guard.status().total, measurements }
  writeFileSync(join(output, 'avatar-visual-check.json'), JSON.stringify(result, null, 2))
  console.log(JSON.stringify(result))
