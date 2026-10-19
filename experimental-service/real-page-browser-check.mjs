@@ -51,7 +51,10 @@ export async function checkRealPageBrowser(browser, { tls, user, password, origi
     await page.locator('#details').evaluate(element => { element.open = false })
     await capture('real-offline-mobile-result')
     await page.reload()
-    assert.equal(await page.locator('#sum-role').innerText(), 'Fonction fictive')
+    await capture('real-offline-mobile-restored')
+    assert.deepEqual(errors, [])
+    // Le récapitulatif mobile est replié : vérifier sa donnée DOM, pas le texte visible.
+    assert.equal(await page.locator('#sum-role').textContent(), 'Fonction fictive')
     assert.equal(await page.locator('.pathway-result').count(), 0); assert.equal(posts, 1)
     await page.getByRole('button', { name: 'Confirmer le profil et générer', exact: true }).click()
     await page.locator('.msg.simulation').waitFor()
