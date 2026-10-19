@@ -103,6 +103,26 @@ backend réel. Le contrôle navigateur supplémentaire exerce le mode réel avec
 faux moteur sur ordinateur/mobile, la restauration et le refus du second envoi ;
 son résultat CI doit être vérifié avant le lancement sur le PC.
 
+Contrôles vérifiés au commit de test `5be853a46bfa327aff78cbd78411c452087797e0`,
+après le code `6b1dc30e7b95f7186a77d661ae393fc05c24a2d6` :
+
+- [Tests GitHub](https://github.com/technologies-formation/a658-yg-avatar/actions/runs/39227459028) :
+  108 tests Linux et neuf tests Windows/Node 24 réussis.
+- [Chromium](https://github.com/technologies-formation/a658-yg-avatar/actions/runs/39227458793) :
+  version 151.0.7922.34, transport moteur injecté exclusivement, un POST fictif
+  accepté, seconde tentative refusée, aucun POST au rechargement et brouillon restauré.
+  Aucune erreur navigateur, requête distante ou débordement horizontal à 1280 × 900
+  et 390 × 844. Le simulateur privé antérieur passe aussi en régression.
+- Le rapport JSON et les captures de résultat ordinateur, brouillon mobile restauré
+  et quota mobile ont été examinés, sans problème bloquant observé. Artefact
+  `avatar-browser-simulation`, rétention 14 jours. Ces preuves ne couvrent pas le
+  réseau institutionnel, Safari, un appareil mobile physique ou le moteur réel.
+
+Le premier contrôle Chromium avait lu le texte visible d’un champ situé dans le
+récapitulatif mobile replié. Le contrôle a été corrigé pour lire la donnée DOM et
+conserver une capture après restauration ; aucune protection du produit n’a été
+assouplie pour faire passer le test.
+
 À la rédaction initiale, aucun serveur réel n’est démarré sur le PC et aucun POST
 réel n’est effectué. Coût OpenAI API de la préparation : **0 token / 0 $**.
 Le premier résultat utilisateur et sa consommation restent à constater.
