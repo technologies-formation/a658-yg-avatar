@@ -9,6 +9,7 @@ import { randomBytes } from 'node:crypto'
 import { createPilotCredential } from './pilot-auth.mjs'
 import { createPilotPrivateHandler } from './pilot-private.mjs'
 import { references } from './reference-test-fixtures.mjs'
+import { checkRealPageBrowser } from './real-page-browser-check.mjs'
 import { checkPrivatePageBrowser } from './private-page-browser-check.mjs'
 
 export async function checkPilotBrowser(browser, output) {
@@ -84,7 +85,11 @@ export async function checkPilotBrowser(browser, output) {
       tls: { key: readFileSync(join(dir, 'key.pem')), cert: readFileSync(join(dir, 'cert.pem')) },
       user, password, origin, dir, output,
     })
-    return { tls: true, anonymous: 401, authenticated: 200, duplicate: 409, revoked: 401, stopped: 503,
+    const realPage = await checkRealPageBrowser(browser, {
+      tls: { key: readFileSync(join(dir, 'key.pem')), cert: readFileSync(join(dir, 'cert.pem')) },
+      user, password, origin, dir, output,
+    })
+    return { realPage, tls: true, anonymous: 401, authenticated: 200, duplicate: 409, revoked: 401, stopped: 503,
       simulatedBuilds: builds, browserErrors: errors, externalRequests: external, privatePage }
   } finally {
     gateway?.stop()

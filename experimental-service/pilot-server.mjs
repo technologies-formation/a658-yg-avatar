@@ -7,13 +7,8 @@ import { pathToFileURL } from 'node:url'
 import { createPilotSimulation } from './pilot-simulation.mjs'
 import { createPilotPrivateHandler } from './pilot-private.mjs'
 import { renderPrivatePage } from './private-page.mjs'
+import { createPrivateResources } from './private-resources.mjs'
 import { MAX_REFERENCE_BYTES } from './profile-references.mjs'
-
-const modules = new Map([
-  ['/private/pathway-result-view.mjs', new URL('./pathway-result-view.mjs', import.meta.url)],
-  ['/private/pathway-result.mjs', new URL('./pathway-result.mjs', import.meta.url)],
-])
-const csp = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"
 
 export function createPilotSimulationServer({ enabled = false, publicOrigin, tls, users, maxAttempts, windowMs,
   stateFile, maxDailyRequests, maxTotalRequests, singleInstance, loadProfileReferences, preview, timeoutMs = 10000 } = {}) {
@@ -30,18 +25,7 @@ export function createPilotSimulationServer({ enabled = false, publicOrigin, tls
   const simulation = createPilotSimulation({ stateFile, maxDailyRequests, maxTotalRequests, singleInstance, loadProfileReferences, preview })
   const gateway = createPilotPrivateHandler({ enabled: true, publicOrigin, session: simulation, users, maxAttempts, windowMs,
     isSecureRequest: req => req.socket.encrypted === true,
-    async serveResource(req, res, { signal }) {
-      if (req.method !== 'GET') return false
-      if (req.url !== '/' && req.url !== '/private/' && !modules.has(req.url)) return false
-      let body, type
-      if (modules.has(req.url)) { body = readFileSync(modules.get(req.url), 'utf8'); type = 'text/javascript' }
-      else { body = renderPrivatePage(await simulation.getReferences({ signal }), { timeoutMs }); type = 'text/html' }
-      if (signal.aborted) return true
-      res.writeHead(200, { 'Content-Type': type + '; charset=utf-8', 'Cache-Control': 'no-store',
-        'X-Content-Type-Options': 'nosniff', 'Content-Security-Policy': csp, 'Referrer-Policy': 'no-referrer' })
-      res.end(body)
-      return true
-    },
+    serveResource: createPrivateResources(simulation, renderPrivatePage, timeoutMs),
   })
   const server = https.createServer({ key: tls.key, cert: tls.cert }, gateway.handler)
   server.requestTimeout = 15000

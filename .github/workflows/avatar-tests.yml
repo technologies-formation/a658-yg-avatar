@@ -28,4 +28,4 @@ jobs:
         with:
           node-version: '24'
       - name: Verify private local setup and Windows file permissions
-        run: node --test experimental-service/setup-local-pilot.test.mjs
+        run: node --test experimental-service/setup-local-pilot.test.mjs experimental-service/pilot-real-server.test.mjs
