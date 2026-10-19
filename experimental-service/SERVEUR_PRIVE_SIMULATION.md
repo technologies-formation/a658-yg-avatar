@@ -102,7 +102,7 @@ la confiance du certificat sur le PC de l’utilisateur, Infomaniak ou le résea
 institutionnel. Les certificats/identifiants restent synthétiques et temporaires.
 Coût OpenAI API : 0 token / 0 $. Quota de travail Codex distinct.
 
-## Point de reprise
+## Point de reprise historique du 18 octobre
 
 Préparer un essai utilisateur local avec configuration, compte et certificat hors
 Git, sans appel moteur ; ou vérifier la capacité et les coûts d’un site d’essai
@@ -165,3 +165,35 @@ Ces options Git concernent uniquement cette commande ; aucun réglage global ou
 local du dépôt n’est changé. Attendre les chemins de configuration et d’accès
 retournés avant de lancer le serveur. Aucun compte ou certificat sur le PC de
 l’utilisateur ne doit être considéré comme créé sans ce retour.
+
+## Validation sur le PC Windows — 19 octobre 2026
+
+Le retour utilisateur confirme la mise à jour jusqu’à `995195a`, la réussite du
+script de mise en place et le lancement explicite du serveur sur
+`https://127.0.0.1:8799`. Une session privée et ses fichiers ont été créés sous
+`%LOCALAPPDATA%\A658-YG\pilote-prive`, hors dépôt et hors OneDrive.
+Le succès du script confirme la récupération du contrat public depuis ce poste ;
+il ne constitue pas un appel au moteur de parcours.
+
+L’accès direct à `https://127.0.0.1:8799/private/` fonctionne après l’exception du
+certificat auto-signé local et l’authentification avec le fichier d’accès privé.
+Aucun secret n’est communiqué dans le chat ou versionné, aucun certificat de
+confiance Windows n’est ajouté. Une ouverture initiale depuis un lien a retourné
+« Origine refusée » ; saisir l’adresse directement a permis l’accès. L’origine de
+ce refus n’a pas été établie ; aucune protection n’a été relâchée.
+
+Les captures examinées montrent le résultat après confirmation avec 1/5 tentative,
+puis, après rechargement, le brouillon restauré et une nouvelle confirmation
+requise sans l’ancien résultat. La seconde confirmation produit 2/5 : le rechargement
+n’a pas réservé de tentative supplémentaire dans cette séquence.
+
+Cette validation fonctionnelle manuelle complète la CI décrite plus haut. L’aperçu
+reste synthétique et indépendant du profil : ce n’est pas une validation métier,
+un test du moteur réel, du réseau institutionnel ou d’un hébergement distant.
+Coût OpenAI API : **0 token / 0 $**. Le quota Codex reste distinct.
+
+La suite proposée est un seul essai réel privé depuis le PC, après cadrage et accord
+explicite : lanceur réel séparé, réutilisation des composants existants, compteur
+privé distinct, profil fictif, une tentative sans relance et relevé du coût mesuré.
+Aucun lanceur réel ou appel payant n’a été ajouté par cette mise à jour documentaire.
+Le lanceur actuel demeure exclusivement un simulateur local.
