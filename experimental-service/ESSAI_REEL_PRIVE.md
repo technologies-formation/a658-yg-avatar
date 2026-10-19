@@ -126,3 +126,45 @@ assouplie pour faire passer le test.
 À la rédaction initiale, aucun serveur réel n’est démarré sur le PC et aucun POST
 réel n’est effectué. Coût OpenAI API de la préparation : **0 token / 0 $**.
 Le premier résultat utilisateur et sa consommation restent à constater.
+
+## Premier résultat réel constaté — 19 octobre 2026
+
+Le retour PowerShell utilisateur confirme le pull jusqu’à `b22a250` et le lancement
+sur `https://127.0.0.1:8800/private/`. La capture de la page montre le pilote réel,
+puis la génération en cours après confirmation. La capture finale et le texte
+intégral du résultat fourni par l’utilisateur confirment le succès et **1/1 tentative**.
+Aucun second appel n’est autorisé par ce jalon ; ne pas réinitialiser le compteur.
+
+Le cas correspond au profil fictif prévu, fonction « collaborateur administratif »,
+objectif d’organisation quotidienne des tâches et priorités, bases bureautiques,
+cinq jours disponibles et préférence présentiel. Entité vide, sans responsabilité
+managériale. Le résultat affiche :
+
+| Rubrique | Cours renvoyés |
+| --- | --- |
+| Étapes recommandées | SEM0872 — Gestion du temps et des priorités ; TRT1011 — Outlook 365 Base |
+| Compléments | SEM1113 — De quoi je m’e-mail? ; TRT1012 — Outlook 365 Avancé ; SEM1040 — Mindmap ; SEM1235 — GIDA |
+| Temps | 40 h disponibles, 20 h recommandées, dépassement 0 h |
+| Consommation renvoyée | 91 448 tokens d’entrée, 525 tokens de sortie ; coût calculé par le backend : **0,0234917 USD** |
+
+Lecture qualitative du résultat fourni : le socle répond directement à la gestion
+des priorités et l’étape Outlook propose une application concrète. Les compléments
+sont liés à l’objectif ; le texte présente SEM1113 comme complément ciblé ou
+alternative à Outlook Base et réserve Outlook Avancé à la maîtrise préalable des
+bases. Les limites sur les outils/procédures internes sont explicites. Aucun cours
+pédagogique ou judiciaire sans lien avec ce cas n’apparaît dans la réponse fournie.
+Les compléments ne sont pas tous à ajouter : le calcul de 20 h concerne les étapes
+recommandées, pas l’ensemble des six cours. La préférence présentiel, les conditions
+d’inscription et les prérequis restent à vérifier dans les fiches pour un usage réel.
+
+Ce constat valide un parcours fonctionnel de bout en bout depuis l’avatar privé
+sur le PC et une cohérence qualitative sur ce cas. Ce n’est ni un benchmark
+indépendant, ni une garantie générale de pertinence, ni un essai sur le réseau
+institutionnel ou un hébergement distant de l’avatar. La consommation est celle
+affichée par le moteur, pas un nouveau calcul tarifaire. L’existence et le contenu
+du rapport JSON privé sur le PC n’ont pas été vérifiés séparément ; la preuve
+consignée repose sur la capture et le texte utilisateur. Aucun secret n’est conservé.
+
+Prochaine décision : choisir un nouveau périmètre avant tout autre appel réel,
+déploiement distant ou fusion. Le quota du premier essai est consommé. Les branches
+publiques et le backend n’ont pas été déployés par ce test.
