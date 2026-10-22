@@ -42,11 +42,26 @@ sont terminés avec succès. Ces tests ne remplacent pas les contrôles sur le s
 
 ### Points ouverts et prochaine intervention
 
-1. **Récapitulatif parfois vide sur ordinateur :** constaté après la saisie ; un
-   rechargement à la même taille de fenêtre restaure le panneau et les réponses.
-   Cause non établie. Examiner notamment la gestion de l'élément `details` lors
-   d'un changement de largeur ; cette piste est une hypothèse, pas un diagnostic.
-   Reproduire et corriger dans la branche d'essai avant toute mise à jour du site.
+1. **Récapitulatif parfois vide sur ordinateur : correction préparée et testée,
+   pas encore installée sur Infomaniak.** Le test DOM reproduit l'état fermé
+   après un passage mobile vers ordinateur sur l'ancienne version. Au chargement
+   mobile, le code repliait `details` sans écouter le changement de largeur ;
+   le titre de réouverture étant masqué sur ordinateur, le panneau restait vide.
+   Le correctif `6bc52752118e85681182d1a36fde75de83541092` synchronise l'état
+   ouvert/fermé au franchissement du seuil 750/751 px. Il conserve les saisies,
+   le brouillon, la confirmation et le repli manuel sur mobile.
+   Les **114 tests Node passent** ; les workflows
+   [Linux et Windows](https://github.com/technologies-formation/a658-yg-avatar/actions/runs/39808492472)
+   et [Chromium](https://github.com/technologies-formation/a658-yg-avatar/actions/runs/39808492364)
+   réussissent. Le nouveau contrôle navigateur couvre la page privée et la
+   démonstration, les allers-retours de largeur, les saisies, le rechargement
+   du brouillon privé, l'absence de débordement horizontal et de requête
+   supplémentaire. Captures ordinateur et mobile ouvert/replié examinées.
+   Chromium 151.0.7922.34 ; aucun test sur appareil physique n'en découle.
+   Le site reste à `b3d83ba` jusqu'à mise à jour explicite de sa commande.
+   Conserver les fichiers privés et le compteur ; ne pas relancer le setup.
+   La capture initiale de l'utilisateur ne prouve pas à elle seule comment
+   la largeur avait changé, mais le mécanisme reproduit explique l'état observé.
 2. Confirmer explicitement le redémarrage depuis le Manager puis lire le compteur,
    sans lancer de simulation supplémentaire.
 3. Les essais sur appareil mobile physique et réseau institutionnel restent à faire.
