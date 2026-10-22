@@ -4,13 +4,69 @@ Préparation du 22 octobre 2026, à partir de `947b17f` sur la branche existante
 `feat/avatar-interactive-local`. Cette procédure complète le pilote local ; elle
 n'active pas le moteur réel et ne remplace pas ses scripts.
 
-## Constat fourni par l'utilisateur
+## Point de reprise vérifié — 22 octobre 2026
+
+**Le pilote privé distant est installé en simulation.** Ce constat remplace l'état
+initial de préparation décrit plus bas ; il n'active aucun parcours réel.
+
+- Révision installée et vérifiée par le retour Git fourni : `b3d83ba318ace20ae2b4ab8dd006c13e1a728431`,
+  sur la branche d'essai existante, sans fusion dans `main`.
+- Le Manager et les logs confirment Node.js 24, le port 3000 et le démarrage du
+  simulateur avec un maximum de cinq confirmations.
+- Le diagnostic du proxy a été effectué sans identifiant : la requête HTTP portant
+  un faux en-tête HTTPS reçoit 301 ; la requête HTTPS portant un faux en-tête HTTP
+  reçoit le 503 attendu du diagnostic et arrive avec le protocole corrigé en HTTPS.
+  Le pair observé a été configuré dans les fichiers privés ; son adresse et les
+  journaux bruts ne sont pas reproduits ici. Ce contrôle ne garantit pas que toutes
+  les adresses possibles du proxy ont été recensées.
+- Une fenêtre d'authentification est apparue, puis l'utilisateur a accédé au
+  questionnaire avec le compte du pilote.
+- Deux simulations explicitement confirmées ont affiché successivement **1/5**
+  puis **2/5**. Les formations synthétiques et durées affichées sont des exemples
+  fixes sans rapport avec le profil : il ne s'agit pas d'une validation du moteur.
+- Le rechargement restaure les réponses, retire le résultat et exige une nouvelle
+  confirmation. Le passage de 1/5 à 2/5 après confirmation établit que le
+  rechargement intermédiaire n'a pas consommé de simulation.
+- La lecture finale de l'état privé fournie par l'utilisateur confirme
+  `daily: 2`, `total: 2`, `stopped: false`. Trois simulations restent disponibles
+  dans ce quota, tant que cet état n'est pas modifié.
+- L'utilisateur pense avoir redémarré l'application dans le Manager. La capture
+  montre le brouillon restauré, mais ne prouve pas à elle seule ce redémarrage.
+  **La persistance après redémarrage réel n'est donc pas encore formellement
+  validée sur cet hébergement.** Elle est couverte par les tests automatisés.
+
+Validation technique de la révision installée : **113/113 tests locaux réussis**.
+Les workflows [tests de sécurité](https://github.com/technologies-formation/a658-yg-avatar/actions/runs/39795221846)
+et [simulation Chromium](https://github.com/technologies-formation/a658-yg-avatar/actions/runs/39795222051)
+sont terminés avec succès. Ces tests ne remplacent pas les contrôles sur le service distant.
+
+### Points ouverts et prochaine intervention
+
+1. **Récapitulatif parfois vide sur ordinateur :** constaté après la saisie ; un
+   rechargement à la même taille de fenêtre restaure le panneau et les réponses.
+   Cause non établie. Examiner notamment la gestion de l'élément `details` lors
+   d'un changement de largeur ; cette piste est une hypothèse, pas un diagnostic.
+   Reproduire et corriger dans la branche d'essai avant toute mise à jour du site.
+2. Confirmer explicitement le redémarrage depuis le Manager puis lire le compteur,
+   sans lancer de simulation supplémentaire.
+3. Les essais sur appareil mobile physique et réseau institutionnel restent à faire.
+4. Aucun passage au moteur réel distant ni appel payant supplémentaire n'est
+   autorisé par ce jalon. Le catalogue n'a pas été modifié pendant cette préparation.
+
+Une pause est possible : l'hébergement continue de fonctionner indépendamment du
+PC, en simulation privée. Conserver les fichiers d'accès et de quota privés ;
+ne pas relancer la préparation des comptes. À la reprise, relire ce point et l'état
+réel avant toute action. Ne jamais copier les identifiants dans le chat ou Git.
+
+Coût OpenAI API du déploiement et des deux simulations distantes : **0 token / 0 $**.
+
+## État initial avant installation — constat fourni par l'utilisateur
 
 Un nouvel hébergement distinct a été commandé pour un an à 113,20 CHF TTC,
 puis renommé « A658-YG — Avatar privé ». Le Manager montre le site
 `avatar.a658yg-catalogue.ch`, Node.js 24 actif et le HTTPS sécurisé.
-Le SSH ne montre que ce site dans le nouvel hébergement. Il contient pour
-l'instant le modèle Infomaniak `node-basic-landing`. Configuration observée :
+Le SSH ne montre que ce site dans le nouvel hébergement. Il contenait alors
+le modèle Infomaniak `node-basic-landing`. Configuration observée :
 port 3000, commande `npm start`, build `npm i`.
 
 Ces captures ne prouvent ni l'installation de l'avatar ni son authentification.
@@ -41,7 +97,8 @@ Le catalogue conserve son hébergement et son code.
 
 ## Séquence d'installation à accompagner
 
-La préparation est autorisée ; toute installation reste à effectuer et à vérifier.
+Procédure de référence utilisée pour le déploiement ci-dessus ; ne pas la rejouer
+automatiquement sur l'installation existante.
 Ne pas lancer de build lourd en SSH : utiliser le Builder du Manager si nécessaire.
 Le nouveau code n'a aucune dépendance npm supplémentaire.
 
@@ -74,9 +131,7 @@ Le nouveau code n'a aucune dépendance npm supplémentaire.
    AVATAR_HOSTED_SIMULATION_ENABLED=true node experimental-service/hosted-simulation.mjs /srv/customer/avatar-private/config.json
    ```
 
-   Conserver le port 3000. Le répertoire courant doit être celui de la release
-   réellement exécutée. Employer son chemin absolu si le Manager conserve le
-   répertoire du site comme répertoire courant. Adapter la commande de build
+   Conserver le port 3000. Le chemin du script doit désigner la release\n   réellement exécutée. Employer un chemin absolu si le Manager conserve le\n   répertoire du site comme répertoire courant. Adapter la commande de build
    pour ne pas lancer celle du modèle Nest sur le nouveau code sans dépendances.
 6. Vérifier le refus HTTP, l'origine incorrecte, le challenge d'authentification,
    les ressources protégées et l'absence de fichiers privés accessibles. Consulter
