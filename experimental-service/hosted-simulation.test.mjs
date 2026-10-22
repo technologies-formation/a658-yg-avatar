@@ -4,7 +4,7 @@ import http from 'node:http'
 import { mkdtempSync, rmSync, readFileSync, writeFileSync, mkdirSync, existsSync, statSync, chmodSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { createHostedSimulation, HOSTED_ORIGIN, secureProxyCheck, readHostedConfig } from './hosted-simulation.mjs'
+import { createHostedSimulation, HOSTED_ORIGIN, secureProxyCheck, readHostedConfig, enableProxyAttestation } from './hosted-simulation.mjs'
 import { prepareHostedSimulation } from './setup-hosted-simulation.mjs'
 import { createProxyProbe } from './probe-hosted-proxy.mjs'
 import { createPilotCredential } from './pilot-auth.mjs'
@@ -114,6 +114,18 @@ test('préparation POSIX : un GET seulement, secrets hors site, permissions et r
   assert.equal(existsSync(join(target, 'quotas.json')), false)
   const config = readHostedConfig(result.configFile, site)
   assert.equal(config.port, 3000); assert.equal(config.publicOrigin, HOSTED_ORIGIN)
+  const initialConfig = readFileSync(result.configFile, 'utf8')
+  const initialUsers = readFileSync(join(target, 'users.json'), 'utf8')
+  const quotaText = JSON.stringify({ day: 1, daily: 2, total: 2, stopped: false })
+  writeFileSync(join(target, 'quotas.json'), quotaText, { mode: 0o600 })
+  assert.equal(enableProxyAttestation(result.configFile, site), true)
+  assert.equal(enableProxyAttestation(result.configFile, site), false)
+  assert.equal(readFileSync(result.configFile + '.before-self-https', 'utf8'), initialConfig)
+  assert.equal(statSync(result.configFile).mode & 0o077, 0)
+  assert.equal(readFileSync(join(target, 'quotas.json'), 'utf8'), quotaText)
+  assert.equal(readHostedConfig(result.configFile, site).proxyVerification, 'self-https')
+  assert.equal(readFileSync(join(target, 'users.json'), 'utf8'), initialUsers)
+  assert.equal(statSync(result.configFile + '.before-self-https').mode & 0o077, 0)
   const before = readFileSync(join(target, 'users.json'), 'utf8')
   await assert.rejects(prepare(target)); assert.equal(calls, 1); assert.equal(readFileSync(join(target, 'users.json'), 'utf8'), before)
   chmodSync(join(target, 'users.json'), 0o644); assert.throws(() => readHostedConfig(result.configFile, site)); chmodSync(join(target, 'users.json'), 0o600)

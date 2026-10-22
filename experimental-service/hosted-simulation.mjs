@@ -1,7 +1,9 @@
 // HTTP interne derrière un proxy HTTPS explicitement identifié. Simulation exclusivement.
 import http from 'node:http'
 import { isIP } from 'node:net'
-import { mkdirSync, rmdirSync, readFileSync, lstatSync, realpathSync } from 'node:fs'
+import { randomUUID } from 'node:crypto'
+import { createProxyAttestation } from './proxy-attestation.mjs'
+import { mkdirSync, rmdirSync, readFileSync, lstatSync, realpathSync, writeFileSync, copyFileSync, renameSync, unlinkSync, constants } from 'node:fs'
 import { isAbsolute, join, relative, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { createPilotSimulation } from './pilot-simulation.mjs'
@@ -20,9 +22,11 @@ export function secureProxyCheck(trustedProxyAddresses) {
 }
 
 export function createHostedSimulation({ enabled = false, publicOrigin, trustedProxyAddresses, users, stateFile,
-  loadProfileReferences, preview } = {}) {
+  loadProfileReferences, preview, proxyVerification = 'exact-addresses', requestProbe } = {}) {
   if (enabled !== true || publicOrigin !== HOSTED_ORIGIN) throw Error('Activation et origine distante explicites requises')
-  const secure = secureProxyCheck(trustedProxyAddresses)
+  if (!['exact-addresses', 'self-https'].includes(proxyVerification)) throw Error('Mode de proxy inconnu')
+  const attestation = proxyVerification === 'self-https' ? createProxyAttestation({ publicOrigin, requestProbe }) : null
+  const secure = attestation ? attestation.secure : secureProxyCheck(trustedProxyAddresses)
   if (typeof stateFile !== 'string' || !isAbsolute(stateFile)) throw Error('État privé absolu requis')
   // Verrou exclusif : un deuxième processus ne peut pas contourner le quota.
   const lock = stateFile + '.lock'
@@ -36,22 +40,27 @@ export function createHostedSimulation({ enabled = false, publicOrigin, trustedP
       maxAttempts: 100, windowMs: 60000, isSecureRequest: secure,
       serveResource: createPrivateResources(simulation, renderPrivatePage, 10000) })
     server = http.createServer((req, res) => {
-      // Rejeter avant même le challenge Basic si le transport n'est pas attesté.
-      if (!secure(req)) {
-        res.writeHead(403, { 'Content-Type': 'text/plain', 'Cache-Control': 'no-store' })
-        return res.end('Transport HTTPS via proxy de confiance requis')
+      if (attestation?.handleProof(req, res)) return
+      const handle = async () => {
+        if (attestation) await attestation.ensure(req)
+        // Rejeter avant même le challenge Basic si le transport n'est pas attesté.
+        if (!secure(req)) {
+          res.writeHead(403, { 'Content-Type': 'text/plain', 'Cache-Control': 'no-store' })
+          return res.end('Transport HTTPS via proxy de confiance requis')
+        }
+        res.setHeader('Strict-Transport-Security', 'max-age=86400')
+        await gateway.handler(req, res)
       }
-      res.setHeader('Strict-Transport-Security', 'max-age=86400')
-      Promise.resolve(gateway.handler(req, res)).catch(() => {
+      handle().catch(() => {
         if (!res.headersSent) res.writeHead(503, { 'Cache-Control': 'no-store' })
         res.end()
       })
     })
     server.requestTimeout = 15000; server.headersTimeout = 10000
     server.setTimeout(15000, socket => socket.destroy())
-    server.on('close', release)
+    server.on('close', () => { attestation?.stop(); release() })
     // close() est une fermeture technique ; stop() est une révocation persistante.
-    return { server, status: simulation.status, stop: gateway.stop, revoke: gateway.revoke,
+    return { server, attestProxy: () => attestation?.refresh() ?? Promise.resolve(true), status: simulation.status, stop: gateway.stop, revoke: gateway.revoke,
       close: () => new Promise((accept, reject) => {
         server.close(error => { if (error) reject(error); else accept() })
         server.closeAllConnections()
@@ -82,12 +91,38 @@ export function readHostedConfig(configFile, siteDirectory) {
     loadProfileReferences: () => validateProfileReferences(read(path('references.json'), 128 * 1024)) }
 }
 
+// Mise à niveau explicite de la seule configuration ; accès et quotas conservés.
+export function enableProxyAttestation(configFile, siteDirectory) {
+  readHostedConfig(configFile, siteDirectory)
+  const config = JSON.parse(readFileSync(configFile, 'utf8'))
+  if (config.proxyVerification === 'self-https') return false
+  const backup = configFile + '.before-self-https'
+  copyFileSync(configFile, backup, constants.COPYFILE_EXCL)
+  const temp = configFile + '.' + randomUUID() + '.tmp'
+  try {
+    writeFileSync(temp, JSON.stringify({ ...config, proxyVerification: 'self-https' }, null, 2), { mode: 0o600, flag: 'wx' })
+    renameSync(temp, configFile)
+  } catch (error) { try { unlinkSync(temp) } catch {} throw error }
+  return true
+}
+
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   try {
+    if (process.argv[2] === '--enable-proxy-attestation') {
+      enableProxyAttestation(process.argv[3], process.cwd())
+      console.log('Contrôle HTTPS automatique configuré. Sauvegarde privée conservée ; accès et quotas inchangés. Serveur non démarré.')
+    } else {
     if (process.env.AVATAR_HOSTED_SIMULATION_ENABLED !== 'true') throw Error('Simulation hébergée non activée')
     const options = readHostedConfig(process.argv[2], process.cwd())
     const service = createHostedSimulation(options)
     for (const event of ['SIGINT', 'SIGTERM']) process.once(event, () => { service.close().catch(() => { process.exitCode = 1 }) })
-    service.server.listen(3000, '0.0.0.0', () => console.log('Avatar privé : simulation uniquement, cinq confirmations maximum, port 3000.'))
+    service.server.listen(3000, '0.0.0.0', async () => {
+      console.log('Avatar privé : simulation uniquement, cinq confirmations maximum, port 3000.')
+      if (options.proxyVerification === 'self-https') {
+        const verified = await service.attestProxy()
+        console.log(verified ? 'Contrôle HTTPS du proxy réussi.' : 'Contrôle HTTPS du proxy indisponible ; accès bloqué jusqu’à vérification.')
+      }
+    })
+    }
   } catch { console.error('Démarrage refusé : vérifier la configuration privée, le proxy et le verrou.'); process.exitCode = 1 }
 }
