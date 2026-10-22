@@ -35,6 +35,10 @@ jobs:
           AVATAR_PLAYWRIGHT_MODULE: ${{ runner.temp }}/avatar-browser/node_modules/playwright/index.mjs
           AVATAR_CATALOGUE_MODULE: .contract-source/server/profileReferences.mjs
         run: node experimental-service/visual-check.mjs
+      - name: Verify summary after mobile and desktop resizing
+        env:
+          AVATAR_PLAYWRIGHT_MODULE: ${{ runner.temp }}/avatar-browser/node_modules/playwright/index.mjs
+        run: node experimental-service/summary-resize-browser-check.mjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:

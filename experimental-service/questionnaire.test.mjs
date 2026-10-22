@@ -25,7 +25,7 @@ class Element {
   click() { if (!this.disabled && !this.hidden) this.onclick?.() }
 }
 
-function questionnaire(page = html, fetch = () => { throw new Error('Envoi inattendu') }, storage = new Map()) {
+function questionnaire(page = html, fetch = () => { throw new Error('Envoi inattendu') }, storage = new Map(), initialMobile = false) {
   const ids = Object.fromEntries(['chat', 'form', 'input', 'reset', 'details'].map(id => [id, new Element()]))
   const root = new Element(); root.append(ids.form);
   const send = new Element('button'); send.type = 'submit'; ids.form.append(ids.input); ids.form.append(send)
@@ -33,11 +33,14 @@ function questionnaire(page = html, fetch = () => { throw new Error('Envoi inatt
     const fact = new Element(), label = new Element('span'), value = new Element('strong')
     label.textContent = key; fact.append(label); fact.append(value); ids['sum-' + key] = value; ids['fact-' + key] = fact
   }
+  const mediaListeners = []
+  const media = { matches: initialMobile, addEventListener: (event, callback) => { if (event === 'change') mediaListeners.push(callback) } }
   const document = { querySelector: selector => ids[selector.slice(1)], getElementById: id => ids[id], createElement: tag => new Element(tag) }
-  runInNewContext(page.match(/<script>([\s\S]*?)<\/script>/)[1], { document, matchMedia: () => ({ matches: false }), fetch, AbortSignal, sessionStorage: {getItem: key => storage.get(key) ?? null, setItem: (key,value) => storage.set(key,value), removeItem: key => storage.delete(key)} })
+  runInNewContext(page.match(/<script>([\s\S]*?)<\/script>/)[1], { document, matchMedia: () => media, fetch, AbortSignal, sessionStorage: {getItem: key => storage.get(key) ?? null, setItem: (key,value) => storage.set(key,value), removeItem: key => storage.delete(key)} })
   const buttons = () => ids.chat.querySelectorAll('.choices').flatMap(row => row.children)
   return {
     ids, send, buttons, storage,
+    resize: mobile => { if (media.matches !== mobile) { media.matches = mobile; for (const listener of mediaListeners) listener({ matches: mobile }) } },
     refreshChoices: () => root.querySelectorAll('button').find(button => button.textContent === 'Actualiser les choix').onclick(),
     referenceStatus: () => root.querySelector('p').textContent,
     value: key => ids['sum-' + key].textContent,
@@ -383,4 +386,20 @@ test('réponse locale tardive après correction ignorée, 409 exige actualisatio
   pending.shift()({ok:true,status:200,json:async()=>({message:'Simulation',quota:{total:2,maxTotalRequests:20}})})
   await tick();assert.equal(app.results().length,1)
  }finally{await new Promise(resolve=>server.close(resolve))}
+})
+
+ test('récapitulatif : passage mobile vers ordinateur sans perte de saisie ni requête', () => {
+  const page = questionnaire(html, () => { throw Error('Aucun appel autorisé') }, new Map(), true)
+  assert.equal(page.ids.details.open, false)
+  page.ids.input.value = 'Saisie à conserver'
+  page.resize(false)
+  assert.equal(page.ids.details.open, true)
+  assert.equal(page.ids.input.value, 'Saisie à conserver')
+  page.resize(true)
+  assert.equal(page.ids.details.open, false)
+  page.ids.details.open = true
+  page.resize(true)
+  assert.equal(page.ids.details.open, true)
+  page.resize(false)
+  assert.equal(page.ids.details.open, true)
 })

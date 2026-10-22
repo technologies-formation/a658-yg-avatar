@@ -126,6 +126,8 @@ function respond(raw){
 for(const key of order){const element=document.getElementById('sum-'+key),button=document.createElement('button');button.type='button';button.textContent='Modifier';button.setAttribute('aria-label','Modifier : '+element.parentElement.querySelector('span').textContent);button.onclick=()=>beginEdit(key);element.parentElement.append(button)}
 cancelButton.onclick=()=>{if(editing){bubble('Correction annulée.');finishEdit()}};
 document.getElementById('details').addEventListener('toggle',()=>{chat.scrollTop=chat.scrollHeight});
-if(matchMedia('(max-width:750px)').matches)document.getElementById('details').open=false;
+const summaryViewport=matchMedia('(max-width:750px)');
+const syncSummaryViewport=()=>{document.getElementById('details').open=!summaryViewport.matches};
+summaryViewport.addEventListener('change',syncSummaryViewport);syncSummaryViewport();
 form.addEventListener('submit',e=>{e.preventDefault();respond(input.value)});document.querySelector('#reset').onclick=()=>start();if(!restoreDraft())start()})();
 </script></body></html>
