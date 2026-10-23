@@ -1,0 +1,126 @@
+// Interface opt-in avec fournisseur fictif. Aucune destination OpenAI.
+import {fields,composeConstraints,validateMessagingProfile,createMessagingSnapshot,snapshotIsStale} from './messaging-state.mjs';
+import {renderPathwayResult} from './pathway-result-view.mjs';
+const $=id=>document.getElementById(id),config=JSON.parse($('messaging-config').textContent);
+if(config.mode!=='simulation'||config.dialogue!=='fictitious')throw Error('Dialogue fictif explicitement requis');
+let references=config.references,profile={},modality='',other='',busy=false,controller=null,epoch=0,current=null,history=[],active='discussion',draftRevision=0,proposal=null;
+const scrolls={discussion:0,courses:0};
+const labels={personnelCategory:'Groupe de personnel',entity:'Entité ou service',managerStatus:'Situation managériale',role:'Métier ou fonction',objective:'Objectif',existingSkills:'Compétences actuelles',timeAvailable:'Temps disponible',constraints:'Autres contraintes',modality:'Modalité souhaitée'};
+function node(tag,text,cls){const e=document.createElement(tag);if(text!==undefined)e.textContent=text;if(cls)e.className=cls;return e;}
+function action(label,fn,parent,primary=false){const b=node('button',label,primary?'primary':'');b.type='button';b.addEventListener('click',fn);parent.append(b);return b;}
+function say(text,user=false){const row=node('section',undefined,'message'+(user?' user':'')),body=node('div',undefined,'message-body');body.append(node('div',user?'Vous':'Votre assistant · simulation','sender'));const bubble=node('div',text,'bubble');body.append(bubble);if(!user){const avatar=node('div','✦','avatar');avatar.setAttribute('aria-hidden','true');row.append(avatar);}row.append(body);if(user){const avatar=node('div','VO','user-avatar');avatar.setAttribute('aria-hidden','true');row.append(avatar);}$('thread').append(row);return row;}
+function focusStart(el){requestAnimationFrame(()=>{if(active!=='discussion'||!el.isConnected)return;const box=$('conversation');box.scrollTop=Math.max(0,box.scrollTop+el.getBoundingClientRect().top-box.getBoundingClientRect().top-20);});}
+function status(text,error=false){$('status').textContent=text;$('status').classList.toggle('error',error);}
+function setBusy(value){busy=value;$('send-message').disabled=value;$('message').disabled=value;document.querySelectorAll('[data-confirm],#profile-form button[type=submit]').forEach(b=>b.disabled=value);}
+function invalidate(){epoch++;controller?.abort();controller=null;setBusy(false);}
+function display(name,value){const f=references.pathway.fields[name];return f?.options?.find(x=>x.value===value)?.label||value||'Non renseigné';}
+function validateField(name,value){if(name==='modality'){if(!['Présentiel','En ligne','Indifférent'].includes(value))throw Error('Choisissez une modalité proposée.');return;}
+ const key=name==='other'?'constraints':name,f=references.pathway.fields[key];if(value.length>f.maxLength)throw Error('Réponse trop longue.');if(f.requiredInForm&&!value)throw Error('Merci de renseigner '+labels[key].toLowerCase()+'.');if(value&&f.formControl==='select'&&!f.options.some(x=>x.value===value))throw Error('Choisissez une valeur du référentiel.');
+}
+function choices(name){const f=references.pathway.fields[name];if(f?.options)return f.options.map(x=>[x.label,x.value]);if(name==='existingSkills')return [['Je débute','Je débute'],['Quelques bases','Quelques bases'],['Expérience confirmée','Expérience confirmée']];if(name==='timeAvailable')return ['Moins d’une journée','1 à 2 jours','3 à 5 jours','À définir'].map(x=>[x,x]);if(name==='modality')return ['Présentiel','En ligne','Indifférent'].map(x=>[x,x]);return [];}
+function clearChoices(){document.querySelectorAll('.question-actions').forEach(e=>e.remove());}
+function profileList(p,parent){const dl=node('dl',undefined,'need-grid');for(const key of fields){const group=node('div');group.append(node('dt',labels[key]),node('dd',display(key,p[key])));dl.append(group);}parent.append(dl);}
+async function ticket(){const response=await fetch('/private/profile-references',{credentials:'same-origin',cache:'no-store',redirect:'error',headers:{Accept:'application/json'},signal:controller?.signal});if(!response.ok)throw Error('Choix indisponibles ('+response.status+'). Actualisez les choix avant de confirmer.');const t=await response.json();if(!t.references?.pathway?.fields||typeof t.references.revision!=='string'||typeof t.requestId!=='string')throw Error('Référentiel invalide');return t;}
+async function simulatePathway(){if(busy)return;let submitted;try{submitted=validateMessagingProfile(profile,references);}catch(e){status(e.message,true);openProfile();return;}
+ invalidate();const attempt=epoch,referenceRevision=references.revision;controller=new AbortController();const abort=controller;setBusy(true);status('Simulation en cours. Aucune relance automatique.');const timer=setTimeout(()=>abort.abort(),config.timeoutMs);
+ try{const t=await ticket();if(attempt!==epoch)return;if(t.references.revision!==referenceRevision)throw Error('Les choix du catalogue ont changé. Actualisez-les et confirmez de nouveau.');
+  const response=await fetch('/private/pathway',{method:'POST',credentials:'same-origin',cache:'no-store',redirect:'error',signal:abort.signal,headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({profile:submitted,confirmed:true,referenceRevision,requestId:t.requestId})});
+  if(attempt!==epoch)return;if(!response.ok)throw Error('Simulation non aboutie ('+response.status+'). Réponses conservées ; aucune relance automatique.');const value=await response.json();if(attempt!==epoch)return;
+  if(value.mode!=='simulation'||!value.preview||!value.quota)throw Error('Résultat de simulation attendu.');
+  current=createMessagingSnapshot(submitted,value.preview,referenceRevision,history.length+1);history.push(current);clearChoices();const el=say('');el.classList.add('result-message');el.querySelector('.bubble').append(renderSnapshot(current));const row=node('div',undefined,'action-row');action('Voir la synthèse de mon parcours',()=>switchView('courses',true),row);action('Modifier mon profil',openProfile,row);el.querySelector('.bubble').append(row);sync();focusStart(el);status('Simulation terminée, sans appel au moteur. Tentatives : '+value.quota.total+'/'+value.quota.maxTotalRequests+'.');
+ }catch(e){if(attempt===epoch)status(e.name==='AbortError'?'Simulation interrompue ou délai dépassé. Réponses et ancien parcours conservés ; aucune relance automatique.':e.message,true);}
+ finally{clearTimeout(timer);if(attempt===epoch){controller=null;setBusy(false);}}
+}
+function stateNotice(snapshot){const stale=snapshotIsStale(snapshot,profile,references.revision),old=snapshot!==current;const box=node('div',undefined,'plan-status'+(stale?' stale':''));const text=node('div');text.append(node('strong',(old?'Parcours précédent · ':'')+'Parcours n° '+snapshot.number+(stale?' · Parcours à actualiser':'')),node('span',stale?'Le profil ou les choix du catalogue ont changé. Le résultat conserve ses cours et ses justifications.':'Profil confirmé : '+(snapshot.profile.objective||'')));box.append(text);return box;}
+function renderSnapshot(snapshot){const root=node('div');const marker=node('div');marker.dataset.snapshotNotice=snapshot.number;marker.append(stateNotice(snapshot));root.append(marker);const view=renderPathwayResult(document,snapshot.result,{replay:true});
+ // Le rendu existant conserve positions, catégories, gaps, durées et liens validés.
+ const items=[...(snapshot.result.recommendedSteps??snapshot.result.steps??[]),...(snapshot.result.optionalSteps??[]),...(snapshot.result.informationalCourses??[])];
+ [...view.querySelectorAll('.pathway-course')].forEach((card,i)=>{const item=items[i];card.append(node('p','Modalité : à vérifier sur la fiche officielle.'));card.append(node('p','Disponibilité des sessions : à vérifier sur la fiche officielle.'));action('En discuter avec l’avatar',()=>discuss(snapshot,item),card).className='course-discuss';});root.append(view);return root;}
+function discuss(snapshot,item){switchView('discussion');say('Parlons de '+item.course.code+' — '+item.course.title+' (parcours n° '+snapshot.number+').',true);const reply=say(item.rationale+'\n\nCette justification est celle du résultat reçu. Cette explication reprend uniquement le résultat reçu. Aucun appel à une IA.');if((snapshot.result.informationalCourses??[]).includes(item))reply.querySelector('.bubble').append(node('p','Cette formation reste pour information : vérifiez ses conditions d’accès.'));focusStart(reply);}
+function sync(){const panel=$('courses-content'),y=$('courses-view').scrollTop;panel.replaceChildren();if(!current){const empty=node('div',undefined,'view-empty');empty.append(node('h2','Vos cours apparaîtront ici'),node('p','Complétez le profil dans la discussion, puis confirmez la simulation. Le résultat reste un exemple fixe, sans analyse de votre besoin.'));action('Revenir à la discussion',()=>switchView('discussion'),empty,true);panel.append(empty);}
+ else{panel.append(node('h1','La synthèse de votre parcours'));const need=node('section',undefined,'need-summary');need.append(node('h2','Profil utilisé pour ce parcours'));profileList(current.profile,need);panel.append(need,renderSnapshot(current));if(snapshotIsStale(current,profile,references.revision)){const row=node('div',undefined,'action-row');action('Revoir et confirmer la simulation',()=>{switchView('discussion');confirmProfile();},row);panel.append(row);}const note=node('p','PDF et email : fonctions à définir. Aucun export ni envoi dans ce pilote.','source-note');panel.append(note);}
+ const r=current?.result,count=r?((r.recommendedSteps??r.steps??[]).length+(r.optionalSteps??[]).length+(r.informationalCourses??[]).length):0;$('course-count').textContent=String(count);$('course-count').classList.toggle('stale',snapshotIsStale(current,profile,references.revision));$('courses-view').scrollTop=y;
+ document.querySelectorAll('[data-snapshot-notice]').forEach(e=>{const snapshot=history.find(x=>x.number===Number(e.dataset.snapshotNotice));if(snapshot)e.replaceChildren(stateNotice(snapshot));});
+}
+function switchView(view,start=false){const old=active==='discussion'?$('conversation'):$('courses-view');scrolls[active]=old.scrollTop;active=view;$('conversation').hidden=view!=='discussion';$('courses-view').hidden=view!=='courses';$('composer-zone').hidden=view!=='discussion';for(const b of document.querySelectorAll('[data-view]')){b.setAttribute('aria-selected',String(b.dataset.view===view));b.tabIndex=b.dataset.view===view?0:-1;}$('view-caption').textContent=view==='discussion'?'Votre échange avec l’avatar':'La synthèse de votre parcours';requestAnimationFrame(()=>{const panel=view==='discussion'?$('conversation'):$('courses-view');panel.scrollTop=start?0:scrolls[view];});}
+function openProfile(){const form=$('profile-form');form.replaceChildren();for(const name of [...fields.filter(x=>x!=='constraints'),'modality','other']){const key=name==='other'?'constraints':name,f=references.pathway.fields[key],group=node('div',undefined,'field'),label=node('label',name==='modality'?'Modalité souhaitée':labels[key]);label.htmlFor='edit-'+name;let input;
+ if(f?.formControl==='select'||name==='modality'){input=node('select');input.append(new Option('Non renseigné',''));for(const [text,value]of choices(name))input.append(new Option(text,value));}
+ else{input=node(f.formControl==='textarea'?'textarea':'input');input.maxLength=f.maxLength;if(name==='entity'){const list=node('datalist');list.id='entity-options';for(const x of f.suggestions){const o=node('option');o.value=x.value;o.label=x.label;list.append(o);}form.append(list);input.setAttribute('list',list.id);}}
+ input.id='edit-'+name;input.name=name;input.value=name==='modality'?modality:name==='other'?other:profile[name]||'';input.required=false;group.append(label,input);form.append(group);}
+ const error=node('p','', 'status-line error');error.id='profile-error';error.setAttribute('role','alert');form.append(error);const submit=node('button','Enregistrer le profil','primary');submit.type='submit';submit.disabled=busy;form.append(submit);$('profile-dialog').showModal();}
+
+function applyDraft(draft){
+ if(!draft||!Number.isSafeInteger(draft.revision)||draft.referenceRevision!==references.revision||!draft.profile||typeof draft.modality!=='string')throw Error('Brouillon de dialogue invalide');
+ draftRevision=draft.revision;other=draft.profile.constraints||'';modality=draft.modality;profile={...draft.profile,constraints:composeConstraints(modality,other)};sync();
+}
+function nextField(){const basic=['objective','role','personnelCategory','existingSkills','timeAvailable','modality'];return [...basic,...fields.filter(k=>!basic.includes(k)&&references.pathway.fields[k].requiredInForm)].find(k=>!(k==='modality'?modality:profile[k])?.trim());}
+function ready(){try{return !nextField()&&Boolean(validateMessagingProfile(profile,references));}catch{return false;}}
+function save(){}
+async function dialogueRequest(body){
+ if(busy)throw Error('Une demande est déjà en cours.');
+ invalidate();const attempt=epoch,abort=new AbortController();controller=abort;setBusy(true);const timer=setTimeout(()=>abort.abort(),config.timeoutMs);
+ try{
+  const response=await fetch('/private/dialogue',{method:body?'POST':'GET',credentials:'same-origin',cache:'no-store',redirect:'error',signal:abort.signal,
+   headers:{Accept:'application/json',...(body?{'Content-Type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{})});
+  if(attempt!==epoch)throw Error('Réponse remplacée.');
+  const value=await response.json();if(!response.ok)throw Error(value.error||'Dialogue indisponible.');
+  if(value.mode!=='simulation')throw Error('Réponse de simulation attendue.');return value;
+ }finally{clearTimeout(timer);if(attempt===epoch){controller=null;setBusy(false);}}
+}
+function offerNext(){
+ clearChoices();$('composer').hidden=false;
+ const key=nextField();if(!key){if(ready()){confirmProfile();return;}const row=say('Certains repères doivent être corrigés dans Mon profil avant la simulation.');action('Corriger mon profil',openProfile,row.querySelector('.bubble'));focusStart(row);return;}
+ const prompts={objective:'Qu’aimeriez-vous mieux faire ou apprendre ?',role:'Quel est votre métier ou votre fonction ?',personnelCategory:'À quel groupe de personnel appartenez-vous ?',existingSkills:'Quelle expérience avez-vous sur ce sujet ?',timeAvailable:'Combien de temps pouvez-vous consacrer à cette formation ?',modality:'Quelle modalité préférez-vous ?'};
+ const el=say(prompts[key]||'Complétez ce repère : '+labels[key]),row=node('div',undefined,'action-row question-actions');
+ let suggestions=choices(key);
+ if(key==='objective')suggestions=[['Mieux organiser mon travail','Je voudrais mieux organiser mes tâches et mes priorités.'],['Progresser sur Word','Je voudrais progresser sur Word pour mes rapports.']];
+ if(key==='role')suggestions=[['Assistant administratif','Je suis assistant administratif.']];
+ for(const [label,value]of suggestions.slice(0,8))action(label,()=>send(value),row);
+ action('Compléter dans Mon profil',openProfile,row);$('thread').append(row);focusStart(el);
+}
+function confirmProfile(){
+ clearChoices();$('composer').hidden=false;
+ if(proposal){status('Acceptez ou refusez d’abord la proposition en attente.',true);return;}
+ if(!ready()){offerNext();return;}
+ const el=say('Voici le profil accepté. Souhaitez-vous simuler un parcours avec ces informations ?');profileList(profile,el.querySelector('.bubble'));
+ const row=node('div',undefined,'action-row question-actions');const b=action('Confirmer le profil et simuler',simulate,row,true);b.dataset.confirm='true';action('Modifier mon profil',openProfile,row);$('thread').append(row);focusStart(el);
+}
+function simulate(){if(proposal||!ready()){status('Validez les corrections et complétez les repères avant de confirmer.',true);return;}return simulatePathway();}
+async function decide(accept){
+ if(busy||!proposal)return;const currentProposal=proposal;
+ try{const value=await dialogueRequest({action:accept?'accept':'reject',proposalId:currentProposal.id,expectedRevision:draftRevision,confirmed:accept});
+  proposal=null;clearChoices();applyDraft(value.draft);const el=say(accept?'Ces corrections sont appliquées à votre profil. Aucune recherche n’a été lancée.':'Proposition refusée. Votre profil reste inchangé.');offerNext();focusStart(el);
+ }catch(error){status(error.message,true);}
+}
+function showPending(reply='Une proposition précédente attend votre décision. Le profil reste inchangé.'){
+ clearChoices();const el=say(reply);focusStart(el);
+ const list=node('dl',undefined,'need-grid');for(const item of proposal.changes){const group=node('div');group.append(node('dt',labels[item.field]),node('dd',item.field==='modality'?item.value:display(item.field,item.value)));list.append(group);}el.querySelector('.bubble').append(list);
+ const row=node('div',undefined,'action-row question-actions');action('Appliquer ces corrections',()=>decide(true),row,true);action('Garder mon profil actuel',()=>decide(false),row);el.querySelector('.bubble').append(row);
+ status('Proposition en attente : profil inchangé, aucune recherche lancée.');
+}
+async function send(text){
+ text=text.trim();if(!text||busy)return;clearChoices();$('message').value='';say(text,true);proposal=null;
+ try{const value=await dialogueRequest({action:'turn',requestId:crypto.randomUUID(),message:text,expectedRevision:draftRevision,referenceRevision:references.revision});
+  applyDraft(value.draft);proposal=value.proposal;
+  if(proposal)showPending(value.reply);
+  else{const el=say(value.reply);status('Réponse d’un fournisseur fictif. Aucun appel OpenAI.');offerNext();focusStart(el);}
+ }catch(error){status(error.name==='AbortError'?'Dialogue interrompu. Profil et parcours conservés ; aucune relance automatique.':error.message,true);}
+}
+$('profile-form').addEventListener('submit',async event=>{
+ event.preventDefault();if(busy)return;const values=Object.fromEntries(new FormData(event.target)),next={};
+ try{for(const k of fields)if(k!=='constraints'){if(values[k]?.trim())validateField(k,values[k]);next[k]=values[k]||'';}if(values.modality)validateField('modality',values.modality);const constraints=composeConstraints(values.modality,values.other);if(constraints)validateField('constraints',constraints);next.constraints=values.other;
+  const value=await dialogueRequest({action:'edit',profile:next,modality:values.modality,expectedRevision:draftRevision});proposal=null;applyDraft(value.draft);$('profile-dialog').close();clearChoices();switchView('discussion');status('Profil enregistré ; le parcours précédent reste conservé.');confirmProfile();
+ }catch(error){$('profile-error').textContent=error.message;}
+});
+$('composer').addEventListener('submit',event=>{event.preventDefault();send($('message').value);});
+$('message').maxLength=1500;$('message').placeholder='Décrivez votre besoin…';
+$('open-profile').addEventListener('click',openProfile);$('close-profile').addEventListener('click',()=>$('profile-dialog').close());
+$('restart').addEventListener('click',async()=>{
+ if(busy)return;
+ try{const value=await dialogueRequest({action:'edit',profile:{},modality:'',expectedRevision:draftRevision});proposal=null;current=null;history=[];$('thread').replaceChildren();applyDraft(value.draft);switchView('discussion',true);say('Nouvelle demande fictive. Les compteurs ne sont pas réinitialisés.');offerNext();}catch(error){status(error.message,true);}
+});
+$('refresh-references').addEventListener('click',async()=>{
+ if(busy)return;try{const value=await dialogueRequest();references=value.references;proposal=value.proposal;applyDraft(value.draft);clearChoices();status('Brouillon accepté rechargé. Le résultat précédent reste conservé ; aucune recherche automatique.');if(proposal)showPending();else offerNext();}catch(error){status(error.message,true);}
+});
+document.querySelectorAll('[data-view]').forEach(b=>{b.addEventListener('click',()=>switchView(b.dataset.view));b.addEventListener('keydown',event=>{if(['ArrowLeft','ArrowRight','Home','End'].includes(event.key)){event.preventDefault();const v=event.key==='Home'?'discussion':event.key==='End'?'courses':active==='discussion'?'courses':'discussion';switchView(v);$('tab-'+v).focus();}});});
+try{const value=await dialogueRequest();references=value.references;applyDraft(value.draft);say('Bonjour ! Ce mode de test utilise un fournisseur fictif. Chaque correction proposée attend votre acceptation ; aucun appel OpenAI.');proposal=value.proposal;if(proposal)showPending();else offerNext();}catch(error){status(error.message,true);}

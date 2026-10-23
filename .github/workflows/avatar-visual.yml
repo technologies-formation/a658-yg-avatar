@@ -43,6 +43,10 @@ jobs:
         env:
           AVATAR_PLAYWRIGHT_MODULE: ${{ runner.temp }}/avatar-browser/node_modules/playwright/index.mjs
         run: node experimental-service/messaging-browser-check.mjs
+      - name: Verify the isolated fictitious dialogue interface
+        env:
+          AVATAR_PLAYWRIGHT_MODULE: ${{ runner.temp }}/avatar-browser/node_modules/playwright/index.mjs
+        run: node experimental-service/dialogue-browser-check.mjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:

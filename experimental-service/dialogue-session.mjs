@@ -32,7 +32,7 @@ export function createDialogueSession(options = {}) {
   if (!enabled) return Object.freeze({
     status: () => ({ enabled: false, busy: false, attemptedTurns: 0 }), stop() {},
     async turn() { fail('disabled') }, acceptProposal() { fail('disabled') },
-    editProfile() { fail('disabled') }, getDraft() { fail('disabled') },
+    rejectProposal() { fail('disabled') }, getProposal() { fail('disabled') }, editProfile() { fail('disabled') }, getDraft() { fail('disabled') },
     getPathwayProfile() { fail('disabled') },
   })
   const { provider, references, initialProfile = {}, initialModality = '', maxTurns, timeoutMs, maxHistoryCharacters = 12000 } = options
@@ -86,6 +86,7 @@ export function createDialogueSession(options = {}) {
   return Object.freeze({
     status: () => ({ enabled: !stopped, mode: 'simulation', busy: active !== null, attemptedTurns, maxTurns }),
     getDraft() { available(); return snapshot() },
+    getProposal() { available(); return copy(pending) },
     stop() { stopped = true; pending = null; active?.abort(); },
     editProfile(value, { expectedRevision, modality: nextModality = modality } = {}) {
       available(); if (active) fail('busy')
@@ -105,6 +106,12 @@ export function createDialogueSession(options = {}) {
         else next[change.field] = change.value
       }
       profile = profileValue(next); modality = nextModality; revision++; pending = null
+      return snapshot()
+    },
+    rejectProposal({ proposalId, expectedRevision } = {}) {
+      available(); if (active) fail('busy')
+      if (!pending || pending.id !== proposalId || expectedRevision !== revision) fail('stale_proposal')
+      pending = null
       return snapshot()
     },
     getPathwayProfile({ expectedRevision } = {}) {
