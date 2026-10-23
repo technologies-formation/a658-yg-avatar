@@ -21,7 +21,7 @@ Le transport OpenAI reste celui déjà préparé : modèle fixé, comptage avant
 
 `createDialogueSession` continue à refuser un fournisseur réel. Seule la fabrique séparée `createRealDialogueTrialSession`, explicitement autorisée, accepte son enveloppe `{ result, usage }`. Le résultat passe par les mêmes contrôles de champs, valeurs du référentiel, citations utilisateur, révisions et acceptation explicite. Le mode reste `real`, sans le rebaptiser simulation.
 
-Dans l’écran d’essai, la réponse de l’IA constitue l’échange : le questionnaire fictif ne rajoute pas ses questions préparées. Une proposition conserve le texte de la réponse et reçoit une mention après décision. Le profil complet reste à confirmer séparément avant un parcours. Les parcours utilisent exclusivement le fournisseur de simulation existant ; `pathwayMode: 'simulation'` reste explicite dans les réponses du dialogue.
+Dans l’écran d’essai, la réponse de l’IA constitue l’échange : le questionnaire fictif ne rajoute pas ses questions préparées. Une proposition conserve le texte de la réponse et reçoit une mention après décision. Le profil complet reste à confirmer séparément avant un parcours. L’avertissement du résultat distingue explicitement le parcours fixe de la consommation du dialogue IA ; il ne prétend pas que toute la session est sans appel OpenAI. Les parcours utilisent exclusivement le fournisseur de simulation existant ; `pathwayMode: 'simulation'` reste explicite dans les réponses du dialogue.
 
 ## Budget et usage
 

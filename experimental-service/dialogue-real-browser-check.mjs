@@ -59,6 +59,7 @@ try{
   await page.getByRole('button',{name:'Confirmer le profil et simuler',exact:true}).waitFor();assert.equal(pathways,0)
   await page.getByRole('button',{name:'Confirmer le profil et simuler',exact:true}).click();await page.locator('#thread .pathway-course').first().waitFor()
   assert.equal(pathways,1)
+  assert.equal(await page.getByText('Exemple fixe pour tester l’affichage, sans recherche de cours. Le dialogue IA est distinct et peut consommer des appels OpenAI.',{exact:true}).count(),1)
   const cards=await page.locator('#thread .pathway-course').allTextContents()
   await page.locator('#tab-courses').click();assert.equal(await page.getByText('La synthèse de votre parcours',{exact:true}).count(),1);assert.deepEqual(await page.locator('#courses-content .pathway-course').allTextContents(),cards)
   await page.getByRole('button',{name:'Mon profil',exact:true}).click();await page.locator('[name=modality]').selectOption('Présentiel')
