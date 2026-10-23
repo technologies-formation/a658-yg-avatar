@@ -2,7 +2,7 @@
 
 ## Périmètre de la branche
 
-Branche dédiée `feat/avatar-messaging-simulation`, issue de la révision avatar `2836b88`. L’écran privé historique demeure l’interface par défaut ; les lanceurs réels et le moteur CATALOGUE ne sont pas modifiés. Aucun déploiement Infomaniak ni nouvel appel payant n’est autorisé par ce travail.
+Branche dédiée `feat/avatar-messaging-simulation`, issue de la révision avatar `2836b88`. L’écran privé historique demeure l’interface par défaut ; les lanceurs réels et le moteur CATALOGUE ne sont pas modifiés. Cette branche prépare l’interface de simulation ; toute utilisation réelle relève d’un périmètre distinct.
 
 Les fabriques existantes `createHostedSimulation` et `createPilotSimulationServer` acceptent une option explicite `interface: 'messaging'`. Elles gardent la même session de simulation, les mêmes comptes, confirmations, contrôles d’origine et quotas. Les ressources du navigateur sont ajoutées à la liste explicite des ressources privées, protégées par la même authentification. Aucun accès générique au système de fichiers.
 
@@ -28,3 +28,22 @@ Les PDF, emails, disponibilités réelles et dialogue libre restent des évoluti
 Les tests Node couvrent la conservation des contraintes, le respect du référentiel, les snapshots, la sérialisation sûre du contrat, les ressources authentifiées, la confirmation et le compteur. Le contrôle Chromium `messaging-browser-check.mjs` utilise uniquement des routes interceptées et des données synthétiques ; il vérifie les champs transmis, l’absence de POST avant confirmation, les deux vues, le résultat conservé après correction et la reprise du brouillon, en ordinateur et mobile. Son résultat CI doit être vérifié avant de revendiquer une validation navigateur.
 
 Coût OpenAI API de la préparation et des tests sans moteur : 0 token / 0 $.
+
+
+## Bilan fonctionnel de l’interface
+
+Les vérifications utilisateur portent sur des données synthétiques, sans analyse personnalisée :
+
+- Discussion et Cours proposés affichent le même profil et le même résultat, dans le même ordre et avec les mêmes catégories.
+- Une correction du profil conserve le parcours précédent et signale qu’il doit être actualisé.
+- « En discuter » revient dans Discussion avec la formation et la justification correspondantes.
+
+Ces contrôles valident les interactions de l’interface, pas la pertinence pédagogique des formations synthétiques.
+
+## Prochaine évolution à cadrer : le dialogue libre
+
+La messagerie reste un questionnaire guidé. Le dialogue libre devra aider à exprimer le besoin, reformuler et proposer une mise à jour du profil. Une confirmation explicite devra précéder la demande d’un nouveau parcours au moteur existant du catalogue.
+
+Le dialogue ne doit pas devenir un second moteur de sélection ni modifier silencieusement les catégories, l’ordre ou les justifications d’un résultat. Les deux onglets doivent continuer à présenter le même parcours.
+
+Avant le raccordement, préciser le budget, le traitement des données, les limites de conversation et les conditions d’appel. Les disponibilités des sessions, les PDF et les emails restent des évolutions distinctes. Ce bilan documentaire ne déclenche aucun appel payant.
