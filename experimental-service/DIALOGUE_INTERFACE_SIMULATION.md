@@ -44,3 +44,8 @@ Quatre nouveaux tests HTTP couvrent le mode désactivé, les ressources protég�
 Cette fabrique est un assemblage de test, sans commande de lancement pour le pilote installé. La mise à disposition d’un essai utilisateur nécessite encore le choix du mode de lancement et de la session isolée. Le raccordement d’un fournisseur réel demandera un adaptateur explicite préservant la provenance, les confirmations et l’usage facturé ; il ne faut jamais faire passer le connecteur réel pour un fournisseur fictif.
 
 Coût OpenAI API de la préparation et des tests fictifs : 0 token / 0 $.
+
+
+### Validation GitHub du raccordement
+
+À la révision de code `83ffc596151b285a0f630edf029b5fe5530d37f5`, le workflow de sécurité `39988077505` et le workflow navigateur `39988077734` ont réussi. Les captures ordinateur et mobile de l’interface fictive ont été examinées. Le rapport confirme une simulation de parcours par écran, aucune génération avant confirmation, l’acceptation obligatoire des propositions, le résultat conservé après correction et aucune requête externe du navigateur. Les données utilisées sont synthétiques ; cette validation ne mesure pas la pertinence d’un parcours réel ou la qualité d’une conversation IA.
