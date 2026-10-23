@@ -2,7 +2,7 @@
 
 ## Réalisé et limites
 
-Le fournisseur existant est relié à la session de profil et à l’interface privée par `createRealDialogueTrialInterface`. Aucun lanceur d’hébergement existant ne l’importe ou ne l’active. L’interface installée reste en dialogue fictif. Les tests décrits ici utilisent uniquement un faux transport, une fausse clé et des comptes synthétiques. Aucune qualité de conversation IA réelle n’est revendiquée.
+Le fournisseur existant est relié à la session de profil et à l’interface privée par `createRealDialogueTrialInterface`. Aucun lanceur d’hébergement existant ne l’importe ou ne l’active. Un lanceur distinct, avec préparation désactivée et verrous de lancement, est désormais décrit dans HEBERGEMENT_DIALOGUE_IA.md. L’interface installée reste en dialogue fictif. Les tests décrits ici utilisent uniquement un faux transport, une fausse clé et des comptes synthétiques. Aucune qualité de conversation IA réelle n’est revendiquée.
 
 Le mode fictif installé a été vérifié manuellement après sa correction : repère accepté dans la bulle initiale, question suivante sans bulle de confirmation supplémentaire et bandeau « Profil mis à jour. Aucune recherche lancée. ». Le résultat synthétique précédemment vérifié reste un exemple fixe ; aucun nouveau parcours n’a été demandé pour ce contrôle visuel.
 
@@ -39,6 +39,6 @@ Le scénario navigateur prépare un faux transport et vérifie sur ordinateur et
 
 ## Prochaine étape
 
-Préparer un lanceur privé distinct et sa configuration désactivée, vérifier les conditions d’accès et de facturation, puis soumettre le lancement concret de l’essai borné. Aucun déploiement, clé réelle ou appel payant n’est inclus dans ce jalon.
+Le lanceur privé distinct et sa préparation désactivée sont décrits dans HEBERGEMENT_DIALOGUE_IA.md. Vérifier les conditions d’accès et de facturation, puis soumettre le lancement concret de l’essai borné. Aucun déploiement, clé réelle ou appel payant n’est inclus dans ce jalon.
 
 Coût OpenAI API : 0 token / 0 $.

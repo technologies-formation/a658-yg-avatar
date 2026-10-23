@@ -1,6 +1,6 @@
 # Préparation du dialogue privé — désactivée
 
-État actualisé : le dialogue fictif est installé et vérifié. Le raccordement distinct du dialogue IA reste désactivé par défaut et sans lanceur ; voir DIALOGUE_REEL_RACCORDEMENT.md. Les sections suivantes conservent le jalon initial du contrat de session, avant les interfaces et le raccordement ultérieurs.
+État actualisé : le dialogue fictif est installé et vérifié. Le raccordement distinct du dialogue IA reste désactivé par défaut ; voir DIALOGUE_REEL_RACCORDEMENT.md et HEBERGEMENT_DIALOGUE_IA.md pour la préparation du lanceur séparé. Les sections suivantes conservent le jalon initial du contrat de session, avant les interfaces et le raccordement ultérieurs.
 
 ## État de cette étape
 
