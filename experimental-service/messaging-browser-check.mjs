@@ -25,7 +25,9 @@ try{for(const [name,width,height]of [['desktop',1280,900],['mobile',390,844]]){
  await page.locator('#courses-content .course-discuss').first().click();await page.waitForFunction(()=>document.getElementById('conversation').hidden===false);assert.match(await page.locator('#thread').innerText(),/TEST-1/);assert.equal(posts,1);
  await page.getByRole('button',{name:'Mon profil',exact:true}).click();await page.locator('#edit-objective').fill('Rédiger des documents de test');await page.getByRole('button',{name:'Enregistrer le profil',exact:true}).click();assert.equal(posts,1);
  await page.getByRole('tab',{name:/Cours proposés/}).click();assert.match(await page.locator('#courses-content').innerText(),/Parcours à actualiser/);assert.deepEqual(await page.locator('#courses-content .pathway-course h4').allTextContents(),cards);
- await page.screenshot({path:join(output,'messaging-'+name+'-courses.png'),fullPage:true});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+ assert.equal(await page.locator('#tab-courses').getAttribute('aria-selected'),'true');assert.equal(await page.locator('#tab-discussion').getAttribute('aria-selected'),'false');
+ await page.waitForFunction(()=>getComputedStyle(document.getElementById('tab-courses')).color==='rgb(255, 255, 255)');
+ await page.screenshot({path:join(output,'messaging-'+name+'-courses.png'),fullPage:true,animations:'disabled'});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
  await page.reload();await page.locator('#thread').getByText(/Vos réponses ont été restaurées/).waitFor();assert.equal(posts,1);assert.equal(await page.locator('#conversation .pathway-result').count(),0);
  await page.screenshot({path:join(output,'messaging-'+name+'-restored.png'),fullPage:true});assert.deepEqual(errors,[]);assert.deepEqual(unexpected,[]);reports.push({name,posts,sharedResult:true,stalePreservesResult:true,draftRestored:true,noExternalRequests:true});
  }finally{await context.close();}
