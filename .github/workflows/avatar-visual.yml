@@ -29,6 +29,7 @@ jobs:
       - name: Install browser test tooling outside the project
         run: npm install --prefix "$RUNNER_TEMP/avatar-browser" --ignore-scripts --no-audit --no-fund playwright@1.62.1
       - name: Install Chromium and system dependencies
+        timeout-minutes: 3
         run: node "$RUNNER_TEMP/avatar-browser/node_modules/playwright/cli.js" install --with-deps chromium
       - name: Exercise the local questionnaire on desktop and mobile
         env:
