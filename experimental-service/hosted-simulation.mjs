@@ -4,6 +4,7 @@ import { readFileSync, lstatSync, realpathSync, writeFileSync, copyFileSync, ren
 import { isAbsolute, join, relative, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { createPilotSimulation } from './pilot-simulation.mjs'
+import { renderMessagingPage } from './messaging-page.mjs'
 import { renderPrivatePage } from './private-page.mjs'
 import { validateProfileReferences } from './profile-references.mjs'
 
@@ -11,7 +12,8 @@ export { HOSTED_ORIGIN, secureProxyCheck } from './hosted-transport.mjs'
 import { HOSTED_ORIGIN, createHostedTransport } from './hosted-transport.mjs'
 
 export function createHostedSimulation(options = {}) {
-  return createHostedTransport({ ...options, renderPage: renderPrivatePage,
+  if (!['legacy', 'messaging'].includes(options.interface ?? 'legacy')) throw Error('Interface de simulation inconnue')
+  return createHostedTransport({ ...options, renderPage: options.interface === 'messaging' ? renderMessagingPage : renderPrivatePage,
     createSession: () => createPilotSimulation({ stateFile: options.stateFile,
       maxDailyRequests: 5, maxTotalRequests: 5, singleInstance: true,
       loadProfileReferences: options.loadProfileReferences, preview: options.preview }) })

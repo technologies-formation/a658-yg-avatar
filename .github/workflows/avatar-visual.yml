@@ -1,7 +1,7 @@
 name: Avatar browser simulation
 on:
   push:
-    branches: ['feat/avatar-interactive-local']
+    branches: ['feat/avatar-interactive-local', 'feat/avatar-messaging-simulation']
     paths:
       - 'index.html'
       - 'experimental-service/**'
@@ -39,6 +39,10 @@ jobs:
         env:
           AVATAR_PLAYWRIGHT_MODULE: ${{ runner.temp }}/avatar-browser/node_modules/playwright/index.mjs
         run: node experimental-service/summary-resize-browser-check.mjs
+      - name: Verify the opt-in messaging simulation
+        env:
+          AVATAR_PLAYWRIGHT_MODULE: ${{ runner.temp }}/avatar-browser/node_modules/playwright/index.mjs
+        run: node experimental-service/messaging-browser-check.mjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
