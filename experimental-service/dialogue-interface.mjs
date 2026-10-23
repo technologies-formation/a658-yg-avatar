@@ -27,7 +27,7 @@ export function createFictitiousDialogueProvider() {
     if (['Moins d’une journée', '1 à 2 jours', '3 à 5 jours', 'À définir'].includes(text)) add('timeAvailable', text)
     if (['Présentiel', 'En ligne', 'Indifférent'].includes(text)) add('modality', text)
     return { kind: changes.length ? 'recap' : 'ask', changes,
-      reply: changes.length ? 'Je propose ces corrections. Vérifiez-les avant de les appliquer ; votre profil reste inchangé pour le moment.' :
+      reply: changes.length ? 'À ajouter à votre profil :' :
         'Ce fournisseur est fictif et reconnaît quelques formulations de test. Vous pouvez écrire « Je voudrais mieux organiser mes tâches et mes priorités », « Je suis assistant administratif », ou compléter les repères dans Mon profil.' }
   } }
 }

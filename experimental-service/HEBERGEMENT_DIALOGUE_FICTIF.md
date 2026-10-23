@@ -33,6 +33,8 @@ La suite Node complète compte 161 tests réussis localement. Les validations HT
 
 ## État du déploiement
 
-Ce document décrit une préparation testée. Le téléchargement sur un hébergement, la sélection de configuration et le redémarrage doivent chacun être confirmés par leur retour réel avant de déclarer le nouveau mode installé. Aucun déploiement distant n’est revendiqué à ce stade.
+Le mode fictif a ensuite été installé : le retour du lanceur confirme son démarrage et le contrôle HTTPS réussi. Un essai manuel confirme les propositions acceptées séparément, le récapitulatif avant simulation et un même résultat synthétique dans Discussion et Cours proposés. Le compteur affiché est de 4/5 ; il reste inchangé par cette correction d’interface. Ce constat ne valide ni une conversation IA ni une recommandation personnalisée.
+
+Une correction ciblée raccourcit la proposition et remplace son texte après décision, sans ajouter de bulle de confirmation. Le bandeau quitte l’état « en attente » après décision. L’en-tête de navigation devient « Vos cours et votre profil confirmé » pour éviter de répéter le titre de la synthèse. Les boutons d’acceptation et la confirmation distincte avant simulation sont conservés. Les 161 tests locaux passent ; le contrôle navigateur vérifie aussi ces trois comportements. Ces corrections nécessitent une mise à jour et un redémarrage pour apparaître sur l’hébergement.
 
 Coût OpenAI API de cette préparation : 0 token / 0 $.

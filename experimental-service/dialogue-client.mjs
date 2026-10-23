@@ -42,7 +42,7 @@ function sync(){const panel=$('courses-content'),y=$('courses-view').scrollTop;p
  const r=current?.result,count=r?((r.recommendedSteps??r.steps??[]).length+(r.optionalSteps??[]).length+(r.informationalCourses??[]).length):0;$('course-count').textContent=String(count);$('course-count').classList.toggle('stale',snapshotIsStale(current,profile,references.revision));$('courses-view').scrollTop=y;
  document.querySelectorAll('[data-snapshot-notice]').forEach(e=>{const snapshot=history.find(x=>x.number===Number(e.dataset.snapshotNotice));if(snapshot)e.replaceChildren(stateNotice(snapshot));});
 }
-function switchView(view,start=false){const old=active==='discussion'?$('conversation'):$('courses-view');scrolls[active]=old.scrollTop;active=view;$('conversation').hidden=view!=='discussion';$('courses-view').hidden=view!=='courses';$('composer-zone').hidden=view!=='discussion';for(const b of document.querySelectorAll('[data-view]')){b.setAttribute('aria-selected',String(b.dataset.view===view));b.tabIndex=b.dataset.view===view?0:-1;}$('view-caption').textContent=view==='discussion'?'Votre échange avec l’avatar':'La synthèse de votre parcours';requestAnimationFrame(()=>{const panel=view==='discussion'?$('conversation'):$('courses-view');panel.scrollTop=start?0:scrolls[view];});}
+function switchView(view,start=false){const old=active==='discussion'?$('conversation'):$('courses-view');scrolls[active]=old.scrollTop;active=view;$('conversation').hidden=view!=='discussion';$('courses-view').hidden=view!=='courses';$('composer-zone').hidden=view!=='discussion';for(const b of document.querySelectorAll('[data-view]')){b.setAttribute('aria-selected',String(b.dataset.view===view));b.tabIndex=b.dataset.view===view?0:-1;}$('view-caption').textContent=view==='discussion'?'Votre échange avec l’avatar':'Vos cours et votre profil confirmé';requestAnimationFrame(()=>{const panel=view==='discussion'?$('conversation'):$('courses-view');panel.scrollTop=start?0:scrolls[view];});}
 function openProfile(){const form=$('profile-form');form.replaceChildren();for(const name of [...fields.filter(x=>x!=='constraints'),'modality','other']){const key=name==='other'?'constraints':name,f=references.pathway.fields[key],group=node('div',undefined,'field'),label=node('label',name==='modality'?'Modalité souhaitée':labels[key]);label.htmlFor='edit-'+name;let input;
  if(f?.formControl==='select'||name==='modality'){input=node('select');input.append(new Option('Non renseigné',''));for(const [text,value]of choices(name))input.append(new Option(text,value));}
  else{input=node(f.formControl==='textarea'?'textarea':'input');input.maxLength=f.maxLength;if(name==='entity'){const list=node('datalist');list.id='entity-options';for(const x of f.suggestions){const o=node('option');o.value=x.value;o.label=x.label;list.append(o);}form.append(list);input.setAttribute('list',list.id);}}
@@ -89,11 +89,13 @@ function simulate(){if(proposal||!ready()){status('Validez les corrections et co
 async function decide(accept){
  if(busy||!proposal)return;const currentProposal=proposal;
  try{const value=await dialogueRequest({action:accept?'accept':'reject',proposalId:currentProposal.id,expectedRevision:draftRevision,confirmed:accept});
-  proposal=null;clearChoices();applyDraft(value.draft);const el=say(accept?'Ces corrections sont appliquées à votre profil. Aucune recherche n’a été lancée.':'Proposition refusée. Votre profil reste inchangé.');offerNext();focusStart(el);
+  proposal=null;clearChoices();applyDraft(value.draft);const pending=[...document.querySelectorAll('[data-proposal-id]')].find(el=>el.dataset.proposalId===currentProposal.id);
+  if(pending)pending.querySelector('.bubble').firstChild.textContent=accept?'Repère enregistré dans votre profil.':'Proposition écartée ; votre profil reste inchangé.';
+  status(accept?'Profil mis à jour. Aucune recherche lancée.':'Proposition écartée. Profil inchangé.');offerNext();
  }catch(error){status(error.message,true);}
 }
 function showPending(reply='Une proposition précédente attend votre décision. Le profil reste inchangé.'){
- clearChoices();const el=say(reply);focusStart(el);
+ clearChoices();const el=say(reply);el.dataset.proposalId=proposal.id;focusStart(el);
  const list=node('dl',undefined,'need-grid');for(const item of proposal.changes){const group=node('div');group.append(node('dt',labels[item.field]),node('dd',item.field==='modality'?item.value:display(item.field,item.value)));list.append(group);}el.querySelector('.bubble').append(list);
  const row=node('div',undefined,'action-row question-actions');action('Appliquer ces corrections',()=>decide(true),row,true);action('Garder mon profil actuel',()=>decide(false),row);el.querySelector('.bubble').append(row);
  status('Proposition en attente : profil inchangé, aucune recherche lancée.');
