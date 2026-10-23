@@ -1,5 +1,7 @@
 # Connecteur GPT-6 Luna — préparation désactivée
 
+État actualisé : le raccordement distinct, désactivé par défaut, est décrit dans DIALOGUE_REEL_RACCORDEMENT.md. Les paragraphes ci-dessous décrivent le jalon initial du transport et du registre, antérieur à ce raccordement.
+
 ## Périmètre réalisé
 
 `openai-dialogue.mjs` et `dialogue-budget.mjs` préparent le transport Responses API et le registre de l’essai. Aucun lanceur ni écran ne les importe. Aucun secret d’environnement n’est lu, aucun dossier de session n’est créé implicitement et aucun appel OpenAI réel n’a été exécuté.

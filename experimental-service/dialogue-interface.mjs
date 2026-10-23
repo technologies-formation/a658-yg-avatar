@@ -31,17 +31,28 @@ export function createFictitiousDialogueProvider() {
         'Ce fournisseur est fictif et reconnaît quelques formulations de test. Vous pouvez écrire « Je voudrais mieux organiser mes tâches et mes priorités », « Je suis assistant administratif », ou compléter les repères dans Mon profil.' }
   } }
 }
-export function renderDialogueSimulationPage(references, { timeoutMs = 10000 } = {}) {
+export function renderDialogueSimulationPage(references, options = {}) {
+  return renderDialoguePage(references, options, false)
+}
+export function renderDialogueTrialPage(references, options = {}) {
+  return renderDialoguePage(references, options, true)
+}
+function renderDialoguePage(references, { timeoutMs = 10000 } = {}, realTrial) {
   const contract = validateProfileReferences(references)
   if (!Number.isInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 30000) fail('configuration')
-  return template.replace('/*MESSAGING_CONFIG*/', JSON.stringify({ references: contract, timeoutMs, mode: 'simulation', dialogue: 'fictitious' }).replace(/</g, '\\u003c'))
+  return template.replace('/*MESSAGING_CONFIG*/', JSON.stringify({ references: contract, timeoutMs, mode: 'simulation', dialogue: realTrial ? 'real-trial' : 'fictitious' }).replace(/</g, '\\u003c'))
     .replace('/private/messaging-client.mjs', '/private/dialogue-client.mjs')
-    .replace('Pilote privé · simulation uniquement', 'Dialogue fictif · aucun appel OpenAI')
+    .replace('Pilote privé · simulation uniquement', realTrial ? 'Essai dialogue IA · parcours simulés · 10 tentatives maximum' : 'Dialogue fictif · aucun appel OpenAI')
 }
 export function createDialogueSimulationInterface(options = {}) {
+  return createDialogueInterface(options)
+}
+// Assemblage serveur partagé ; aucun lanceur existant ne fournit de chemin réel.
+export function createDialogueInterface(options = {}, trial = null) {
   const { enabled = false } = options
   if (typeof enabled !== 'boolean') fail('configuration')
   if (!enabled) return createPilotPrivateHandler({ enabled: false })
+  const dialogueMode = trial ? 'real' : 'simulation'
   const { publicOrigin, users, isSecureRequest, stateFile, loadProfileReferences, preview, timeoutMs = 10000 } = options
   const simulation = createPilotSimulation({ stateFile, maxDailyRequests: 5, maxTotalRequests: 5, singleInstance: true, loadProfileReferences, preview })
   const sessions = new Map()
@@ -51,13 +62,13 @@ export function createDialogueSimulationInterface(options = {}) {
     if (value && value.references.revision !== refs.revision) fail('references_changed')
     if (!value) {
       if (sessions.size >= 8) fail('busy')
-      value = { references: refs, session: createDialogueSession({ enabled: true, references: refs,
+      value = { references: refs, session: trial ? trial.createSession(refs) : createDialogueSession({ enabled: true, references: refs,
         provider: createFictitiousDialogueProvider(), maxTurns: 10, timeoutMs }) }
       sessions.set(identity.id, value)
     }
     return value
   }
-  const resources = createPrivateResources(simulation, renderDialogueSimulationPage, timeoutMs)
+  const resources = createPrivateResources(simulation, trial ? renderDialogueTrialPage : renderDialogueSimulationPage, timeoutMs)
   const send = (res, status, body) => {
     res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' })
     res.end(JSON.stringify(body))
@@ -83,7 +94,7 @@ export function createDialogueSimulationInterface(options = {}) {
         if (!['GET', 'POST'].includes(req.method)) { send(res, 405, { error: 'Méthode refusée' }); return true }
         if (req.method === 'POST' && req.headers.origin !== publicOrigin) { send(res, 403, { error: 'Origine requise' }); return true }
         const value = await entry(context.identity), session = value.session
-        if (req.method === 'GET') { send(res, 200, { mode: 'simulation', draft: session.getDraft(), proposal: session.getProposal(), references: value.references }); return true }
+        if (req.method === 'GET') { send(res, 200, { mode: dialogueMode, pathwayMode: 'simulation', draft: session.getDraft(), proposal: session.getProposal(), references: value.references, ...(trial ? { usageRecords: session.getUsage(), budget: trial.budgetStatus() } : {}) }); return true }
         if (req.headers['content-type']?.split(';')[0].trim() !== 'application/json') { send(res, 415, { error: 'JSON requis' }); return true }
         const chunks = []; let bytes = 0
         for await (const chunk of req) { bytes += chunk.length; if (bytes > 16000) { send(res, 413, { error: 'Requête trop volumineuse' }); return true } chunks.push(chunk) }
@@ -96,11 +107,11 @@ export function createDialogueSimulationInterface(options = {}) {
         else if (body.action === 'reject') result = { draft: session.rejectProposal(body) }
         else if (body.action === 'edit') result = { draft: session.editProfile(body.profile, body) }
         else fail('invalid_request')
-        if (!context.signal.aborted) send(res, 200, { ...result, mode: 'simulation' })
+        if (!context.signal.aborted) send(res, 200, { ...result, mode: dialogueMode, pathwayMode: 'simulation', ...(trial ? { usageRecords: session.getUsage(), budget: trial.budgetStatus() } : {}) })
       } catch (error) {
         const code = error instanceof DialogueError ? error.code : 'service_unavailable'
-        const status = ['stale_profile', 'stale_proposal', 'proposal_pending', 'references_changed', 'busy', 'duplicate_request'].includes(code) ? 409 : code === 'quota_exceeded' ? 429 : code === 'timeout' ? 504 : code === 'disabled' ? 503 : 400
-        if (!context.signal.aborted && !res.writableEnded) send(res, status, { code, error: 'Dialogue fictif non abouti. Profil conservé ; aucune relance automatique.' })
+        const status = ['stale_profile', 'stale_proposal', 'proposal_pending', 'references_changed', 'busy', 'duplicate_request'].includes(code) ? 409 : ['quota_exceeded', 'budget_stopped'].includes(code) ? 429 : code === 'timeout' ? 504 : code === 'disabled' ? 503 : 400
+        if (!context.signal.aborted && !res.writableEnded) send(res, status, { code, error: 'Dialogue non abouti. Profil conservé ; aucune relance automatique.' })
       }
       return true
     },

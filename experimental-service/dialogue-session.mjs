@@ -1,5 +1,5 @@
 // Préparation isolée : aucune route, écoute HTTP, clé, variable d’environnement ou destination.
-// Seul un fournisseur de simulation explicitement injecté est accepté à ce stade.
+// Le chemin réel distinct exige une autorisation explicite ; aucun transport implicite.
 import { PROFILE_FIELDS, validateProfileReferences, normalizePathwayProfile } from './profile-references.mjs'
 import { composeConstraints } from './messaging-state.mjs'
 
@@ -27,16 +27,25 @@ export const DIALOGUE_RULES = Object.freeze([
 ])
 
 export function createDialogueSession(options = {}) {
+  return createSession(options, false)
+}
+// Point d’entrée distinct : le mode historique ne peut pas activer un fournisseur réel.
+export function createRealDialogueTrialSession(options = {}) {
+  if (options.enabled === true && options.paidTrialAuthorized !== true) fail('configuration')
+  return createSession(options, true)
+}
+function createSession(options, realTrial) {
   const { enabled = false } = options
   if (typeof enabled !== 'boolean') fail('configuration')
   if (!enabled) return Object.freeze({
     status: () => ({ enabled: false, busy: false, attemptedTurns: 0 }), stop() {},
     async turn() { fail('disabled') }, acceptProposal() { fail('disabled') },
     rejectProposal() { fail('disabled') }, getProposal() { fail('disabled') }, editProfile() { fail('disabled') }, getDraft() { fail('disabled') },
-    getPathwayProfile() { fail('disabled') },
+    getPathwayProfile() { fail('disabled') }, getUsage() { fail('disabled') },
   })
   const { provider, references, initialProfile = {}, initialModality = '', maxTurns, timeoutMs, maxHistoryCharacters = 12000 } = options
-  if (provider?.mode !== 'simulation' || typeof provider.respond !== 'function' ||
+  const mode = realTrial ? 'real' : 'simulation', usageRecords = []
+  if (provider?.mode !== mode || typeof provider.respond !== 'function' ||
       !Number.isSafeInteger(maxTurns) || maxTurns < 1 || maxTurns > 20 ||
       !Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 30000 ||
       !Number.isSafeInteger(maxHistoryCharacters) || maxHistoryCharacters < 1500 || maxHistoryCharacters > 32000) fail('configuration')
@@ -84,8 +93,9 @@ export function createDialogueSession(options = {}) {
     return { kind: value.kind, reply: value.reply.trim(), changes }
   }
   return Object.freeze({
-    status: () => ({ enabled: !stopped, mode: 'simulation', busy: active !== null, attemptedTurns, maxTurns }),
+    status: () => ({ enabled: !stopped, mode, busy: active !== null, attemptedTurns, maxTurns }),
     getDraft() { available(); return snapshot() },
+    getUsage() { available(); return copy(usageRecords) },
     getProposal() { available(); return copy(pending) },
     stop() { stopped = true; pending = null; active?.abort(); },
     editProfile(value, { expectedRevision, modality: nextModality = modality } = {}) {
@@ -122,8 +132,9 @@ export function createDialogueSession(options = {}) {
       const value = { ...profile, constraints: composeConstraints(modality, profile.constraints || '') }
       return copy(normalizePathwayProfile(value, contract))
     },
-    async turn({ requestId, message, expectedRevision, referenceRevision, signal } = {}) {
+    async turn({ requestId, message, expectedRevision, referenceRevision, signal, paidTrialConfirmed = false } = {}) {
       available(); if (active) fail('busy')
+      if (realTrial && paidTrialConfirmed !== true) fail('unconfirmed')
       if (!idValid(requestId) || typeof message !== 'string' || !message.trim() || message.length > 1500) fail('invalid_request')
       if (expectedRevision !== revision) fail('stale_profile')
       if (referenceRevision !== contract.revision) fail('references_changed')
@@ -149,11 +160,22 @@ export function createDialogueSession(options = {}) {
           }), interrupted, deadline,
         ])
         available(); if (controller.signal.aborted) fail('cancelled')
-        const output = proposalValue(raw)
+        let usage = { apiCalls: 0, inputTokens: 0, outputTokens: 0, costUsd: 0 }
+        if (realTrial) {
+          const u = raw?.usage
+          if (!object(u) || !Number.isSafeInteger(u.inputTokens) || u.inputTokens < 1 || u.inputTokens > 30000 ||
+              !Number.isSafeInteger(u.outputTokens) || u.outputTokens < 0 || u.outputTokens > 2000 ||
+              u.model !== 'gpt-6-luna' || u.reservedUsd !== 0.01 ||
+              !Number.isFinite(u.calculatedUpperCostUsd) || u.calculatedUpperCostUsd < 0 || u.calculatedUpperCostUsd > 0.01) fail('usage_unverified')
+          usage = { ...u, apiCalls: 2 }
+          // Conserver l’usage vérifié même si le contrat métier rejette la réponse.
+          usageRecords.push(copy({ requestId, ...usage }))
+        }
+        const output = proposalValue(realTrial ? raw.result : raw)
         history.push({ role: 'assistant', id: 'reply-' + requestId, text: output.reply })
         pending = output.changes.length ? copy({ id: requestId, revision, changes: output.changes }) : null
-        return copy({ mode: 'simulation', kind: output.kind, reply: output.reply, proposal: pending, draft: snapshot(),
-          usage: { apiCalls: 0, inputTokens: 0, outputTokens: 0, costUsd: 0 } })
+        return copy({ mode, kind: output.kind, reply: output.reply, proposal: pending, draft: snapshot(),
+          usage })
       } catch (error) {
         pending = null
         if (error instanceof DialogueError) throw error

@@ -1,5 +1,7 @@
 # Préparation du dialogue privé — désactivée
 
+État actualisé : le dialogue fictif est installé et vérifié. Le raccordement distinct du dialogue IA reste désactivé par défaut et sans lanceur ; voir DIALOGUE_REEL_RACCORDEMENT.md. Les sections suivantes conservent le jalon initial du contrat de session, avant les interfaces et le raccordement ultérieurs.
+
 ## État de cette étape
 
 `dialogue-session.mjs` prépare le contrat du dialogue en mémoire. Aucun lanceur installé ne l’active. Un assemblage opt-in avec route et interface fictives est désormais préparé dans DIALOGUE_INTERFACE_SIMULATION.md ; il réutilise cette session sans fournisseur réel. L’interface installée et la maquette ne sont pas raccordées à ce module. Aucun fournisseur réel n’est raccordé à cette session. La préparation ultérieure du transport GPT-6 Luna et de son registre distinct est décrite dans CONNECTEUR_DIALOGUE_PREPARATION.md ; elle reste désactivée et séparée des lanceurs.
