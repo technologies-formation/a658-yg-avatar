@@ -106,6 +106,7 @@ export function createDialogueSimulationInterface(options = {}) {
     },
   })
   return { handler: gateway.handler, status: simulation.status,
+    close() { for (const item of sessions.values()) item.session.stop() },
     revoke(id) { sessions.get(id)?.session.stop(); return gateway.revoke(id) },
     stop() { for (const item of sessions.values()) item.session.stop(); gateway.stop() },
   }

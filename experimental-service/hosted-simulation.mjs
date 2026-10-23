@@ -4,6 +4,7 @@ import { readFileSync, lstatSync, realpathSync, writeFileSync, copyFileSync, ren
 import { isAbsolute, join, relative, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { createPilotSimulation } from './pilot-simulation.mjs'
+import { createDialogueSimulationInterface } from './dialogue-interface.mjs'
 import { renderMessagingPage } from './messaging-page.mjs'
 import { renderPrivatePage } from './private-page.mjs'
 import { validateProfileReferences } from './profile-references.mjs'
@@ -12,8 +13,12 @@ export { HOSTED_ORIGIN, secureProxyCheck } from './hosted-transport.mjs'
 import { HOSTED_ORIGIN, createHostedTransport } from './hosted-transport.mjs'
 
 export function createHostedSimulation(options = {}) {
-  if (!['legacy', 'messaging'].includes(options.interface ?? 'legacy')) throw Error('Interface de simulation inconnue')
-  return createHostedTransport({ ...options, renderPage: options.interface === 'messaging' ? renderMessagingPage : renderPrivatePage,
+  if (!['legacy', 'messaging', 'dialogue-fictitious'].includes(options.interface ?? 'legacy')) throw Error('Interface de simulation inconnue')
+  if (options.interface === 'dialogue-fictitious') return createHostedTransport({ ...options,
+    createGateway: ({ isSecureRequest }) => createDialogueSimulationInterface({ enabled: true, publicOrigin: options.publicOrigin,
+      users: options.users, isSecureRequest, stateFile: options.stateFile, loadProfileReferences: options.loadProfileReferences,
+      preview: options.preview, timeoutMs: options.responseTimeoutMs ?? 10000 }) })
+  return createHostedTransport({ ...options, createGateway: null, renderPage: options.interface === 'messaging' ? renderMessagingPage : renderPrivatePage,
     createSession: () => createPilotSimulation({ stateFile: options.stateFile,
       maxDailyRequests: 5, maxTotalRequests: 5, singleInstance: true,
       loadProfileReferences: options.loadProfileReferences, preview: options.preview }) })
@@ -42,6 +47,23 @@ export function readHostedConfig(configFile, siteDirectory) {
     loadProfileReferences: () => validateProfileReferences(read(path('references.json'), 128 * 1024)) }
 }
 
+// Choix explicite et réversible de l’interface de simulation ; état et accès intacts.
+export function setHostedSimulationInterface(configFile, siteDirectory, interfaceName) {
+  if (!['messaging', 'dialogue-fictitious'].includes(interfaceName)) throw Error('Interface de simulation inconnue')
+  readHostedConfig(configFile, siteDirectory)
+  const config = JSON.parse(readFileSync(configFile, 'utf8'))
+  if (config.interface === interfaceName) return { changed: false }
+  const backup = configFile + '.before-interface-' + randomUUID()
+  copyFileSync(configFile, backup, constants.COPYFILE_EXCL)
+  const temp = configFile + '.' + randomUUID() + '.tmp'
+  try {
+    writeFileSync(temp, JSON.stringify({ ...config, interface: interfaceName }, null, 2), { mode: 0o600, flag: 'wx' })
+    renameSync(temp, configFile)
+  } catch (error) { try { unlinkSync(temp) } catch {} throw error }
+  readHostedConfig(configFile, siteDirectory)
+  return { changed: true, backup }
+}
+
 // Mise à niveau explicite de la seule configuration ; accès et quotas conservés.
 export function enableProxyAttestation(configFile, siteDirectory) {
   readHostedConfig(configFile, siteDirectory)
@@ -59,7 +81,11 @@ export function enableProxyAttestation(configFile, siteDirectory) {
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   try {
-    if (process.argv[2] === '--enable-proxy-attestation') {
+    if (['--use-fictitious-dialogue', '--use-messaging-interface'].includes(process.argv[2])) {
+      const dialogue = process.argv[2] === '--use-fictitious-dialogue'
+      setHostedSimulationInterface(process.argv[3], process.cwd(), dialogue ? 'dialogue-fictitious' : 'messaging')
+      console.log((dialogue ? 'Dialogue fictif' : 'Messagerie guidée') + ' configuré. Sauvegarde privée conservée ; accès et quotas inchangés. Serveur non démarré.')
+    } else if (process.argv[2] === '--enable-proxy-attestation') {
       enableProxyAttestation(process.argv[3], process.cwd())
       console.log('Contrôle HTTPS automatique configuré. Sauvegarde privée conservée ; accès et quotas inchangés. Serveur non démarré.')
     } else {
@@ -68,7 +94,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     const service = createHostedSimulation(options)
     for (const event of ['SIGINT', 'SIGTERM']) process.once(event, () => { service.close().catch(() => { process.exitCode = 1 }) })
     service.server.listen(3000, '0.0.0.0', async () => {
-      console.log('Avatar privé : simulation uniquement, cinq confirmations maximum, port 3000.')
+      console.log(options.interface === 'dialogue-fictitious' ? 'Avatar privé : dialogue fictif, simulation uniquement, aucun appel OpenAI, port 3000.' : 'Avatar privé : simulation uniquement, cinq confirmations maximum, port 3000.')
       if (options.proxyVerification === 'self-https') {
         const verified = await service.attestProxy()
         console.log(verified ? 'Contrôle HTTPS du proxy réussi.' : 'Contrôle HTTPS du proxy indisponible ; accès bloqué jusqu’à vérification.')

@@ -17,8 +17,9 @@ export function secureProxyCheck(trustedProxyAddresses) {
 }
 
 export function createHostedTransport({ enabled = false, publicOrigin, trustedProxyAddresses, users, stateFile,
-  createSession, renderPage, responseTimeoutMs = 10000, socketTimeoutMs = 15000, proxyVerification = 'exact-addresses', requestProbe } = {}) {
+  createSession, renderPage, createGateway = null, responseTimeoutMs = 10000, socketTimeoutMs = 15000, proxyVerification = 'exact-addresses', requestProbe } = {}) {
   if (enabled !== true || publicOrigin !== HOSTED_ORIGIN) throw Error('Activation et origine distante explicites requises')
+  if (createGateway !== null && typeof createGateway !== 'function') throw Error('Fabrique privée invalide')
   if (!['exact-addresses', 'self-https'].includes(proxyVerification)) throw Error('Mode de proxy inconnu')
   const attestation = proxyVerification === 'self-https' ? createProxyAttestation({ publicOrigin, requestProbe }) : null
   const secure = attestation ? attestation.secure : secureProxyCheck(trustedProxyAddresses)
@@ -29,10 +30,15 @@ export function createHostedTransport({ enabled = false, publicOrigin, trustedPr
   let gateway, server, released = false
   const release = () => { if (!released) { rmdirSync(lock); released = true } }
   try {
-    const simulation = createSession()
-    gateway = createPilotPrivateHandler({ enabled: true, publicOrigin, session: simulation, users,
-      maxAttempts: 100, windowMs: 60000, isSecureRequest: secure,
-      serveResource: createPrivateResources(simulation, renderPage, responseTimeoutMs) })
+    let status
+    if (createGateway) {
+      gateway = createGateway({ isSecureRequest: secure }); status = gateway.status
+    } else {
+      const simulation = createSession(); status = simulation.status
+      gateway = createPilotPrivateHandler({ enabled: true, publicOrigin, session: simulation, users,
+        maxAttempts: 100, windowMs: 60000, isSecureRequest: secure,
+        serveResource: createPrivateResources(simulation, renderPage, responseTimeoutMs) })
+    }
     server = http.createServer((req, res) => {
       if (attestation?.handleProof(req, res)) return
       const handle = async () => {
@@ -52,9 +58,9 @@ export function createHostedTransport({ enabled = false, publicOrigin, trustedPr
     })
     server.requestTimeout = 15000; server.headersTimeout = 10000
     server.setTimeout(socketTimeoutMs, socket => socket.destroy())
-    server.on('close', () => { attestation?.stop(); release() })
+    server.on('close', () => { try { attestation?.stop(); gateway.close?.() } finally { release() } })
     // close() est une fermeture technique ; stop() est une révocation persistante.
-    return { server, attestProxy: () => attestation?.refresh() ?? Promise.resolve(true), status: simulation.status, stop: gateway.stop, revoke: gateway.revoke,
+    return { server, attestProxy: () => attestation?.refresh() ?? Promise.resolve(true), status, stop: gateway.stop, revoke: gateway.revoke,
       close: () => new Promise((accept, reject) => {
         server.close(error => { if (error) reject(error); else accept() })
         server.closeAllConnections()
