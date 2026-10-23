@@ -2,7 +2,7 @@
 
 ## État de cette étape
 
-`dialogue-session.mjs` prépare le contrat du dialogue en mémoire. Il n’est importé par aucun lanceur, route HTTP, ressource navigateur ou écran existant. L’interface installée et la maquette ne sont pas raccordées à ce module. Aucun fournisseur OpenAI, modèle, clé, tarif ou destination n’est configuré.
+`dialogue-session.mjs` prépare le contrat du dialogue en mémoire. Il n’est importé par aucun lanceur, route HTTP, ressource navigateur ou écran existant. L’interface installée et la maquette ne sont pas raccordées à ce module. Aucun fournisseur réel n’est raccordé à cette session. La préparation ultérieure du transport GPT-6 Luna et de son registre distinct est décrite dans CONNECTEUR_DIALOGUE_PREPARATION.md ; elle reste désactivée et séparée des lanceurs.
 
 La fabrique est désactivée par défaut. Son activation de test exige un fournisseur déclaré `mode: 'simulation'`, un référentiel validé, un nombre maximal de tentatives et un délai explicites. Un fournisseur déclaré réel est refusé. `createScriptedDialogueProvider` fournit uniquement des réponses fixes pour les tests.
 
