@@ -46,6 +46,7 @@ try{
   assert.equal(await page.locator('[name=objective]').inputValue(),'')
   await page.getByRole('button',{name:'Fermer',exact:true}).click()
   await page.getByRole('button',{name:'Appliquer ces corrections',exact:true}).click()
+  await page.getByText('Repère enregistré dans votre profil.',{exact:true}).waitFor()
   await page.getByRole('button',{name:'Mon profil',exact:true}).click()
   assert.equal(await page.locator('[name=objective]').inputValue(),'Progresser sur Word pour mes rapports')
   await page.locator('[name=role]').fill('Assistant administratif')
