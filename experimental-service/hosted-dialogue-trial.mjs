@@ -77,6 +77,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     } else {
       const options=readDialogueTrialLaunch(process.argv[2],process.cwd(),process.env)
       const service=createHostedDialogueTrial(options)
+      service.server.once('error',()=>{console.error('Essai non démarré : port indisponible ou écoute refusée. Verrous de cette instance libérés ; compteurs conservés.');process.exitCode=1})
       for (const event of ['SIGINT','SIGTERM']) process.once(event,()=>{service.close().catch(()=>{process.exitCode=1})})
       service.server.listen(3000,'0.0.0.0',async()=>{
         console.log('Essai privé : dialogue IA payant, dix tentatives maximum ; parcours simulés. Aucun appel à l’ouverture.')

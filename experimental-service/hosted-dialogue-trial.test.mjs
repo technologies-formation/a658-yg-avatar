@@ -58,3 +58,25 @@ test('transport hébergé réel injecté : HTTPS, zéro appel à l’ouverture, 
  await service.close();service=createHostedDialogueTrial(active);await new Promise(resolve=>service.server.listen(0,'127.0.0.1',resolve))
  assert.equal((await request('/private/dialogue')).value.budget.attempts,1);assert.equal(calls,2)
 })
+
+test('port occupé : libérer les nouveaux verrous sans toucher au serveur actif ni au budget existant',async t=>{
+ const f=fixture(t),prepared=prepareHostedDialogueTrial(f.file,f.site),options=readHostedDialogueTrialConfig(prepared.configFile,f.site)
+ const blocker=http.createServer((req,res)=>res.end('active'))
+ await new Promise(resolve=>blocker.listen(0,'127.0.0.1',resolve))
+ f.setCleanup(()=>new Promise(resolve=>{blocker.closeAllConnections();blocker.close(resolve)}))
+ const user=await createPilotCredential({id:'tester',username:'tester',password:'FAKE_PORT_TEST_PASSWORD'})
+ let calls=0
+ const active={...options,enabled:true,paidTrialAuthorized:true,billingReviewed:true,apiKey:'FAKE_PORT_KEY',proxyVerification:'exact-addresses',trustedProxyAddresses:['127.0.0.1'],users:[user],fetchImpl:async()=>{calls++;throw Error('transport non attendu')}}
+ // Enregistrement préexistant pour vérifier qu’aucun compteur ne disparaît.
+ const {createDialogueBudget}=await import('./dialogue-budget.mjs')
+ const budget=createDialogueBudget({directory:options.budgetDirectory,singleInstance:true});budget.reserve('existing_trial_request_0001');budget.close()
+ const saved=readFileSync(join(options.budgetDirectory,'attempt-01.json'),'utf8')
+ const service=createHostedDialogueTrial(active)
+ const error=await new Promise(resolve=>{service.server.once('error',resolve);service.server.listen(blocker.address().port,'127.0.0.1')})
+ assert.equal(error.code,'EADDRINUSE');assert.equal(blocker.listening,true);assert.equal(calls,0)
+ assert.equal(existsSync(options.stateFile+'.lock'),false);assert.equal(existsSync(join(options.budgetDirectory,'.dialogue-lock')),false)
+ assert.equal(readFileSync(join(options.budgetDirectory,'attempt-01.json'),'utf8'),saved)
+ // Une autre instance peut préparer l’écoute, sans suppression de verrou manuelle.
+ const retry=createHostedDialogueTrial(active);await new Promise(resolve=>retry.server.listen(0,'127.0.0.1',resolve));await retry.close()
+ assert.equal(readFileSync(join(options.budgetDirectory,'attempt-01.json'),'utf8'),saved)
+})

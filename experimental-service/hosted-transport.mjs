@@ -58,7 +58,12 @@ export function createHostedTransport({ enabled = false, publicOrigin, trustedPr
     })
     server.requestTimeout = 15000; server.headersTimeout = 10000
     server.setTimeout(socketTimeoutMs, socket => socket.destroy())
-    server.on('close', () => { try { attestation?.stop(); gateway.close?.() } finally { release() } })
+    const cleanup = () => { try { attestation?.stop(); gateway.close?.() } finally { release() } }
+    server.on('close', cleanup)
+    // Échec avant écoute : fermer seulement les ressources de cette instance.
+    const listenError = () => cleanup()
+    server.once('error', listenError)
+    server.once('listening', () => server.removeListener('error', listenError))
     // close() est une fermeture technique ; stop() est une révocation persistante.
     return { server, attestProxy: () => attestation?.refresh() ?? Promise.resolve(true), status, stop: gateway.stop, revoke: gateway.revoke,
       close: () => new Promise((accept, reject) => {

@@ -92,6 +92,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     if (process.env.AVATAR_HOSTED_SIMULATION_ENABLED !== 'true') throw Error('Simulation hébergée non activée')
     const options = readHostedConfig(process.argv[2], process.cwd())
     const service = createHostedSimulation(options)
+    service.server.once('error', () => { console.error('Démarrage refusé : port indisponible ou écoute refusée.'); process.exitCode = 1 })
     for (const event of ['SIGINT', 'SIGTERM']) process.once(event, () => { service.close().catch(() => { process.exitCode = 1 }) })
     service.server.listen(3000, '0.0.0.0', async () => {
       console.log(options.interface === 'dialogue-fictitious' ? 'Avatar privé : dialogue fictif, simulation uniquement, aucun appel OpenAI, port 3000.' : 'Avatar privé : simulation uniquement, cinq confirmations maximum, port 3000.')

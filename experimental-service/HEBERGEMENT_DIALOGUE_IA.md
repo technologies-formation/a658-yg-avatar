@@ -40,6 +40,8 @@ Sources consultées :
 
 Trois tests supplémentaires couvrent la préparation exclusive hors ligne, les permissions, les anciens fichiers intacts, les refus avant lecture d’une clé et le transport hébergé avec faux connecteur. Le scénario HTTP vérifie le refus sans HTTPS, l’absence d’appel à l’ouverture, la confirmation du message et le budget conservé après fermeture/réouverture.
 
-La suite complète compte 171 tests locaux réussis. Tous les transports de génération utilisés par ces tests sont fictifs. Les contrôles GitHub doivent être vérifiés sur la révision destinée à la préparation distante. La préparation réelle, son chemin et son état désactivé devront être confirmés par le retour de la commande exécutée sur l’hébergement.
+Un test supplémentaire vérifie un port occupé : les ressources de la nouvelle instance sont fermées, ses verrous sont libérés, le serveur déjà actif continue et les réservations du budget restent intactes. Les lanceurs signalent proprement le refus d’écoute. Cela ne supprime pas automatiquement un verrou ancien laissé par une version précédente après crash.
+
+La suite complète compte 172 tests locaux réussis. Tous les transports de génération utilisés par ces tests sont fictifs. Les contrôles GitHub doivent être vérifiés sur la révision destinée à la préparation distante. La préparation réelle, son chemin et son état désactivé devront être confirmés par le retour de la commande exécutée sur l’hébergement.
 
 Coût OpenAI API : 0 token / 0 $.
