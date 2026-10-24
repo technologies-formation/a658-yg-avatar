@@ -39,6 +39,14 @@ export function validatePathwayResult(data) {
       if (item.course.sourceUrl != null && !officialLink(item.course.sourceUrl)) {
         fail('invalid_response', 'Lien de formation non autorise')
       }
+      if (item.course.deliveryMode !== undefined) {
+        const mode = item.course.deliveryMode
+        if (!object(mode) || !['online','in_person','hybrid','unknown'].includes(mode.value) ||
+            (mode.value === 'unknown' ? mode.sourceField !== null || mode.evidence !== null
+              : mode.sourceField !== 'titleRaw' || mode.evidence !== item.course.title)) {
+          fail('invalid_response', 'Preuve de modalite invalide')
+        }
+      }
       for (const field of ['duration', 'public']) {
         if (item.course[field] != null && typeof item.course[field] !== 'string') {
           fail('invalid_response', 'Description de formation invalide')

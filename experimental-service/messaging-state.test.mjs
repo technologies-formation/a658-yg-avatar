@@ -23,3 +23,10 @@ test('la page est explicitement en simulation, contrat sérialisé sans injectio
  const html=renderMessagingPage(r);assert.match(html,/simulation uniquement/);assert.match(html,/messaging-client.mjs/);assert.doesNotMatch(html,/<img src=x/);assert.match(html,/\\u003c\/script/);
  assert.throws(()=>renderMessagingPage(r,{timeoutMs:0}));
 });
+
+
+test('la modalité souhaitée est conservée dans le cliché, indépendamment du profil modifié ensuite',()=>{
+ const snapshot=createMessagingSnapshot({objective:'Organiser les tâches'},data(),references().revision,1,'En ligne')
+ assert.equal(snapshot.modality,'En ligne');assert.throws(()=>{snapshot.modality='Présentiel'})
+ assert.throws(()=>createMessagingSnapshot({},data(),references().revision,1,'Inconnue'))
+})

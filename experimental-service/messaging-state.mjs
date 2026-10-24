@@ -15,5 +15,5 @@ export function validateMessagingProfile(profile,contract){
   if(text)out[name]=text;
  }return out;
 }
-export function createMessagingSnapshot(profile,result,referenceRevision,number){validatePathwayResult(result);return freeze({profile:structuredClone(profile),result:structuredClone(result),referenceRevision,number,fingerprint:fingerprint(profile)});}
+export function createMessagingSnapshot(profile,result,referenceRevision,number,modality=''){if(!['','Présentiel','En ligne','Indifférent'].includes(modality))throw Error('Modalité inconnue');validatePathwayResult(result);return freeze({modality,profile:structuredClone(profile),result:structuredClone(result),referenceRevision,number,fingerprint:fingerprint(profile)});}
 export const snapshotIsStale=(snapshot,profile,revision)=>Boolean(snapshot&&(snapshot.fingerprint!==fingerprint(profile)||snapshot.referenceRevision!==revision));

@@ -78,3 +78,25 @@ test('aperçu local explicitement configuré : uniquement après validation parc
   assert.equal((await fetch(origin + '/local/pathway-result.mjs')).status, 200)
   assert.match(await (await fetch(origin)).text(), /renderPathwayResult/)
 })
+
+
+test('modalité du cours distincte de la préférence : inconnue, conforme, différente et hybride', () => {
+  for (const [mode, message] of [
+    [undefined,/Compatibilité avec votre préférence : non établie/],
+    [{value:'unknown',sourceField:null,evidence:null},/Compatibilité avec votre préférence : non établie/],
+    [{value:'online',sourceField:'titleRaw'},/Modalité conforme à votre préférence/],
+    [{value:'in_person',sourceField:'titleRaw'},/Écart avec votre préférence/],
+    [{value:'hybrid',sourceField:'titleRaw'},/une formation hybride peut comporter/],
+  ]) {
+    const value=data(),course=value.recommendedSteps[0].course
+    if(mode)course.deliveryMode={...mode,...(mode.value==='unknown'?{}:{evidence:course.title})}
+    const before=structuredClone(value)
+    const content=text(renderPathwayResult(document,value,{preferredModality:'En ligne'}))
+    assert.match(content,/Votre préférence : En ligne/);assert.match(content,message);assert.deepEqual(value,before)
+    if(!mode||mode.value==='unknown')assert.match(content,/Modalité du cours : non renseignée/)
+  }
+  const indifferent=text(renderPathwayResult(document,data(),{preferredModality:'Indifférent'}))
+  assert.doesNotMatch(indifferent,/Compatibilité avec votre préférence|Écart avec votre préférence/)
+  const invalid=data();invalid.recommendedSteps[0].course.deliveryMode={value:'online',sourceField:'model',evidence:'Sans preuve'}
+  assert.throws(()=>renderPathwayResult(document,invalid),e=>e.code==='invalid_response')
+})

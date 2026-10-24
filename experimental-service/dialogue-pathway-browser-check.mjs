@@ -12,7 +12,7 @@ const { chromium } = await import(process.env.AVATAR_PLAYWRIGHT_MODULE || 'playw
 const origin='https://dialogue-test.invalid',password='FAKE_BROWSER_TEST_PASSWORD_ONLY'
 const dir=mkdtempSync(join(tmpdir(),'avatar-dialogue-browser-'))
 const users=await Promise.all(['desktop'].map(name=>createPilotCredential({id:'browser-'+name,username:'browser-'+name,password})))
-const budgetDirectory=join(dir,'budget');mkdirSync(budgetDirectory,{mode:0o700});let apiCalls=0,engineCalls=0;const engineRequests=[];const engineResult=data();engineResult.durationSummary={budgetHours:16,recommendedHours:16,excessHours:0,withinBudget:true}
+const budgetDirectory=join(dir,'budget');mkdirSync(budgetDirectory,{mode:0o700});let apiCalls=0,engineCalls=0;const engineRequests=[];const engineResult=data();engineResult.optionalSteps[0].course.deliveryMode={value:'in_person',sourceField:'titleRaw',evidence:engineResult.optionalSteps[0].course.title};engineResult.informationalCourses[0].course.deliveryMode={value:'online',sourceField:'titleRaw',evidence:engineResult.informationalCourses[0].course.title};engineResult.durationSummary={budgetHours:16,recommendedHours:16,excessHours:0,withinBudget:true}
 const service=createRealDialogueTrialInterface({enabled:true,paidTrialAuthorized:true,apiKey:'FAKE_BROWSER_KEY_ONLY',budgetDirectory,fetchImpl:async(url,init)=>{
  apiCalls++;if(url.endsWith('/input_tokens'))return new Response(JSON.stringify({object:'response.input_tokens',input_tokens:1000}),{headers:{'Content-Type':'application/json'}});
  const last=JSON.parse(JSON.parse(init.body).input[0].content).messages.at(-1);if(last.text==='TEST erreur transport')return new Response('DO_NOT_EXPOSE_TEST_SECRET_OR_BODY',{status:429,headers:{'Content-Type':'application/json'}});return new Response(JSON.stringify({status:'completed',model:'gpt-6-luna',usage:{input_tokens:1000,output_tokens:100},output:[{type:'message',role:'assistant',content:[{type:'output_text',text:JSON.stringify({kind:'ask',reply:'Quels documents rédigez-vous au quotidien ?',changes:[{field:'objective',value:'Progresser sur Word pour mes rapports',evidence:[{messageId:last.id,quote:last.text}]}]})}]}]}),{headers:{'Content-Type':'application/json'}});
@@ -63,6 +63,7 @@ try{
   const discussionResult=await page.locator('#thread .pathway-result').innerText()
   assert.match(discussionResult,/Temps disponible : 16 h/);assert.match(discussionResult,/Dépassement : 0 h/)
   assert.doesNotMatch(discussionResult,/Exemple fictif|Aperçu hors ligne/)
+  assert.match(discussionResult,/Modalité du cours : non renseignée/);assert.match(discussionResult,/Compatibilité avec votre préférence : non établie/);assert.match(discussionResult,/Écart avec votre préférence/);assert.match(discussionResult,/Modalité conforme à votre préférence/)
   const cards=await page.locator('#thread .pathway-course').allTextContents()
   await page.locator('#tab-courses').click();assert.equal(await page.getByText('La synthèse de votre parcours',{exact:true}).count(),1);assert.deepEqual(await page.locator('#courses-content .pathway-course').allTextContents(),cards)
   assert.equal(await page.locator('#courses-content .pathway-result').innerText(),discussionResult)

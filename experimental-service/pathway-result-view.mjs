@@ -1,8 +1,9 @@
 // Affichage seul : aucune requête, aucun stockage, aucun HTML issu du résultat.
 import { validatePathwayResult } from './pathway-result.mjs'
 
-export function renderPathwayResult(document, data, { replay = false } = {}) {
+export function renderPathwayResult(document, data, { replay = false, preferredModality = '' } = {}) {
   const { empty } = validatePathwayResult(data)
+  if (!['','Présentiel','En ligne','Indifférent'].includes(preferredModality)) throw Error('Modalité souhaitée invalide')
   const root = document.createElement('section')
   root.className = 'simulation pathway-result'
   root.setAttribute('aria-label', 'Résultat du parcours')
@@ -34,6 +35,19 @@ export function renderPathwayResult(document, data, { replay = false } = {}) {
       add(card, 'p', item.rationale)
       add(card, 'p', item.course.duration ? 'Durée : ' + item.course.duration : item.course.durationHours == null ? 'Durée non renseignée' : 'Durée : ' + item.course.durationHours + ' h')
       if (item.course.public) add(card, 'p', 'Public : ' + item.course.public)
+      const mode = item.course.deliveryMode
+      const modeLabels = {online:'en ligne',in_person:'en présentiel',hybrid:'hybride'}
+      const known = mode && mode.value !== 'unknown'
+      add(card, 'p', known ? 'Modalité indiquée dans l’intitulé : ' + modeLabels[mode.value] + '.'
+        : 'Modalité du cours : non renseignée dans les données transmises.')
+      if (preferredModality) add(card, 'p', 'Votre préférence : ' + preferredModality + '.')
+      if (preferredModality && preferredModality !== 'Indifférent') {
+        const preferred = preferredModality === 'En ligne' ? 'online' : 'in_person'
+        add(card, 'p', !known ? 'Compatibilité avec votre préférence : non établie. Vérifiez la modalité sur la fiche officielle.'
+          : mode.value === 'hybrid' ? 'Compatibilité à vérifier : une formation hybride peut comporter des séances en ligne et en présentiel.'
+          : mode.value === preferred ? 'Modalité conforme à votre préférence selon l’intitulé ; vérifiez les conditions sur la fiche officielle.'
+          : 'Écart avec votre préférence : la modalité indiquée pour ce cours est différente. Cette piste reste à comparer.')
+      }
       if (item.course.sourceUrl) {
         const link = add(card, 'a', 'Consulter la fiche officielle')
         link.href = item.course.sourceUrl
