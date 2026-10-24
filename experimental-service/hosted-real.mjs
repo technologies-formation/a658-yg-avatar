@@ -37,6 +37,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     if (process.env.AVATAR_HOSTED_REAL_ENABLED !== 'true') throw Error('Activation réelle distante absente')
     const options = readHostedRealConfig(process.argv[2], process.cwd())
     const service = createHostedReal({ ...options, enabled: true })
+    service.server.once('error', () => { console.error('Démarrage refusé : port indisponible ou écoute refusée.'); process.exitCode = 1 })
     for (const event of ['SIGINT', 'SIGTERM']) process.once(event, () => { service.close().catch(() => { process.exitCode = 1 }) })
     service.server.on('error', () => { console.error('Écoute refusée ; aucun redémarrage automatique.'); process.exitCode = 1 })
     service.server.listen(3000, '0.0.0.0', async () => {

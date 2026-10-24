@@ -1,7 +1,7 @@
 name: Avatar browser simulation
 on:
   push:
-    branches: ['feat/avatar-interactive-local']
+    branches: ['feat/avatar-interactive-local', 'feat/avatar-messaging-simulation']
     paths:
       - 'index.html'
       - 'experimental-service/**'
@@ -29,6 +29,7 @@ jobs:
       - name: Install browser test tooling outside the project
         run: npm install --prefix "$RUNNER_TEMP/avatar-browser" --ignore-scripts --no-audit --no-fund playwright@1.62.1
       - name: Install Chromium and system dependencies
+        timeout-minutes: 3
         run: node "$RUNNER_TEMP/avatar-browser/node_modules/playwright/cli.js" install --with-deps chromium
       - name: Exercise the local questionnaire on desktop and mobile
         env:
@@ -39,6 +40,18 @@ jobs:
         env:
           AVATAR_PLAYWRIGHT_MODULE: ${{ runner.temp }}/avatar-browser/node_modules/playwright/index.mjs
         run: node experimental-service/summary-resize-browser-check.mjs
+      - name: Verify the opt-in messaging simulation
+        env:
+          AVATAR_PLAYWRIGHT_MODULE: ${{ runner.temp }}/avatar-browser/node_modules/playwright/index.mjs
+        run: node experimental-service/messaging-browser-check.mjs
+      - name: Verify the isolated fictitious dialogue interface
+        env:
+          AVATAR_PLAYWRIGHT_MODULE: ${{ runner.temp }}/avatar-browser/node_modules/playwright/index.mjs
+        run: node experimental-service/dialogue-browser-check.mjs
+      - name: Verify real dialogue assembly using fake transport only
+        env:
+          AVATAR_PLAYWRIGHT_MODULE: ${{ runner.temp }}/avatar-browser/node_modules/playwright/index.mjs
+        run: node experimental-service/dialogue-real-browser-check.mjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
