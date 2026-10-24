@@ -50,3 +50,7 @@ Les erreurs HTTP du connecteur conservent leur statut et leur étape (`count` ou
 Le dernier diagnostic est conservé en mémoire par identité et restitué lors d’une lecture de l’état. Les autres identités n’y accèdent pas. Ce n’est pas un journal durable : un redémarrage efface ce diagnostic et le brouillon de dialogue en mémoire, tandis que les réservations restent sur disque. Aucun événement passé non enregistré ne peut être reconstitué par cette correction.
 
 Le test HTTP vérifie une erreur de génération 429, son étape, le compteur immédiat, le maintien du diagnostic et son isolation, sans corps fournisseur exposé ni nouvelle génération à la lecture. Le navigateur vérifie ces mêmes états après erreur et actualisation, ainsi que le parcours antérieur conservé. La suite locale compte 173 tests réussis ; tous les transports utilisés sont fictifs.
+
+## Bilan de durée de l’aperçu fictif
+
+En simulation, les deux vues affichent les mêmes cours fixes, mais aucun budget horaire ni dépassement issu du jeu de test : ces chiffres ne décrivent pas le profil confirmé. Une mention explicite remplace cette comparaison. La disponibilité reste consultable dans le profil confirmé ; aucune conversion arbitraire de « 1 à 2 jours » en heures n’est introduite. Les résultats réels conservent leur bilan fourni par le moteur. Aucun quota ni accès n’est modifié.

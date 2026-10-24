@@ -49,13 +49,17 @@ export function renderPathwayResult(document, data, { replay = false } = {}) {
   }
   if (data.durationSummary) {
     add(root, 'h3', 'Temps de formation')
-    const duration = data.durationSummary
-    for (const [field, label] of [['budgetHours', 'Temps disponible'], ['recommendedHours', 'Étapes recommandées'], ['excessHours', 'Dépassement']]) {
-      if (duration[field] != null) add(root, 'p', label + ' : ' + duration[field] + ' h')
-    }
-    if (duration.withinBudget === false) add(root, 'p', 'Le parcours dépasse le temps disponible.')
-    if (duration.durationsKnown === false || duration.verified === false || duration.budgetVerified === false) {
-      add(root, 'p', 'La vérification des durées est incomplète.')
+    if (replay) {
+      add(root, 'p', 'Exemple fictif : les durées des cours ne sont pas comparées à votre temps disponible. Consultez le profil confirmé pour retrouver votre disponibilité.')
+    } else {
+      const duration = data.durationSummary
+      for (const [field, label] of [['budgetHours', 'Temps disponible'], ['recommendedHours', 'Étapes recommandées'], ['excessHours', 'Dépassement']]) {
+        if (duration[field] != null) add(root, 'p', label + ' : ' + duration[field] + ' h')
+      }
+      if (duration.withinBudget === false) add(root, 'p', 'Le parcours dépasse le temps disponible.')
+      if (duration.durationsKnown === false || duration.verified === false || duration.budgetVerified === false) {
+        add(root, 'p', 'La vérification des durées est incomplète.')
+      }
     }
   }
   const usage = data.usage?.total
