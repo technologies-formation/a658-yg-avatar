@@ -1,4 +1,4 @@
-// Interface de simulation opt-in, sans lanceur ni fournisseur réel.
+// Interface privée partagée : simulation par défaut, assemblage réel explicitement fourni.
 import { readFileSync } from 'node:fs'
 import { createDialogueSession, DialogueError } from './dialogue-session.mjs'
 import { PROFILE_FIELDS, validateProfileReferences, normalizePathwayProfile } from './profile-references.mjs'
@@ -37,24 +37,25 @@ export function renderDialogueSimulationPage(references, options = {}) {
 export function renderDialogueTrialPage(references, options = {}) {
   return renderDialoguePage(references, options, true)
 }
-function renderDialoguePage(references, { timeoutMs = 10000 } = {}, realTrial) {
+function renderDialoguePage(references, { timeoutMs = 10000, pathwayMode = 'simulation' } = {}, realTrial) {
   const contract = validateProfileReferences(references)
   if (!Number.isInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 30000) fail('configuration')
-  return template.replace('/*MESSAGING_CONFIG*/', JSON.stringify({ references: contract, timeoutMs, mode: 'simulation', dialogue: realTrial ? 'real-trial' : 'fictitious' }).replace(/</g, '\\u003c'))
+  return template.replace('/*MESSAGING_CONFIG*/', JSON.stringify({ references: contract, timeoutMs, mode: pathwayMode, pathwayTimeoutMs: pathwayMode === 'real' ? 210000 : timeoutMs, dialogue: realTrial ? 'real-trial' : 'fictitious' }).replace(/</g, '\\u003c'))
     .replace('/private/messaging-client.mjs', '/private/dialogue-client.mjs')
-    .replace('Pilote privé · simulation uniquement', realTrial ? 'Essai dialogue IA · parcours simulés · 10 tentatives maximum' : 'Dialogue fictif · aucun appel OpenAI')
+    .replace('Pilote privé · simulation uniquement', realTrial ? (pathwayMode === 'real' ? 'Essai privé · dialogue IA · un parcours réel maximum' : 'Essai dialogue IA · parcours simulés · 10 tentatives maximum') : 'Dialogue fictif · aucun appel OpenAI')
 }
 export function createDialogueSimulationInterface(options = {}) {
   return createDialogueInterface(options)
 }
-// Assemblage serveur partagé ; aucun lanceur existant ne fournit de chemin réel.
+// Assemblage serveur partagé ; le chemin réel nécessite une session explicitement autorisée.
 export function createDialogueInterface(options = {}, trial = null) {
   const { enabled = false } = options
   if (typeof enabled !== 'boolean') fail('configuration')
   if (!enabled) return createPilotPrivateHandler({ enabled: false })
   const dialogueMode = trial ? 'real' : 'simulation'
   const { publicOrigin, users, isSecureRequest, stateFile, loadProfileReferences, preview, timeoutMs = 10000 } = options
-  const simulation = createPilotSimulation({ stateFile, maxDailyRequests: 5, maxTotalRequests: 5, singleInstance: true, loadProfileReferences, preview })
+  const pathwayMode = trial?.pathwaySession ? 'real' : 'simulation'
+  const simulation = trial?.pathwaySession ?? createPilotSimulation({ stateFile, maxDailyRequests: 5, maxTotalRequests: 5, singleInstance: true, loadProfileReferences, preview })
   const sessions = new Map()
   const entry = async identity => {
     const refs = validateProfileReferences(await simulation.getReferences())
@@ -68,7 +69,7 @@ export function createDialogueInterface(options = {}, trial = null) {
     }
     return value
   }
-  const resources = createPrivateResources(simulation, trial ? renderDialogueTrialPage : renderDialogueSimulationPage, timeoutMs)
+  const resources = createPrivateResources(simulation, trial ? (refs, settings) => renderDialogueTrialPage(refs, { ...settings, pathwayMode }) : renderDialogueSimulationPage, timeoutMs)
   const send = (res, status, body) => {
     res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' })
     res.end(JSON.stringify(body))
@@ -96,7 +97,7 @@ export function createDialogueInterface(options = {}, trial = null) {
         if (req.method === 'POST' && req.headers.origin !== publicOrigin) { send(res, 403, { error: 'Origine requise' }); return true }
         const value = await entry(context.identity), session = value.session
         currentEntry = value
-        if (req.method === 'GET') { send(res, 200, { mode: dialogueMode, pathwayMode: 'simulation', draft: session.getDraft(), proposal: session.getProposal(), references: value.references, ...(trial ? { usageRecords: session.getUsage(), budget: trial.budgetStatus(), lastError: value.lastError ?? null } : {}) }); return true }
+        if (req.method === 'GET') { send(res, 200, { mode: dialogueMode, pathwayMode, draft: session.getDraft(), proposal: session.getProposal(), references: value.references, ...(trial ? { usageRecords: session.getUsage(), budget: trial.budgetStatus(), lastError: value.lastError ?? null } : {}) }); return true }
         if (req.headers['content-type']?.split(';')[0].trim() !== 'application/json') { send(res, 415, { error: 'JSON requis' }); return true }
         const chunks = []; let bytes = 0
         for await (const chunk of req) { bytes += chunk.length; if (bytes > 16000) { send(res, 413, { error: 'Requête trop volumineuse' }); return true } chunks.push(chunk) }
@@ -109,7 +110,7 @@ export function createDialogueInterface(options = {}, trial = null) {
         else if (body.action === 'reject') result = { draft: session.rejectProposal(body) }
         else if (body.action === 'edit') result = { draft: session.editProfile(body.profile, body) }
         else fail('invalid_request')
-        if (!context.signal.aborted) send(res, 200, { ...result, mode: dialogueMode, pathwayMode: 'simulation', ...(trial ? { usageRecords: session.getUsage(), budget: trial.budgetStatus() } : {}) })
+        if (!context.signal.aborted) send(res, 200, { ...result, mode: dialogueMode, pathwayMode, ...(trial ? { usageRecords: session.getUsage(), budget: trial.budgetStatus() } : {}) })
       } catch (error) {
         const code = error instanceof DialogueError ? error.code : 'service_unavailable'
         const status = ['stale_profile', 'stale_proposal', 'proposal_pending', 'references_changed', 'busy', 'duplicate_request'].includes(code) ? 409 : ['quota_exceeded', 'budget_stopped'].includes(code) ? 429 : code === 'timeout' ? 504 : code === 'disabled' ? 503 : 400

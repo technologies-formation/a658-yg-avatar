@@ -4,7 +4,7 @@ import http from 'node:http'
 import { mkdtempSync,mkdirSync,writeFileSync,readFileSync,rmSync,existsSync,statSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { prepareHostedDialogueTrial,readHostedDialogueTrialConfig,createHostedDialogueTrial,readDialogueTrialLaunch } from './hosted-dialogue-trial.mjs'
+import { prepareHostedDialogueTrial,prepareHostedDialoguePathwayTrial,readHostedDialogueTrialConfig,createHostedDialogueTrial,readDialogueTrialLaunch } from './hosted-dialogue-trial.mjs'
 import { HOSTED_ORIGIN } from './hosted-transport.mjs'
 import { createPilotCredential } from './pilot-auth.mjs'
 import { references } from './reference-test-fixtures.mjs'
@@ -79,4 +79,25 @@ test('port occupé : libérer les nouveaux verrous sans toucher au serveur actif
  // Une autre instance peut préparer l’écoute, sans suppression de verrou manuelle.
  const retry=createHostedDialogueTrial(active);await new Promise(resolve=>retry.server.listen(0,'127.0.0.1',resolve));await retry.close()
  assert.equal(readFileSync(join(options.budgetDirectory,'attempt-01.json'),'utf8'),saved)
+})
+
+
+test('préparation du parcours dans la session existante : désactivée, sauvegarde exclusive, budgets conservés et lancement réel séparé',t=>{
+ const f=fixture(t),prepared=prepareHostedDialogueTrial(f.file,f.site),file=prepared.configFile
+ const before=readFileSync(file,'utf8')
+ prepareHostedDialoguePathwayTrial(file,f.site)
+ assert.equal(readFileSync(file+'.before-real-pathway','utf8'),before)
+ let options=readHostedDialogueTrialConfig(file,f.site)
+ assert.deepEqual(options.pathwayTrial,{enabled:false,paidTrialAuthorized:false})
+ assert.equal(existsSync(options.pathwayStateFile),false)
+ assert.throws(()=>prepareHostedDialoguePathwayTrial(file,f.site),/déjà présente/)
+ const raw=JSON.parse(readFileSync(file,'utf8'));raw.dialogueTrial={...raw.dialogueTrial,enabled:true,paidTrialAuthorized:true,billingReviewed:true};raw.pathwayTrial.enabled=true
+ writeFileSync(file,JSON.stringify(raw),{mode:0o600})
+ const environment={AVATAR_DIALOGUE_TRIAL_ENABLED:'true',get AVATAR_DIALOGUE_OPENAI_API_KEY(){throw Error('Clé consultée trop tôt')}}
+ assert.throws(()=>readDialogueTrialLaunch(file,f.site,environment),/Activation distincte/)
+ raw.pathwayTrial.paidTrialAuthorized=true;writeFileSync(file,JSON.stringify(raw))
+ assert.throws(()=>readDialogueTrialLaunch(file,f.site,environment),/Activation distincte/)
+ const active=readDialogueTrialLaunch(file,f.site,{AVATAR_DIALOGUE_TRIAL_ENABLED:'true',AVATAR_PATHWAY_TRIAL_ENABLED:'true',AVATAR_DIALOGUE_OPENAI_API_KEY:'FAKE_TEST_KEY'})
+ assert.equal(active.pathwayTrial.enabled,true);assert.equal(active.budgetDirectory,options.budgetDirectory)
+ assert.notEqual(active.pathwayStateFile,active.stateFile)
 })

@@ -52,6 +52,10 @@ jobs:
         env:
           AVATAR_PLAYWRIGHT_MODULE: ${{ runner.temp }}/avatar-browser/node_modules/playwright/index.mjs
         run: node experimental-service/dialogue-real-browser-check.mjs
+      - name: Verify real pathway messaging using fake catalogue and dialogue transports
+        env:
+          AVATAR_PLAYWRIGHT_MODULE: ${{ runner.temp }}/avatar-browser/node_modules/playwright/index.mjs
+        run: node experimental-service/dialogue-pathway-browser-check.mjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
