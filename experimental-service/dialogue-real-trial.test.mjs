@@ -12,7 +12,7 @@ import { data } from './result-test-fixtures.mjs'
 const origin='https://dialogue-real-test.invalid',refs=references(),password='TEST_PASSWORD_ONLY'
 const text='Je voudrais mieux organiser mes tâches.',id='real_dialogue_request_0001'
 const json=value=>new Response(JSON.stringify(value),{headers:{'Content-Type':'application/json'}})
-async function fixture(t,{invalid=false}={}) {
+async function fixture(t,{invalid=false,httpError=false}={}) {
  const dir=mkdtempSync(join(tmpdir(),'avatar-real-wiring-')),budgetDirectory=join(dir,'budget');mkdirSync(budgetDirectory,{mode:0o700})
  const users=await Promise.all(['alice','bob'].map(id=>createPilotCredential({id,username:id,password})))
  let calls=0
@@ -21,6 +21,7 @@ async function fixture(t,{invalid=false}={}) {
   fetchImpl:async(url,init)=>{
    calls++
    if(url.endsWith('/input_tokens'))return json({object:'response.input_tokens',input_tokens:1000})
+   if(httpError)return new Response('DO_NOT_EXPOSE_TEST_SECRET_OR_BODY',{status:429,headers:{'Content-Type':'application/json'}})
    const input=JSON.parse(JSON.parse(init.body).input[0].content),last=input.messages.at(-1)
    return json({status:'completed',model:'gpt-6-luna',usage:{input_tokens:1000,output_tokens:100},output:[{type:'message',role:'assistant',content:[{type:'output_text',text:JSON.stringify({kind:'ask',reply:'Quel est votre métier ?',changes:[{field:'objective',value:'Mieux organiser les tâches',evidence:[{messageId:last.id,quote:invalid?'Preuve inventée':last.text}]}]})}]}]})
   }}
@@ -103,4 +104,17 @@ test('annulation réelle : aucune proposition tardive et aucune relance',async()
  await Promise.resolve();abort.abort();await assert.rejects(pending,e=>e.code==='cancelled')
  finish({result:{kind:'ask',reply:'Réponse tardive',changes:[]},usage:{inputTokens:1000,outputTokens:100,model:'gpt-6-luna',reservedUsd:0.01,calculatedUpperCostUsd:0.001}})
  await new Promise(resolve=>setImmediate(resolve));assert.equal(calls,1);assert.equal(session.getProposal(),null);assert.deepEqual(session.getDraft().profile,{})
+})
+
+
+test('échec API : code, étape et budget immédiats, diagnostic conservé pour le seul compte concerné',async t=>{
+ const f=await fixture(t,{httpError:true})
+ const result=await f.request('/private/dialogue',{body:turn()})
+ assert.equal(result.value.code,'api_unavailable');assert.equal(result.value.httpStatus,429);assert.equal(result.value.stage,'generation')
+ assert.equal(result.value.budget.attempts,1);assert.deepEqual(result.value.usageRecords,[])
+ assert.doesNotMatch(result.text,/DO_NOT_EXPOSE_TEST_SECRET_OR_BODY|FAKE_KEY_ONLY/)
+ assert.equal(f.calls,2)
+ const state=(await f.request('/private/dialogue')).value
+ assert.equal(state.lastError.code,'api_unavailable');assert.equal(state.lastError.httpStatus,429);assert.equal(state.budget.attempts,1)
+ assert.equal((await f.request('/private/dialogue',{user:'bob'})).value.lastError,null);assert.equal(f.calls,2)
 })

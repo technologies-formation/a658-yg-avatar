@@ -57,6 +57,8 @@ function applyDraft(draft){
 function nextField(){const basic=['objective','role','personnelCategory','existingSkills','timeAvailable','modality'];return [...basic,...fields.filter(k=>!basic.includes(k)&&references.pathway.fields[k].requiredInForm)].find(k=>!(k==='modality'?modality:profile[k])?.trim());}
 function ready(){try{return !nextField()&&Boolean(validateMessagingProfile(profile,references));}catch{return false;}}
 function save(){}
+function updateDialogueBudget(value){if(realTrial&&value.budget){$('dialogue-budget').textContent='Dialogue IA : '+value.budget.attempts+'/10 tentatives · '+(value.budget.reservedMicroUsd/1000000).toFixed(2)+' USD réservés (plafond de réservations : 0,10 USD).';const records=value.usageRecords||[];if(records.length){const total=records.reduce((a,u)=>({input:a.input+u.inputTokens,output:a.output+u.outputTokens,cost:a.cost+u.calculatedUpperCostUsd}),{input:0,output:0,cost:0});$('dialogue-budget').append(node('span',' Usage vérifié de cet échange : '+total.input+' tokens entrants, '+total.output+' sortants ; majoration calculée '+total.cost.toFixed(6)+' USD (hors comptage, taxes et tentatives sans usage vérifiable).'));}}}
+function failureMessage(value,statusCode){const code=typeof value.code==='string'&&/^[a-z_]{1,60}$/.test(value.code)?value.code:'unknown';const upstream=Number.isInteger(value.httpStatus)?' · API HTTP '+value.httpStatus+' · '+(value.stage==='count'?'comptage':'génération'):'';return 'Dialogue non abouti — '+code+' · HTTP '+statusCode+upstream+'. Profil conservé ; aucune relance automatique.';}
 async function dialogueRequest(body){
  if(busy)throw Error('Une demande est déjà en cours.');
  invalidate();const attempt=epoch,abort=new AbortController();controller=abort;setBusy(true);const timer=setTimeout(()=>abort.abort(),config.timeoutMs);
@@ -64,8 +66,8 @@ async function dialogueRequest(body){
   const response=await fetch('/private/dialogue',{method:body?'POST':'GET',credentials:'same-origin',cache:'no-store',redirect:'error',signal:abort.signal,
    headers:{Accept:'application/json',...(body?{'Content-Type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{})});
   if(attempt!==epoch)throw Error('Réponse remplacée.');
-  const value=await response.json();if(!response.ok)throw Error(value.error||'Dialogue indisponible.');
-  if(value.mode!==(realTrial?'real':'simulation'))throw Error('Mode de dialogue inattendu.');if(realTrial&&value.budget){$('dialogue-budget').textContent='Dialogue IA : '+value.budget.attempts+'/10 tentatives · '+(value.budget.reservedMicroUsd/1000000).toFixed(2)+' USD réservés (plafond de réservations : 0,10 USD).';const records=value.usageRecords||[];if(records.length){const total=records.reduce((a,u)=>({input:a.input+u.inputTokens,output:a.output+u.outputTokens,cost:a.cost+u.calculatedUpperCostUsd}),{input:0,output:0,cost:0});$('dialogue-budget').append(node('span',' Usage vérifié de cet échange : '+total.input+' tokens entrants, '+total.output+' sortants ; majoration calculée '+total.cost.toFixed(6)+' USD (hors comptage, taxes et tentatives sans usage vérifiable).'));}}return value;
+  const value=await response.json();if(!response.ok){if(realTrial&&value.mode==='real')updateDialogueBudget(value);const error=Error(failureMessage(value,response.status));error.budgetRefreshed=Boolean(realTrial&&value.mode==='real'&&value.budget);throw error;}
+  if(value.mode!==(realTrial?'real':'simulation'))throw Error('Mode de dialogue inattendu.');updateDialogueBudget(value);return value;
  }finally{clearTimeout(timer);if(attempt===epoch){controller=null;setBusy(false);}}
 }
 function offerNext(){
@@ -108,7 +110,7 @@ async function send(text){
   applyDraft(value.draft);proposal=value.proposal;
   if(proposal)showPending(value.reply);
   else{const el=say(value.reply);status(realTrial?'Réponse IA reçue. Aucun parcours réel lancé.':'Réponse d’un fournisseur fictif. Aucun appel OpenAI.');offerNext();focusStart(el);}
- }catch(error){status(error.name==='AbortError'?'Dialogue interrompu. Profil et parcours conservés ; aucune relance automatique.':error.message,true);}
+ }catch(error){if(realTrial&&!error.budgetRefreshed){try{await dialogueRequest();}catch{}}status(error.name==='AbortError'?'Dialogue interrompu. Profil et parcours conservés ; aucune relance automatique.':error.message,true);}
 }
 $('profile-form').addEventListener('submit',async event=>{
  event.preventDefault();if(busy)return;const values=Object.fromEntries(new FormData(event.target)),next={};
@@ -124,7 +126,7 @@ $('restart').addEventListener('click',async()=>{
  try{const value=await dialogueRequest({action:'edit',profile:{},modality:'',expectedRevision:draftRevision});proposal=null;current=null;history=[];$('thread').replaceChildren();applyDraft(value.draft);switchView('discussion',true);say(realTrial?'Nouvelle demande. Les compteurs payants restent inchangés. Décrivez votre besoin de formation.':'Nouvelle demande fictive. Les compteurs ne sont pas réinitialisés.');offerNext();}catch(error){status(error.message,true);}
 });
 $('refresh-references').addEventListener('click',async()=>{
- if(busy)return;try{const value=await dialogueRequest();references=value.references;proposal=value.proposal;applyDraft(value.draft);clearChoices();status('Brouillon accepté rechargé. Le résultat précédent reste conservé ; aucune recherche automatique.');if(proposal)showPending();else offerNext();}catch(error){status(error.message,true);}
+ if(busy)return;try{const value=await dialogueRequest();references=value.references;proposal=value.proposal;applyDraft(value.draft);clearChoices();status(value.lastError?failureMessage(value.lastError,value.lastError.status):'Brouillon accepté rechargé. Le résultat précédent reste conservé ; aucune recherche automatique.',Boolean(value.lastError));if(proposal)showPending();else offerNext();}catch(error){status(error.message,true);}
 });
 document.querySelectorAll('[data-view]').forEach(b=>{b.addEventListener('click',()=>switchView(b.dataset.view));b.addEventListener('keydown',event=>{if(['ArrowLeft','ArrowRight','Home','End'].includes(event.key)){event.preventDefault();const v=event.key==='Home'?'discussion':event.key==='End'?'courses':active==='discussion'?'courses':'discussion';switchView(v);$('tab-'+v).focus();}});});
 if(realTrial){$('send-message').setAttribute('aria-label','Envoyer un message — essai payant');$('send-message').title='Envoyer un message — essai payant';const meter=node('p','','source-note');meter.id='dialogue-budget';$('composer-zone').prepend(meter);}

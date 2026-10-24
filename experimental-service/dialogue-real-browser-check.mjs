@@ -15,7 +15,7 @@ const users=await Promise.all(['desktop','mobile'].map(name=>createPilotCredenti
 const budgetDirectory=join(dir,'budget');mkdirSync(budgetDirectory,{mode:0o700});let apiCalls=0
 const service=createRealDialogueTrialInterface({enabled:true,paidTrialAuthorized:true,apiKey:'FAKE_BROWSER_KEY_ONLY',budgetDirectory,fetchImpl:async(url,init)=>{
  apiCalls++;if(url.endsWith('/input_tokens'))return new Response(JSON.stringify({object:'response.input_tokens',input_tokens:1000}),{headers:{'Content-Type':'application/json'}});
- const last=JSON.parse(JSON.parse(init.body).input[0].content).messages.at(-1);return new Response(JSON.stringify({status:'completed',model:'gpt-6-luna',usage:{input_tokens:1000,output_tokens:100},output:[{type:'message',role:'assistant',content:[{type:'output_text',text:JSON.stringify({kind:'ask',reply:'Quels documents rédigez-vous au quotidien ?',changes:[{field:'objective',value:'Progresser sur Word pour mes rapports',evidence:[{messageId:last.id,quote:last.text}]}]})}]}]}),{headers:{'Content-Type':'application/json'}});
+ const last=JSON.parse(JSON.parse(init.body).input[0].content).messages.at(-1);if(last.text==='TEST erreur transport')return new Response('DO_NOT_EXPOSE_TEST_SECRET_OR_BODY',{status:429,headers:{'Content-Type':'application/json'}});return new Response(JSON.stringify({status:'completed',model:'gpt-6-luna',usage:{input_tokens:1000,output_tokens:100},output:[{type:'message',role:'assistant',content:[{type:'output_text',text:JSON.stringify({kind:'ask',reply:'Quels documents rédigez-vous au quotidien ?',changes:[{field:'objective',value:'Progresser sur Word pour mes rapports',evidence:[{messageId:last.id,quote:last.text}]}]})}]}]}),{headers:{'Content-Type':'application/json'}});
  },publicOrigin:origin,users,stateFile:join(dir,'quotas.json'),
  isSecureRequest:req=>['127.0.0.1','::ffff:127.0.0.1'].includes(req.socket.remoteAddress),loadProfileReferences:()=>references(),preview:data()})
 const server=createServer(service.handler);await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve))
@@ -71,9 +71,20 @@ try{
   const overflow=await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth)
   assert.equal(overflow,false);assert.deepEqual(errors,[]);assert.deepEqual(external,[])
   results.push({name,pathways,proposalRequiresAcceptance:true,resultPreserved:true,noExternalRequests:true,transport:'fake'})
+  await page.locator('#tab-discussion').click()
+  await page.locator('#message').fill('TEST erreur transport')
+  await page.getByRole('button',{name:'Envoyer un message — essai payant',exact:true}).click()
+  await page.locator('#status').filter({hasText:/api_unavailable.*API HTTP 429.*génération/}).waitFor()
+  assert.match(await page.locator('#dialogue-budget').textContent(),new RegExp((name==='desktop'?'2':'4')+'/10 tentatives'))
+  assert.equal((await page.locator('body').textContent()).includes('DO_NOT_EXPOSE_TEST_SECRET_OR_BODY'),false)
+  await page.getByRole('button',{name:'Actualiser les choix du catalogue',exact:true}).click()
+  await page.locator('#status').filter({hasText:/api_unavailable.*API HTTP 429/}).waitFor()
+  assert.equal(pathways,1)
+  assert.deepEqual(await page.locator('#courses-content .pathway-course').allTextContents(),cards)
+  await page.screenshot({path:'visual-check/dialogue-real-'+name+'-failure.png',fullPage:true,animations:'disabled'})
   await context.close()
  }
- assert.equal(apiCalls,4)
+ assert.equal(apiCalls,8)
  writeFileSync('visual-check/dialogue-real-check.json',JSON.stringify(results,null,2))
 }finally{
  service.close();await browser?.close();server.closeAllConnections();await new Promise(resolve=>server.close(resolve));rmSync(dir,{recursive:true,force:true})

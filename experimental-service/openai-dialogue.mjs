@@ -25,7 +25,11 @@ export function createOpenAIDialogueProvider(options = {}) {
     const response = await fetchImpl('https://api.openai.com/v1/responses' + path, { method: 'POST', redirect: 'error', credentials: 'omit',
       headers: { Authorization: 'Bearer ' + apiKey, 'Content-Type': 'application/json', Accept: 'application/json' },
       body: JSON.stringify(body), signal })
-    if (response.redirected || response.status !== 200 || !/^application\/json(?:;|$)/i.test(response.headers.get('content-type') || '')) fail('api_unavailable')
+    if (response.redirected || response.status !== 200 || !/^application\/json(?:;|$)/i.test(response.headers.get('content-type') || '')) {
+      const error = new DialogueError('api_unavailable')
+      error.httpStatus = response.status; error.stage = path ? 'count' : 'generation'
+      throw error
+    }
     const chunks = []; let size = 0
     for await (const chunk of response.body || []) {
       size += chunk.length

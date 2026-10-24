@@ -90,11 +90,13 @@ export function createDialogueInterface(options = {}, trial = null) {
         res.end(readFileSync(new URL('./dialogue-client.mjs', import.meta.url), 'utf8')); return true
       }
       if (req.url !== '/private/dialogue') return resources(req, res, context)
+      let currentEntry = null
       try {
         if (!['GET', 'POST'].includes(req.method)) { send(res, 405, { error: 'Méthode refusée' }); return true }
         if (req.method === 'POST' && req.headers.origin !== publicOrigin) { send(res, 403, { error: 'Origine requise' }); return true }
         const value = await entry(context.identity), session = value.session
-        if (req.method === 'GET') { send(res, 200, { mode: dialogueMode, pathwayMode: 'simulation', draft: session.getDraft(), proposal: session.getProposal(), references: value.references, ...(trial ? { usageRecords: session.getUsage(), budget: trial.budgetStatus() } : {}) }); return true }
+        currentEntry = value
+        if (req.method === 'GET') { send(res, 200, { mode: dialogueMode, pathwayMode: 'simulation', draft: session.getDraft(), proposal: session.getProposal(), references: value.references, ...(trial ? { usageRecords: session.getUsage(), budget: trial.budgetStatus(), lastError: value.lastError ?? null } : {}) }); return true }
         if (req.headers['content-type']?.split(';')[0].trim() !== 'application/json') { send(res, 415, { error: 'JSON requis' }); return true }
         const chunks = []; let bytes = 0
         for await (const chunk of req) { bytes += chunk.length; if (bytes > 16000) { send(res, 413, { error: 'Requête trop volumineuse' }); return true } chunks.push(chunk) }
@@ -102,7 +104,7 @@ export function createDialogueInterface(options = {}, trial = null) {
         try { body = JSON.parse(Buffer.concat(chunks).toString('utf8')) } catch { send(res, 400, { error: 'JSON invalide' }); return true }
         if (!body || typeof body !== 'object' || Array.isArray(body)) fail('invalid_request')
         let result
-        if (body.action === 'turn') result = await session.turn({ ...body, signal: context.signal })
+        if (body.action === 'turn') { result = await session.turn({ ...body, signal: context.signal }); value.lastError = null }
         else if (body.action === 'accept') result = { draft: session.acceptProposal(body) }
         else if (body.action === 'reject') result = { draft: session.rejectProposal(body) }
         else if (body.action === 'edit') result = { draft: session.editProfile(body.profile, body) }
@@ -111,7 +113,15 @@ export function createDialogueInterface(options = {}, trial = null) {
       } catch (error) {
         const code = error instanceof DialogueError ? error.code : 'service_unavailable'
         const status = ['stale_profile', 'stale_proposal', 'proposal_pending', 'references_changed', 'busy', 'duplicate_request'].includes(code) ? 409 : ['quota_exceeded', 'budget_stopped'].includes(code) ? 429 : code === 'timeout' ? 504 : code === 'disabled' ? 503 : 400
-        if (!context.signal.aborted && !res.writableEnded) send(res, status, { code, error: 'Dialogue non abouti. Profil conservé ; aucune relance automatique.' })
+        const diagnostic = { code, status,
+          ...(Number.isInteger(error.httpStatus) && error.httpStatus >= 100 && error.httpStatus <= 599 && ['count','generation'].includes(error.stage)
+            ? { httpStatus: error.httpStatus, stage: error.stage } : {}) }
+        if (currentEntry) currentEntry.lastError = diagnostic
+        let usageRecords
+        try { if (trial && currentEntry) usageRecords = currentEntry.session.getUsage() } catch {}
+        if (!context.signal.aborted && !res.writableEnded) send(res, status, { code,
+          error: 'Dialogue non abouti. Profil conservé ; aucune relance automatique.', ...diagnostic,
+          ...(trial ? { mode: dialogueMode, budget: trial.budgetStatus(), ...(usageRecords ? { usageRecords } : {}) } : {}) })
       }
       return true
     },

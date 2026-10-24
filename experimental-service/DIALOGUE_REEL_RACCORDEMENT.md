@@ -42,3 +42,11 @@ Le scénario navigateur prépare un faux transport et vérifie sur ordinateur et
 Le lanceur privé distinct et sa préparation désactivée sont décrits dans HEBERGEMENT_DIALOGUE_IA.md. Vérifier les conditions d’accès et de facturation, puis soumettre le lancement concret de l’essai borné. Aucun déploiement, clé réelle ou appel payant n’est inclus dans ce jalon.
 
 Coût OpenAI API : 0 token / 0 $.
+
+## Diagnostic après une erreur
+
+Les erreurs HTTP du connecteur conservent leur statut et leur étape (`count` ou `generation`), sans recopier le corps de réponse, une clé ou les instructions envoyées. La route privée renvoie le code technique, le budget courant et l’usage vérifié disponible même lorsqu’un tour échoue. Le client actualise le compteur avant d’afficher l’erreur. Pour une interruption réseau ou une ancienne réponse dépourvue de compteur, il effectue au plus une lecture GET de l’état : aucun POST de génération n’est rejoué.
+
+Le dernier diagnostic est conservé en mémoire par identité et restitué lors d’une lecture de l’état. Les autres identités n’y accèdent pas. Ce n’est pas un journal durable : un redémarrage efface ce diagnostic et le brouillon de dialogue en mémoire, tandis que les réservations restent sur disque. Aucun événement passé non enregistré ne peut être reconstitué par cette correction.
+
+Le test HTTP vérifie une erreur de génération 429, son étape, le compteur immédiat, le maintien du diagnostic et son isolation, sans corps fournisseur exposé ni nouvelle génération à la lecture. Le navigateur vérifie ces mêmes états après erreur et actualisation, ainsi que le parcours antérieur conservé. La suite locale compte 173 tests réussis ; tous les transports utilisés sont fictifs.
