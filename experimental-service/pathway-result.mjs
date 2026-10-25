@@ -47,6 +47,17 @@ export function validatePathwayResult(data) {
           fail('invalid_response', 'Preuve de modalite invalide')
         }
       }
+      if (item.course.sessionAvailability !== undefined) {
+        const availability = item.course.sessionAvailability
+        const date = availability?.observedOn
+        const validDate = typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date) &&
+          Number.isFinite(Date.parse(date + 'T12:00:00Z')) && new Date(date + 'T12:00:00Z').toISOString().slice(0, 10) === date
+        const known = object(availability) && availability.source === 'official-session-icons' && validDate &&
+          typeof availability.hasOpenSession === 'boolean' && typeof availability.hasScheduledSession === 'boolean'
+        const unknown = object(availability) && availability.source === null && date === null &&
+          availability.hasOpenSession === null && availability.hasScheduledSession === null
+        if (!known && !unknown) fail('invalid_response', 'Indicateurs de sessions invalides')
+      }
       for (const field of ['duration', 'public']) {
         if (item.course[field] != null && typeof item.course[field] !== 'string') {
           fail('invalid_response', 'Description de formation invalide')

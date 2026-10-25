@@ -100,3 +100,22 @@ test('modalité du cours distincte de la préférence : inconnue, conforme, diff
   const invalid=data();invalid.recommendedSteps[0].course.deliveryMode={value:'online',sourceField:'model',evidence:'Sans preuve'}
   assert.throws(()=>renderPathwayResult(document,invalid),e=>e.code==='invalid_response')
 })
+
+test('sessions : indicateurs officiels datés, deux statuts simultanés, aucune affirmation en simulation ou sans preuve',()=>{
+ const value=data(),availability={hasOpenSession:true,hasScheduledSession:true,observedOn:'2026-10-23',source:'official-session-icons'}
+ value.recommendedSteps[0].course.sessionAvailability=availability
+ const before=structuredClone(value),view=renderPathwayResult(document,value),content=text(view)
+ assert.match(content,/Inscriptions ouvertes lors du relevé/);assert.match(content,/Ouverture programmée signalée/);assert.match(content,/Indicateurs relevés le 23\/10\/2026/);assert.match(content,/Vérifiez la situation actuelle/)
+ assert.equal(descendants(view).filter(e=>e.className?.startsWith('session-badge')).length,2);assert.deepEqual(value,before)
+ const replay=text(renderPathwayResult(document,value,{replay:true}));assert.doesNotMatch(replay,/Inscriptions ouvertes|Ouverture programmée/);assert.match(replay,/Disponibilité des sessions : à vérifier/)
+ for(const source of [undefined,{...availability,hasOpenSession:false,hasScheduledSession:false},{hasOpenSession:null,hasScheduledSession:null,observedOn:null,source:null},{...availability,observedOn:'2999-01-01'}]){
+  const result=data();if(source)result.recommendedSteps[0].course.sessionAvailability=source
+  const rendered=text(renderPathwayResult(document,result));assert.doesNotMatch(rendered,/Inscriptions ouvertes|Ouverture programmée/);assert.match(rendered,/Disponibilité des sessions : à vérifier/)
+ }
+})
+test('sessions : types, provenance et dates incohérentes refusés sans afficher un statut inventé',()=>{
+ for(const availability of [{hasOpenSession:true,hasScheduledSession:false,observedOn:'2026-02-30',source:'official-session-icons'},{hasOpenSession:'true',hasScheduledSession:false,observedOn:'2026-10-23',source:'official-session-icons'},{hasOpenSession:true,hasScheduledSession:false,observedOn:'2026-10-23',source:'model'},null]){
+  const value=data();value.recommendedSteps[0].course.sessionAvailability=availability
+  assert.throws(()=>renderPathwayResult(document,value),e=>e.code==='invalid_response')
+ }
+})

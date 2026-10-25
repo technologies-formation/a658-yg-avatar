@@ -66,6 +66,36 @@ export function renderPathwayResult(document, data, { replay = false, preferredM
           : mode.value === preferred ? 'Modalité conforme à votre préférence selon l’intitulé ; vérifiez les conditions sur la fiche officielle.'
           : 'Écart avec votre préférence : la modalité indiquée pour ce cours est différente. Cette piste reste à comparer.')
       }
+      const availability = item.course.sessionAvailability
+      const knownAvailability = !replay && availability?.source === 'official-session-icons' &&
+        availability.observedOn <= new Date().toISOString().slice(0, 10)
+      const sessions = add(card, 'div', '')
+      sessions.className = 'session-availability'
+      const sessionBadge = (label, scheduled) => {
+        const badge = add(sessions, 'p', label)
+        badge.className = 'session-badge ' + (scheduled ? 'scheduled' : 'open')
+        if (badge.style) badge.style.cssText = 'display:inline-flex;align-items:center;gap:6px;margin:8px 8px 0 0;padding:5px 9px;border-radius:7px;font-size:12px;line-height:1.5;background:' + (scheduled ? '#faf1df;color:#78551e' : '#eaf3e7;color:#365f3a')
+        if (typeof document.createElementNS === 'function') {
+          const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+          svg.setAttribute('viewBox', '0 0 24 24'); svg.setAttribute('aria-hidden', 'true'); svg.setAttribute('focusable', 'false')
+          svg.setAttribute('fill', 'none'); svg.setAttribute('stroke', 'currentColor'); svg.setAttribute('stroke-width', '1.6')
+          svg.style.width = '15px'; svg.style.height = '15px'; svg.style.flexShrink = '0'
+          const path = document.createElementNS('http://www.w3.org/2000/svg', 'path')
+          path.setAttribute('d', scheduled ? 'M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0 M12 7v5l3 2' : 'M4 5h16v16H4z M8 3v4 M16 3v4 M4 10h16 M8 15l3 3 5-5')
+          svg.append(path); badge.prepend(svg)
+        }
+      }
+      if (knownAvailability && availability.hasOpenSession) sessionBadge('Inscriptions ouvertes lors du relevé', false)
+      if (knownAvailability && availability.hasScheduledSession) sessionBadge('Ouverture programmée signalée', true)
+      if (!knownAvailability || (!availability.hasOpenSession && !availability.hasScheduledSession)) {
+        add(sessions, 'p', 'Disponibilité des sessions : à vérifier sur la fiche officielle.')
+      }
+      if (knownAvailability) {
+        const date = availability.observedOn.split('-').reverse().join('/')
+        const note = add(sessions, 'p', 'Indicateurs relevés le ' + date + '. Vérifiez la situation actuelle et les conditions sur la fiche officielle.')
+        note.className = 'session-observed-on'
+        if (note.style) note.style.cssText = 'font-size:12px;line-height:1.6;color:#62755b;margin:8px 0 12px'
+      }
       if (item.course.sourceUrl) {
         const link = add(card, 'a', 'Consulter la fiche officielle')
         link.href = item.course.sourceUrl
