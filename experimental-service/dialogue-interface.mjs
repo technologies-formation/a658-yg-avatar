@@ -128,6 +128,7 @@ export function createDialogueInterface(options = {}, trial = null) {
         let result
         if (body.action === 'turn') { if(trial?.validation)fail('disabled');result = await session.turn({ ...body, signal: context.signal }); value.lastError = null }
         else if(body.action==='load-case'&&trial?.validation){const c=trial.validation.load(body.caseId,value.references);result={draft:session.editProfile(c.profile,{expectedRevision:body.expectedRevision,modality:c.modality})}}
+        else if (body.action === 'new-request') { result = { draft: session.restart(body) }; value.lastError = null }
         else if (body.action === 'accept') result = { draft: session.acceptProposal(body) }
         else if (body.action === 'reject') result = { draft: session.rejectProposal(body) }
         else if (body.action === 'edit') { result = { draft: session.editProfile(body.profile, body) };if(body.clearPathway===true){value.pathway=null;value.pathways=[]} }
@@ -138,7 +139,7 @@ export function createDialogueInterface(options = {}, trial = null) {
           result={savedPathway:value.pathway,savedPathways:value.pathways}
         }
         else fail('invalid_request')
-        if(['accept','edit','load-case','select-research','close-research'].includes(body.action))persist(context.identity,value)
+        if(['accept','edit','new-request','load-case','select-research','close-research'].includes(body.action))persist(context.identity,value)
         if (!context.signal.aborted) send(res, 200, {resumeEnabled:Boolean(resume),resumeSaved:value.resumeSaved, ...result, mode: dialogueMode, pathwayMode,...validationState(value), pathwayQuota: simulation.status(), ...(trial ? { usageRecords: session.getUsage(), budget: trial.budgetStatus() } : {}) })
       } catch (error) {
         const code = error instanceof DialogueError || error.code==='resume_unavailable' ? error.code : 'service_unavailable'

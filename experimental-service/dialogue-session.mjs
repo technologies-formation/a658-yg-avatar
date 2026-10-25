@@ -40,7 +40,7 @@ function createSession(options, realTrial) {
   if (!enabled) return Object.freeze({
     status: () => ({ enabled: false, busy: false, attemptedTurns: 0 }), stop() {},
     async turn() { fail('disabled') }, acceptProposal() { fail('disabled') },
-    rejectProposal() { fail('disabled') }, getProposal() { fail('disabled') }, editProfile() { fail('disabled') }, getDraft() { fail('disabled') },
+    rejectProposal() { fail('disabled') }, getProposal() { fail('disabled') }, editProfile() { fail('disabled') }, restart() { fail('disabled') }, getDraft() { fail('disabled') },
     getPathwayProfile() { fail('disabled') }, getUsage() { fail('disabled') },
   })
   const { provider, references, initialProfile = {}, initialModality = '', maxTurns, timeoutMs, maxHistoryCharacters = 12000 } = options
@@ -98,6 +98,14 @@ function createSession(options, realTrial) {
     getUsage() { available(); return copy(usageRecords) },
     getProposal() { available(); return copy(pending) },
     stop() { stopped = true; pending = null; active?.abort(); },
+    restart({ expectedRevision, confirmed = false } = {}) {
+      available(); if (active) fail('busy')
+      if (confirmed !== true) fail('unconfirmed')
+      if (expectedRevision !== revision) fail('stale_profile')
+      profile = {}; modality = ''; revision++; pending = null; history.length = 0
+      // Compteurs, identifiants déjà utilisés et consommation sont conservés.
+      return snapshot()
+    },
     editProfile(value, { expectedRevision, modality: nextModality = modality } = {}) {
       available(); if (active) fail('busy')
       if (expectedRevision !== revision) fail('stale_profile')

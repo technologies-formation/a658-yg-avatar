@@ -1,4 +1,4 @@
-import {initMessagingNavigation} from './messaging-navigation.mjs';
+import {initMessagingNavigation,confirmNewRequest} from './messaging-navigation.mjs';
 import {renderResearchTabs} from './research-tabs.mjs';
 // Client privé : dialogue fictif ou essai IA explicite ; uniquement des routes du serveur.
 import {fields,composeConstraints,validateMessagingProfile,createMessagingSnapshot,snapshotIsStale,researchLabel} from './messaging-state.mjs';
@@ -199,7 +199,9 @@ $('message').maxLength=1500;$('message').placeholder='Décrivez votre besoin…'
 $('open-profile').addEventListener('click',openProfile);$('close-profile').addEventListener('click',()=>$('profile-dialog').close());
 $('restart').addEventListener('click',async()=>{
  if(busy)return;
- try{const value=await dialogueRequest({action:'edit',profile:{},modality:'',expectedRevision:draftRevision});proposal=null;$('thread').replaceChildren();applyDraft(value.draft);switchView('discussion',true);say('Commençons une nouvelle demande. Vos recherches précédentes restent disponibles à gauche.');offerNext();status('Nouvelle demande commencée. Recherches conservées ; compteurs inchangés.');}catch(error){status(error.message,true);}
+ if((Object.values(profile).some(v=>String(v??'').trim())||modality||other||$('message').value.trim()||document.querySelector('#thread .message.user,#thread .result-message'))&&!await confirmNewRequest(document))return;
+ if(busy)return;
+ try{const value=await dialogueRequest({action:'new-request',confirmed:true,expectedRevision:draftRevision});proposal=null;$('message').value='';$('thread').replaceChildren();applyDraft(value.draft);switchView('discussion',true);say('Commençons une nouvelle demande. Vos recherches précédentes restent disponibles à gauche.');offerNext();status('Nouvelle demande commencée. Recherches conservées ; compteurs inchangés.');}catch(error){status(error.message,true);}
 });
 $('refresh-references').addEventListener('click',async()=>{
  if(busy)return;try{const value=await dialogueRequest();references=value.references;proposal=value.proposal;applyDraft(value.draft);clearChoices();status(value.lastError?failureMessage(value.lastError,value.lastError.status):'Brouillon accepté rechargé. Le résultat précédent reste conservé ; aucune recherche automatique.',Boolean(value.lastError));if(proposal)showPending();else offerNext();restorePathway(value.savedPathway,value.savedPathways);}catch(error){status(error.message,true);}

@@ -112,3 +112,15 @@ test('fermeture d’une recherche réelle : aucun remboursement de tentative ni 
  assert.equal((await f.build(await f.ticket())).status,429)
  assert.equal(f.calls.filter(x=>x.method==='POST').length,1);assert.equal(f.dialogueCalls,0)
 })
+
+test('nouvelle demande réelle : confirmation obligatoire, recherches et compteurs consommés conservés',async t=>{
+ const f=await fixture(t,{resume:true});await f.edit();const result=await f.build(await f.ticket()),before=(await f.request('/private/dialogue')).value
+ assert.equal((await f.request('/private/dialogue',{body:{action:'new-request',expectedRevision:1}})).status,400)
+ assert.deepEqual((await f.request('/private/dialogue')).value.draft.profile,before.draft.profile)
+ assert.equal((await f.request('/private/dialogue',{body:{action:'new-request',expectedRevision:1,confirmed:true},source:'https://other.invalid'})).status,403)
+ const reset=await f.request('/private/dialogue',{body:{action:'new-request',expectedRevision:1,confirmed:true}})
+ assert.equal(reset.status,200);assert.deepEqual(reset.value.draft.profile,{});assert.equal(reset.value.draft.modality,'');assert.equal(reset.value.pathwayQuota.total,1);assert.equal(reset.value.budget.attempts,0)
+ f.reopen();const resumed=(await f.request('/private/dialogue')).value
+ assert.deepEqual(resumed.draft.profile,{});assert.deepEqual(resumed.savedPathway,result.value.savedPathway);assert.equal(resumed.savedPathways.length,1);assert.equal(resumed.pathwayQuota.total,1)
+ assert.equal(f.calls.filter(x=>x.method==='POST').length,1);assert.equal(f.dialogueCalls,0)
+})

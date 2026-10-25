@@ -126,3 +126,16 @@ test('signal invalide et valeurs incorrectes ne bloquent pas la session', async 
   assert.throws(() => s.editProfile({ ...profile, personnelCategory: 'inventé' }, { expectedRevision: 0 }), code('invalid_profile'))
   await s.turn(request()); assert.equal(s.status().attemptedTurns, 1)
 })
+
+test('nouvelle demande confirmée : ancien contexte retiré, quotas, usage et anti-doublons conservés',async()=>{
+ const contexts=[]
+ const s=setup([], {provider:{mode:'simulation',async respond({messages}){contexts.push(messages.map(m=>m.text));return contexts.length===1?answer([change()]):answer([])}}})
+ await s.turn(request());const before=s.getDraft(),proposal=s.getProposal(),usage=s.getUsage()
+ assert.throws(()=>s.restart({expectedRevision:0}),code('unconfirmed'));assert.deepEqual(s.getDraft(),before);assert.deepEqual(s.getProposal(),proposal)
+ assert.throws(()=>s.restart({expectedRevision:99,confirmed:true}),code('stale_profile'))
+ const restarted=s.restart({expectedRevision:0,confirmed:true});assert.deepEqual(restarted.profile,{});assert.equal(restarted.modality,'');assert.equal(restarted.revision,1);assert.equal(s.getProposal(),null);assert.equal(s.status().attemptedTurns,1);assert.deepEqual(s.getUsage(),usage)
+ await assert.rejects(s.turn(request({expectedRevision:1})),code('duplicate_request'))
+ const fresh='Je voudrais progresser sur un tout autre sujet.'
+ await s.turn(request({requestId:'dialogue_request_0002',message:fresh,expectedRevision:1}))
+ assert.deepEqual(contexts[1],[fresh]);assert.equal(s.status().attemptedTurns,2)
+})

@@ -21,12 +21,13 @@ try{
  browser=await chromium.launch({headless:true});mkdirSync('visual-check',{recursive:true})
  for(const [name,viewport]of [['desktop',{width:1280,height:900}],['mobile',{width:390,height:844}]]){
   // Un compte synthétique par écran ; les quotas restent actifs pour chaque session.
-  const context=await browser.newContext({viewport}),page=await context.newPage(),errors=[],external=[];let pathways=0
+  const context=await browser.newContext({viewport}),page=await context.newPage(),errors=[],external=[];let pathways=0,newRequests=0
   page.on('pageerror',e=>errors.push(e.message))
   await page.route('**/*',async route=>{
    const req=route.request(),url=new URL(req.url())
    if(url.origin!==origin){external.push(req.url());await route.abort();return;}
    if(url.pathname==='/private/pathway'&&req.method()==='POST')pathways++
+   if(url.pathname==='/private/dialogue'&&req.method()==='POST'&&req.postDataJSON().action==='new-request')newRequests++
    const source=req.headers()
    const result=await new Promise((resolve,reject)=>{
     const request=httpRequest({hostname:'127.0.0.1',port:server.address().port,path:url.pathname+url.search,method:req.method(),headers:{host:url.host,
@@ -57,6 +58,19 @@ try{
   assert.equal(await page.locator('#sidebar .tab-count').count(),0);assert.equal(await page.locator('#thread .result-count').last().innerText(),'3 cours présentés')
   const cards=await page.locator('#thread .pathway-course').allTextContents()
   await clickNavigation(page,'#tab-courses');assert.equal(await page.locator('#courses-content h1').count(),1);assert.deepEqual(await page.locator('#courses-content .pathway-course').allTextContents(),cards)
+  // Cancellation and Escape keep the draft, the unsent text and the exact reading position.
+  await clickNavigation(page,'#tab-discussion');await page.locator('#message').fill('Un message encore non envoyé')
+  const beforeThread=await page.locator('#thread').innerHTML()
+  await page.locator('#conversation').evaluate(e=>e.scrollTop=Math.max(0,e.scrollHeight-e.clientHeight-80))
+  const beforeScroll=await page.locator('#conversation').evaluate(e=>e.scrollTop)
+  await clickNavigation(page,'#restart');await page.locator('#new-request-dialog').waitFor()
+  assert.equal(await page.evaluate(()=>document.activeElement.id),'keep-request');assert.equal(newRequests,0)
+  await page.screenshot({path:'visual-check/new-request-confirmation-'+name+'.png',fullPage:true,animations:'disabled'})
+  await page.locator('#keep-request').click()
+  assert.equal(await page.locator('#thread').innerHTML(),beforeThread);assert.equal(await page.locator('#message').inputValue(),'Un message encore non envoyé');assert.equal(await page.locator('#conversation').evaluate(e=>e.scrollTop),beforeScroll);assert.equal(newRequests,0);assert.equal(pathways,1)
+  await clickNavigation(page,'#restart');await page.locator('#new-request-dialog').waitFor();await page.keyboard.press('Escape')
+  await page.waitForFunction(()=>!document.getElementById('new-request-dialog').open)
+  assert.equal(await page.locator('#thread').innerHTML(),beforeThread);assert.equal(await page.locator('#message').inputValue(),'Un message encore non envoyé');assert.equal(newRequests,0)
   await clickNavigation(page,'#open-profile');await page.locator('[name=modality]').selectOption('Présentiel')
   await page.getByRole('button',{name:'Enregistrer ma demande',exact:true}).click();await clickNavigation(page,'#tab-courses')
   await page.locator('#courses-content').getByText(/La demande a changé ; ces résultats restent/).waitFor()
@@ -82,6 +96,11 @@ try{
   assert.deepEqual(await page.locator('#courses-content .pathway-course').allTextContents(),cards)
   await page.screenshot({path:'visual-check/research-tabs-'+name+'.png',fullPage:true,animations:'disabled'})
   await openNavigation(page);await page.screenshot({path:'visual-check/sidebar-'+name+'-researches.png',fullPage:true,animations:'disabled'})
+  // Only the explicit confirmation starts a fresh discussion; the two result snapshots stay available.
+  await clickNavigation(page,'#restart');await page.locator('#new-request-dialog').waitFor();await page.locator('#confirm-new-request').click()
+  await page.locator('#thread').getByText('Commençons une nouvelle demande. Vos recherches précédentes restent disponibles à gauche.',{exact:true}).waitFor()
+  assert.equal(newRequests,1);assert.equal(pathways,2);assert.equal(await page.locator('#message').inputValue(),'');assert.equal(await page.locator('#research-tabs [role=tab]').count(),2)
+  await clickNavigation(page,'#open-profile');assert.equal(await page.locator('[name=objective]').inputValue(),'');assert.equal(await page.locator('[name=role]').inputValue(),'');await page.getByRole('button',{name:'Fermer',exact:true}).click()
   await page.reload();await page.locator('#thread .pathway-result').waitFor();await clickNavigation(page,'#tab-courses')
   assert.equal(await page.locator('#research-tabs [role=tab]').count(),2);assert.match(await page.locator('#courses-content h1').innerText(),/^Recherche n° 1/)
   await openNavigation(page);await page.getByRole('button',{name:/Fermer Recherche n° 2/}).click()
