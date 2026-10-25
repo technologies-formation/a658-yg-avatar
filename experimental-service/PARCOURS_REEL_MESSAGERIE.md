@@ -23,3 +23,12 @@ Le redémarrage nécessaire à l’activation efface le profil, le dialogue et l
 Aucune activation hébergée ni génération réelle n’est effectuée par ces tests.
 
 Coût OpenAI API : 0 token / 0 $.
+
+
+## Affichage de l’essai consommé
+
+La lecture authentifiée du dialogue transmet le quota durable du parcours, distinct du budget de dialogue. Le client supprime la proposition de génération dès que le plafond est atteint et affiche le nombre utilisé. Le même contrôle s’applique à l’ouverture d’un autre onglet, à une édition du profil et à l’actualisation de l’état. Un quota absent, invalide, arrêté ou indisponible bloque également la confirmation ; aucune génération n’est tentée pour vérifier cet état.
+
+La réponse du parcours, y compris en erreur, fournit le quota courant lorsqu’il est disponible. Dès l’envoi d’une génération, le client suspend la possibilité de reconfirmer jusqu’à réception d’un état valide. Une erreur sans état ne réactive pas la génération. Le garde serveur existant continue de faire autorité : la disparition du bouton ne remplace pas le quota durable et n’en modifie jamais le contenu.
+
+Les tests HTTP vérifient la restitution de 0/1 puis 1/1, la conservation après erreur et après réouverture du service, et l’indépendance du budget du dialogue. Le navigateur utilise exclusivement un faux moteur et vérifie le retrait du bouton, un nouvel onglet et le rechargement sur ordinateur et mobile, sans POST supplémentaire. Le redémarrage requis pour charger la nouvelle lecture serveur efface toujours le profil et l’usage en mémoire ; il ne remet aucun compteur à zéro.

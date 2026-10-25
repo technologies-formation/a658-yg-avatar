@@ -26,7 +26,7 @@ try{
   // Un compte synthétique par écran ; les quotas restent actifs pour chaque session.
   const context=await browser.newContext({viewport}),page=await context.newPage(),errors=[],external=[];let pathways=0
   page.on('pageerror',e=>errors.push(e.message))
-  await page.route('**/*',async route=>{
+  await context.route('**/*',async route=>{
    const req=route.request(),url=new URL(req.url())
    if(url.origin!==origin){external.push(req.url());await route.abort();return;}
    if(url.pathname==='/private/pathway'&&req.method()==='POST')pathways++
@@ -59,6 +59,7 @@ try{
   await page.getByRole('button',{name:'Confirmer le profil et générer — essai payant',exact:true}).waitFor();assert.equal(pathways,0)
   await page.getByRole('button',{name:'Confirmer le profil et générer — essai payant',exact:true}).click();await page.locator('#thread .pathway-course').first().waitFor()
   assert.equal(pathways,1)
+  assert.match(await page.locator('#pathway-quota').textContent(),/1\/1 utilisé/);assert.equal(await page.getByRole('button',{name:'Confirmer le profil et générer — essai payant',exact:true}).count(),0)
   assert.equal(engineCalls,1);assert.equal(engineRequests[0].timeAvailable,'1 à 2 jours');assert.equal(engineRequests[0].constraints,'Modalité souhaitée : en ligne')
   const discussionResult=await page.locator('#thread .pathway-result').innerText()
   assert.match(discussionResult,/Temps disponible : 16 h/);assert.match(discussionResult,/Dépassement : 0 h/)
@@ -92,6 +93,17 @@ try{
   assert.deepEqual(await page.locator('#courses-content .pathway-course').allTextContents(),cards)
   await page.screenshot({path:'visual-check/dialogue-pathway-'+name+'-failure.png',fullPage:true,animations:'disabled'})
   assert.deepEqual(errors,[]);assert.deepEqual(external,[])
+  // Un nouvel onglet et un rechargement ne doivent pas reproposer l’essai consommé.
+  const fresh=await context.newPage()
+  for(const size of [{width:1280,height:900},{width:390,height:844}]){
+   await fresh.setViewportSize(size);await fresh.goto(origin+'/private/')
+   await fresh.locator('#pathway-quota').filter({hasText:/1\/1 utilisé/}).waitFor()
+   assert.equal(await fresh.getByRole('button',{name:'Confirmer le profil et générer — essai payant',exact:true}).count(),0)
+   assert.match(await fresh.locator('#dialogue-budget').textContent(),/2\/10 tentatives/)
+   assert.equal(engineCalls,1);assert.equal(apiCalls,4)
+   await fresh.screenshot({path:'visual-check/pathway-quota-'+size.width+'.png',fullPage:true})
+  }
+  await fresh.close()
   await context.close()
  }
  assert.equal(apiCalls,4);assert.equal(engineCalls,1)

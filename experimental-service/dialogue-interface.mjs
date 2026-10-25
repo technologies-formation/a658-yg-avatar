@@ -97,7 +97,7 @@ export function createDialogueInterface(options = {}, trial = null) {
         if (req.method === 'POST' && req.headers.origin !== publicOrigin) { send(res, 403, { error: 'Origine requise' }); return true }
         const value = await entry(context.identity), session = value.session
         currentEntry = value
-        if (req.method === 'GET') { send(res, 200, { mode: dialogueMode, pathwayMode, draft: session.getDraft(), proposal: session.getProposal(), references: value.references, ...(trial ? { usageRecords: session.getUsage(), budget: trial.budgetStatus(), lastError: value.lastError ?? null } : {}) }); return true }
+        if (req.method === 'GET') { send(res, 200, { mode: dialogueMode, pathwayMode, pathwayQuota: simulation.status(), draft: session.getDraft(), proposal: session.getProposal(), references: value.references, ...(trial ? { usageRecords: session.getUsage(), budget: trial.budgetStatus(), lastError: value.lastError ?? null } : {}) }); return true }
         if (req.headers['content-type']?.split(';')[0].trim() !== 'application/json') { send(res, 415, { error: 'JSON requis' }); return true }
         const chunks = []; let bytes = 0
         for await (const chunk of req) { bytes += chunk.length; if (bytes > 16000) { send(res, 413, { error: 'Requête trop volumineuse' }); return true } chunks.push(chunk) }
@@ -110,7 +110,7 @@ export function createDialogueInterface(options = {}, trial = null) {
         else if (body.action === 'reject') result = { draft: session.rejectProposal(body) }
         else if (body.action === 'edit') result = { draft: session.editProfile(body.profile, body) }
         else fail('invalid_request')
-        if (!context.signal.aborted) send(res, 200, { ...result, mode: dialogueMode, pathwayMode, ...(trial ? { usageRecords: session.getUsage(), budget: trial.budgetStatus() } : {}) })
+        if (!context.signal.aborted) send(res, 200, { ...result, mode: dialogueMode, pathwayMode, pathwayQuota: simulation.status(), ...(trial ? { usageRecords: session.getUsage(), budget: trial.budgetStatus() } : {}) })
       } catch (error) {
         const code = error instanceof DialogueError ? error.code : 'service_unavailable'
         const status = ['stale_profile', 'stale_proposal', 'proposal_pending', 'references_changed', 'busy', 'duplicate_request'].includes(code) ? 409 : ['quota_exceeded', 'budget_stopped'].includes(code) ? 429 : code === 'timeout' ? 504 : code === 'disabled' ? 503 : 400
@@ -122,7 +122,7 @@ export function createDialogueInterface(options = {}, trial = null) {
         try { if (trial && currentEntry) usageRecords = currentEntry.session.getUsage() } catch {}
         if (!context.signal.aborted && !res.writableEnded) send(res, status, { code,
           error: 'Dialogue non abouti. Profil conservé ; aucune relance automatique.', ...diagnostic,
-          ...(trial ? { mode: dialogueMode, budget: trial.budgetStatus(), ...(usageRecords ? { usageRecords } : {}) } : {}) })
+          ...(trial ? { mode: dialogueMode, pathwayQuota: simulation.status(), budget: trial.budgetStatus(), ...(usageRecords ? { usageRecords } : {}) } : {}) })
       }
       return true
     },

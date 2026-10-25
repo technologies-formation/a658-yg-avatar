@@ -43,7 +43,7 @@ test('parcours réel : mode explicite, profil accepté exact, une tentative glob
  const f=await fixture(t)
  const page=await f.request('/private/');assert.match(page.text,/"mode":"real"/);assert.match(page.text,/un parcours réel maximum/);assert.doesNotMatch(page.text,/FAKE_KEY_ONLY/)
  assert.equal(f.calls.filter(x=>x.method==='POST').length,0)
- const state=(await f.request('/private/dialogue')).value;assert.equal(state.pathwayMode,'real');assert.equal(state.budget.attempts,0)
+ const state=(await f.request('/private/dialogue')).value;assert.equal(state.pathwayMode,'real');assert.equal(state.budget.attempts,0);assert.equal(state.pathwayQuota.total,0);assert.equal(state.pathwayQuota.maxTotalRequests,1)
  await f.edit();const ticket=await f.ticket()
  assert.equal((await f.build(ticket,{profile:{...profile,objective:'Profil falsifié'}})).status,409)
  assert.equal(f.calls.filter(x=>x.method==='POST').length,0)
@@ -55,7 +55,7 @@ test('parcours réel : mode explicite, profil accepté exact, une tentative glob
  f.reopen();await f.edit('bob');const bob=await f.ticket('bob')
  const denied=await f.request('/private/pathway',{user:'bob',body:{confirmed:true,profile:{...profile,constraints:'Modalité souhaitée : en ligne'},requestId:bob.requestId,referenceRevision:refs.revision}})
  assert.equal(denied.status,429);assert.equal(f.calls.filter(x=>x.method==='POST').length,1)
- assert.equal((await f.request('/private/dialogue')).value.budget.attempts,0);assert.equal(f.dialogueCalls,0)
+ const restored=(await f.request('/private/dialogue')).value;assert.equal(restored.budget.attempts,0);assert.equal(restored.pathwayQuota.total,1);assert.equal(restored.pathwayQuota.maxTotalRequests,1);assert.equal(f.dialogueCalls,0)
 })
 test('parcours réel : authentification, origine, HTTPS et confirmation protègent le moteur',async t=>{
  const f=await fixture(t)
@@ -68,7 +68,7 @@ test('parcours réel : authentification, origine, HTTPS et confirmation protège
 })
 test('parcours réel : erreur moteur réserve la tentative durablement, aucune relance à la lecture ou au redémarrage',async t=>{
  const f=await fixture(t,{failure:true});await f.edit()
- assert.equal((await f.build(await f.ticket())).status,502)
+ const failed=await f.build(await f.ticket());assert.equal(failed.status,502);assert.equal(failed.value.quota.total,1)
  assert.equal(f.service.status().total,1)
  await f.request('/private/dialogue');await f.request('/private/');f.reopen();await f.edit()
  assert.equal((await f.build(await f.ticket())).status,429)

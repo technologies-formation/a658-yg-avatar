@@ -5,7 +5,7 @@ const $=id=>document.getElementById(id),config=JSON.parse($('messaging-config').
 if(!['simulation','real'].includes(config.mode)||!['fictitious','real-trial'].includes(config.dialogue))throw Error('Mode de dialogue explicite requis');
 const realTrial=config.dialogue==='real-trial',realPathway=config.mode==='real';
 if(realPathway&&!realTrial)throw Error('Dialogue réel requis pour cet essai de parcours');
-let references=config.references,profile={},modality='',other='',busy=false,controller=null,epoch=0,current=null,history=[],active='discussion',draftRevision=0,proposal=null;
+let references=config.references,profile={},modality='',other='',busy=false,controller=null,epoch=0,current=null,history=[],active='discussion',draftRevision=0,proposal=null,pathwayQuota=null;
 const scrolls={discussion:0,courses:0};
 const labels={personnelCategory:'Groupe de personnel',entity:'Entité ou service',managerStatus:'Situation managériale',role:'Métier ou fonction',objective:'Objectif',existingSkills:'Compétences actuelles',timeAvailable:'Temps disponible',constraints:'Autres contraintes',modality:'Modalité souhaitée'};
 function node(tag,text,cls){const e=document.createElement(tag);if(text!==undefined)e.textContent=text;if(cls)e.className=cls;return e;}
@@ -23,11 +23,12 @@ function choices(name){const f=references.pathway.fields[name];if(f?.options)ret
 function clearChoices(){document.querySelectorAll('.question-actions').forEach(e=>e.remove());}
 function profileList(p,parent){const dl=node('dl',undefined,'need-grid');for(const key of fields){const group=node('div');group.append(node('dt',labels[key]),node('dd',display(key,p[key])));dl.append(group);}parent.append(dl);}
 async function ticket(){const response=await fetch('/private/profile-references',{credentials:'same-origin',cache:'no-store',redirect:'error',headers:{Accept:'application/json'},signal:controller?.signal});if(!response.ok)throw Error('Choix indisponibles ('+response.status+'). Actualisez les choix avant de confirmer.');const t=await response.json();if(!t.references?.pathway?.fields||typeof t.references.revision!=='string'||typeof t.requestId!=='string')throw Error('Référentiel invalide');return t;}
-async function simulatePathway(){if(busy)return;let submitted;try{submitted=validateMessagingProfile(profile,references);}catch(e){status(e.message,true);openProfile();return;}
+async function simulatePathway(){if(busy)return;if(pathwayBlocked()){status(pathwayNotice(),true);return;}let submitted;try{submitted=validateMessagingProfile(profile,references);}catch(e){status(e.message,true);openProfile();return;}
  invalidate();const attempt=epoch,referenceRevision=references.revision;controller=new AbortController();const abort=controller;setBusy(true);status(realPathway?'Génération en cours : une tentative payante. Ne confirmez pas de nouveau.':'Simulation en cours. Aucune relance automatique.');const timer=setTimeout(()=>abort.abort(),config.pathwayTimeoutMs??config.timeoutMs);
  try{const t=await ticket();if(attempt!==epoch)return;if(t.references.revision!==referenceRevision)throw Error('Les choix du catalogue ont changé. Actualisez-les et confirmez de nouveau.');
+  if(realPathway)updatePathwayQuota(null);
   const response=await fetch('/private/pathway',{method:'POST',credentials:'same-origin',cache:'no-store',redirect:'error',signal:abort.signal,headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({profile:submitted,confirmed:true,referenceRevision,requestId:t.requestId})});
-  if(attempt!==epoch)return;if(!response.ok)throw Error((realPathway?'Génération':'Simulation')+' non aboutie ('+response.status+'). Réponses conservées ; aucune relance automatique.');const value=await response.json();if(attempt!==epoch)return;
+  if(attempt!==epoch)return;const value=await response.json();if(attempt!==epoch)return;if(realPathway)updatePathwayQuota(value.quota);if(!response.ok)throw Error((realPathway?'Génération':'Simulation')+' non aboutie ('+response.status+'). Réponses conservées ; aucune relance automatique.');
   if(value.mode!==config.mode||!(realPathway?value.result:value.preview)||!value.quota)throw Error('Mode ou résultat du parcours inattendu.');
   current=createMessagingSnapshot(submitted,realPathway?value.result:value.preview,referenceRevision,history.length+1,modality);history.push(current);clearChoices();const el=say('');el.classList.add('result-message');el.querySelector('.bubble').append(renderSnapshot(current));const row=node('div',undefined,'action-row');action('Voir la synthèse de mon parcours',()=>switchView('courses',true),row);action('Modifier mon profil',openProfile,row);el.querySelector('.bubble').append(row);sync();focusStart(el);status((realPathway?'Parcours réel reçu. Tentatives : ':'Simulation terminée, sans appel au moteur. Tentatives : ')+value.quota.total+'/'+value.quota.maxTotalRequests+'.');
  }catch(e){if(attempt===epoch)status(e.name==='AbortError'?(realPathway?'Génération':'Simulation')+' interrompue ou délai dépassé. Réponses et ancien parcours conservés ; aucune relance automatique.':e.message,true);}
@@ -58,6 +59,20 @@ function applyDraft(draft){
 function nextField(){const basic=['objective','role','personnelCategory','existingSkills','timeAvailable','modality'];return [...basic,...fields.filter(k=>!basic.includes(k)&&references.pathway.fields[k].requiredInForm)].find(k=>!(k==='modality'?modality:profile[k])?.trim());}
 function ready(){try{return !nextField()&&Boolean(validateMessagingProfile(profile,references));}catch{return false;}}
 function save(){}
+function pathwayBlocked(){return realPathway&&(!pathwayQuota||!pathwayQuota.enabled||pathwayQuota.stopped||pathwayQuota.busy||pathwayQuota.total>=pathwayQuota.maxTotalRequests||pathwayQuota.daily>=pathwayQuota.maxDailyRequests);}
+function pathwayNotice(){
+ if(!pathwayQuota)return 'État de l’essai de parcours indisponible. Actualisez les choix avant toute confirmation.';
+ if(pathwayQuota.total>=pathwayQuota.maxTotalRequests)return 'Essai de parcours terminé : '+pathwayQuota.total+'/'+pathwayQuota.maxTotalRequests+' utilisé. Aucune nouvelle génération autorisée.';
+ if(pathwayQuota.daily>=pathwayQuota.maxDailyRequests)return 'Limite quotidienne de parcours atteinte. Aucune nouvelle génération disponible.';
+ return 'Essai de parcours indisponible. Aucune nouvelle génération autorisée.';
+}
+function updatePathwayQuota(quota){
+ if(!realPathway)return;
+ const valid=quota&&['total','daily','maxTotalRequests','maxDailyRequests'].every(k=>Number.isSafeInteger(quota[k])&&quota[k]>=0)&&quota.maxTotalRequests>0&&quota.maxDailyRequests>0&&typeof quota.stopped==='boolean'&&typeof quota.enabled==='boolean';
+ pathwayQuota=valid?{...quota}:null;
+ const meter=$('pathway-quota');if(meter)meter.textContent=pathwayBlocked()?pathwayNotice():'Parcours réel : '+quota.total+'/'+quota.maxTotalRequests+' tentative utilisée. Génération payante après confirmation.';
+ if(pathwayBlocked())document.querySelectorAll('[data-confirm]').forEach(button=>button.closest('.question-actions')?.remove());
+}
 function updateDialogueBudget(value){if(realTrial&&value.budget){$('dialogue-budget').textContent='Dialogue IA : '+value.budget.attempts+'/10 tentatives · '+(value.budget.reservedMicroUsd/1000000).toFixed(2)+' USD réservés (plafond de réservations : 0,10 USD).';const records=value.usageRecords||[];if(records.length){const total=records.reduce((a,u)=>({input:a.input+u.inputTokens,output:a.output+u.outputTokens,cost:a.cost+u.calculatedUpperCostUsd}),{input:0,output:0,cost:0});$('dialogue-budget').append(node('span',' Usage vérifié de cet échange : '+total.input+' tokens entrants, '+total.output+' sortants ; majoration calculée '+total.cost.toFixed(6)+' USD (hors comptage, taxes et tentatives sans usage vérifiable).'));}}}
 function failureMessage(value,statusCode){const code=typeof value.code==='string'&&/^[a-z_]{1,60}$/.test(value.code)?value.code:'unknown';const upstream=Number.isInteger(value.httpStatus)?' · API HTTP '+value.httpStatus+' · '+(value.stage==='count'?'comptage':'génération'):'';return 'Dialogue non abouti — '+code+' · HTTP '+statusCode+upstream+'. Profil conservé ; aucune relance automatique.';}
 async function dialogueRequest(body){
@@ -67,13 +82,13 @@ async function dialogueRequest(body){
   const response=await fetch('/private/dialogue',{method:body?'POST':'GET',credentials:'same-origin',cache:'no-store',redirect:'error',signal:abort.signal,
    headers:{Accept:'application/json',...(body?{'Content-Type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{})});
   if(attempt!==epoch)throw Error('Réponse remplacée.');
-  const value=await response.json();if(!response.ok){if(realTrial&&value.mode==='real')updateDialogueBudget(value);const error=Error(failureMessage(value,response.status));error.budgetRefreshed=Boolean(realTrial&&value.mode==='real'&&value.budget);throw error;}
+  const value=await response.json();if(realPathway)updatePathwayQuota(value.pathwayQuota);if(!response.ok){if(realTrial&&value.mode==='real')updateDialogueBudget(value);const error=Error(failureMessage(value,response.status));error.budgetRefreshed=Boolean(realTrial&&value.mode==='real'&&value.budget);throw error;}
   if(value.mode!==(realTrial?'real':'simulation')||value.pathwayMode!==config.mode)throw Error('Mode de dialogue ou parcours inattendu.');updateDialogueBudget(value);return value;
  }finally{clearTimeout(timer);if(attempt===epoch){controller=null;setBusy(false);}}
 }
 function offerNext(){
  clearChoices();$('composer').hidden=false;
- if(realTrial){if(ready())confirmProfile();return;}
+ if(realTrial){if(ready()||pathwayBlocked())confirmProfile();return;}
  const key=nextField();if(!key){if(ready()){confirmProfile();return;}const row=say('Certains repères doivent être corrigés dans Mon profil avant la simulation.');action('Corriger mon profil',openProfile,row.querySelector('.bubble'));focusStart(row);return;}
  const prompts={objective:'Qu’aimeriez-vous mieux faire ou apprendre ?',role:'Quel est votre métier ou votre fonction ?',personnelCategory:'À quel groupe de personnel appartenez-vous ?',existingSkills:'Quelle expérience avez-vous sur ce sujet ?',timeAvailable:'Combien de temps pouvez-vous consacrer à cette formation ?',modality:'Quelle modalité préférez-vous ?'};
  const el=say(prompts[key]||'Complétez ce repère : '+labels[key]),row=node('div',undefined,'action-row question-actions');
@@ -86,11 +101,12 @@ function offerNext(){
 function confirmProfile(){
  clearChoices();$('composer').hidden=false;
  if(proposal){status('Acceptez ou refusez d’abord la proposition en attente.',true);return;}
+ if(pathwayBlocked()){const el=say(pathwayNotice());if(ready())profileList(profile,el.querySelector('.bubble'));focusStart(el);return;}
  if(!ready()){offerNext();return;}
  const el=say(realPathway?'Voici le profil accepté. Confirmer enverra ces informations au moteur A658-YG qui utilise OpenAI. Une seule tentative payante de parcours est autorisée, sans relance automatique.':'Voici le profil accepté. Souhaitez-vous simuler un parcours avec ces informations ?');profileList(profile,el.querySelector('.bubble'));
  const row=node('div',undefined,'action-row question-actions');const b=action(realPathway?'Confirmer le profil et générer — essai payant':'Confirmer le profil et simuler',simulate,row,true);b.dataset.confirm='true';action('Modifier mon profil',openProfile,row);$('thread').append(row);focusStart(el);
 }
-function simulate(){if(proposal||!ready()){status('Validez les corrections et complétez les repères avant de confirmer.',true);return;}return simulatePathway();}
+function simulate(){if(pathwayBlocked()){status(pathwayNotice(),true);return;}if(proposal||!ready()){status('Validez les corrections et complétez les repères avant de confirmer.',true);return;}return simulatePathway();}
 async function decide(accept){
  if(busy||!proposal)return;const currentProposal=proposal;
  try{const value=await dialogueRequest({action:accept?'accept':'reject',proposalId:currentProposal.id,expectedRevision:draftRevision,confirmed:accept});
@@ -131,4 +147,5 @@ $('refresh-references').addEventListener('click',async()=>{
 });
 document.querySelectorAll('[data-view]').forEach(b=>{b.addEventListener('click',()=>switchView(b.dataset.view));b.addEventListener('keydown',event=>{if(['ArrowLeft','ArrowRight','Home','End'].includes(event.key)){event.preventDefault();const v=event.key==='Home'?'discussion':event.key==='End'?'courses':active==='discussion'?'courses':'discussion';switchView(v);$('tab-'+v).focus();}});});
 if(realTrial){$('send-message').setAttribute('aria-label','Envoyer un message — essai payant');$('send-message').title='Envoyer un message — essai payant';const meter=node('p','','source-note');meter.id='dialogue-budget';$('composer-zone').prepend(meter);}
+if(realPathway){const meter=node('p','','source-note');meter.id='pathway-quota';meter.setAttribute('role','status');$('composer-zone').prepend(meter);updatePathwayQuota(null);}
 try{const value=await dialogueRequest();references=value.references;applyDraft(value.draft);say(realTrial?'Cet essai envoie votre profil et cet échange à OpenAI. Utilisez uniquement des données fictives. Chaque message envoyé peut consommer une tentative payante, sans relance automatique. '+(realPathway?'Le parcours réel nécessite une confirmation payante distincte.':'Les parcours restent des exemples simulés.')+' Qu’aimeriez-vous mieux faire ou apprendre ?':'Bonjour ! Ce mode de test utilise un fournisseur fictif. Chaque correction proposée attend votre acceptation ; aucun appel OpenAI.');proposal=value.proposal;if(proposal)showPending();else offerNext();}catch(error){status(error.message,true);}

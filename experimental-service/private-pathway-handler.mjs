@@ -85,6 +85,7 @@ export function createPrivatePathwayHandler({
         if (!res.writableEnded && !controller.signal.aborted) send(res, status, {
           error: 'Demande non aboutie ; réponses conservées. Aucune relance automatique.',
           code: Object.hasOwn(codes, error.code) ? error.code : 'service_unavailable',
+          ...(typeof session.status === 'function' ? { quota: session.status() } : {}),
         })
       } finally { res.removeListener('close', cancel) }
     },
