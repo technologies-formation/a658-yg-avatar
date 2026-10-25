@@ -42,7 +42,7 @@ try{
   assert.equal(await page.locator('[name=objective]').inputValue(),'')
   await page.getByRole('button',{name:'Fermer',exact:true}).click();await accept()
   await page.getByRole('button',{name:'Assistant administratif',exact:true}).waitFor()
-  assert.equal(await page.locator('#status').textContent(),'Profil mis à jour. Aucune recherche lancée.')
+  assert.equal(await page.locator('#status').textContent(),'Demande mise à jour. Aucune recherche lancée.')
   assert.equal(await page.locator('[data-proposal-id] .bubble').first().evaluate(el=>el.firstChild.textContent),'Repère enregistré dans votre demande.')
   assert.equal(await page.getByText('Ces corrections sont appliquées à votre profil. Aucune recherche n’a été lancée.',{exact:true}).count(),0)
   await page.getByRole('button',{name:'Assistant administratif',exact:true}).click();await accept()

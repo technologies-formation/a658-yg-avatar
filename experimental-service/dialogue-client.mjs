@@ -152,7 +152,7 @@ async function decide(accept){
 function showPending(reply='Une proposition précédente attend votre décision. La demande reste inchangée.'){
  clearChoices();const el=say(reply);el.dataset.proposalId=proposal.id;focusStart(el);
  const list=node('dl',undefined,'need-grid');for(const item of proposal.changes){const group=node('div');group.append(node('dt',labels[item.field]),node('dd',item.field==='modality'?item.value:display(item.field,item.value)));list.append(group);}el.querySelector('.bubble').append(list);
- const row=node('div',undefined,'action-row question-actions');action('Appliquer ces corrections',()=>decide(true),row,true);action('Garder ma demande actuel',()=>decide(false),row);el.querySelector('.bubble').append(row);
+ const row=node('div',undefined,'action-row question-actions');action('Appliquer ces corrections',()=>decide(true),row,true);action('Garder ma demande actuelle',()=>decide(false),row);el.querySelector('.bubble').append(row);
  status('Proposition en attente : demande inchangée, aucune recherche lancée.');
 }
 async function send(text){
