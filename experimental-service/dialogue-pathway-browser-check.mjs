@@ -76,7 +76,8 @@ try{
   assert.equal(await page.locator('#courses-content .plan-status h1').textContent(),researchHeading)
   assert.equal(await page.locator('#courses-content').evaluate(e=>e.querySelector('[data-research-summary]').compareDocumentPosition(e.querySelector('.need-summary'))&Node.DOCUMENT_POSITION_FOLLOWING),4)
   assert.match(await page.locator('#courses-content').innerText(),/1 à 2 jours/)
-  await page.setViewportSize({width:390,height:844});await page.screenshot({path:'visual-check/dialogue-pathway-mobile-courses.png',fullPage:true});assert.deepEqual(await page.locator('#courses-content .pathway-course').allTextContents(),cards);assert.equal(engineCalls,1)
+  await page.locator('#courses-content .session-availability').first().scrollIntoViewIfNeeded();await page.screenshot({path:'visual-check/session-indicators-desktop.png',fullPage:true,animations:'disabled'});
+  await page.setViewportSize({width:390,height:844});await page.locator('#courses-content .session-availability').first().scrollIntoViewIfNeeded();await page.screenshot({path:'visual-check/session-indicators-mobile.png',fullPage:true,animations:'disabled'});await page.screenshot({path:'visual-check/dialogue-pathway-mobile-courses.png',fullPage:true,animations:'disabled'});assert.deepEqual(await page.locator('#courses-content .pathway-course').allTextContents(),cards);assert.equal(engineCalls,1)
   await clickNavigation(page,'#open-profile');await page.locator('[name=modality]').selectOption('Présentiel')
   await page.getByRole('button',{name:'Enregistrer ma demande',exact:true}).click();await clickNavigation(page,'#tab-courses')
   await page.locator('#courses-content').getByText(/La demande a changé ; ces résultats restent/).waitFor()
