@@ -69,3 +69,13 @@ Avant de lancer les essais : faire approuver explicitement les trois tentatives 
 Pour chaque cas : résultat reçu ou erreur, cours et catégories, adéquation au besoin, public, préférence et modalité documentée, durée, cohérence entre les deux vues, coût renvoyé et réserves éventuelles. Classer chaque point comme conforme, à examiner ou bloquant, avec les faits observés. Ne pas transformer un essai préparé ou un résultat attendu en réussite constatée.
 
 Coût OpenAI API de la préparation de ce plan : 0 token / 0 $.
+
+## Préparation technique de la série autorisée
+
+Le mode de validation utilise le sous-dossier privé fixe `validation-20261025`, avec un quota distinct de trois demandes et un enregistrement exclusif par scénario V1, V2 et V3. Les profils du plan sont chargés côté serveur ; une modification qui ne correspond plus à l’un des profils fixes bloque la génération. Une réservation de scénario n’est jamais effacée après erreur. En cas d’échec d’écriture du quota global, un scénario peut rester indisponible sans appel moteur : aucune récupération automatique ne doit le rejouer.
+
+Le lanceur fournit `--prepare-validation CHEMIN_CONFIG`. Cette commande conserve une sauvegarde exclusive, refuse une série déjà préparée et ne lit aucune clé ni ne lance de requête réseau. L’ancien essai et le registre de dialogue restent dans leurs fichiers existants. Le lancement requiert en plus `AVATAR_PATHWAY_VALIDATION_ENABLED=true`, sans quoi il est refusé avant lecture de clé. Il conserve les autorisations explicites antérieures et la même clé serveur, sans nouvelle copie.
+
+L’interface propose trois boutons de chargement gratuits puis une confirmation payante distincte. Les tours de dialogue IA sont désactivés pendant la série, afin que les essais utilisent seulement les trois appels de parcours convenus. Un cas tenté est désactivé et ne peut pas être rejoué après rechargement ou redémarrage. Les résultats complets sont archivés séparément dans `V1.result.json`, `V2.result.json` et `V3.result.json` lorsqu’ils sont reçus ; la reprise du dernier parcours reste active. Une réponse d’erreur ou sans résultat exploitable ne crée pas un résultat fictif dans l’archive.
+
+La limite technique porte sur le nombre d’appels, pas sur un montant garanti. L’enveloppe indicative approuvée reste distincte du coût réellement renvoyé par le moteur.

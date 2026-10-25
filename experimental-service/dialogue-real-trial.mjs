@@ -1,5 +1,6 @@
 // Assemblage préparé sans lanceur : désactivé par défaut, clé explicite, registre dédié.
 import {isAbsolute, dirname} from 'node:path'
+import {createPathwayValidation,VALIDATION_SERIES} from './pathway-validation.mjs'
 import { createRealSession } from './real-session.mjs'
 import { createDialogueBudget } from './dialogue-budget.mjs'
 import { createOpenAIDialogueProvider } from './openai-dialogue.mjs'
@@ -17,9 +18,11 @@ export function createRealDialogueTrialInterface(options = {}) {
   const budget = createDialogueBudget({ directory: budgetDirectory, singleInstance: true })
   try {
     const provider = createOpenAIDialogueProvider({ enabled: true, paidTrialAuthorized: true, apiKey, budget, fetchImpl, timeoutMs })
+    if(pathwayTrial?.series&&(pathwayTrial.series!==VALIDATION_SERIES||pathwayTrial.validationAuthorized!==true))throw new DialogueError('configuration')
+    const validation=pathwayTrial?.series?createPathwayValidation({directory:pathwayTrial.directory,fetchImpl:pathwayTrial.fetchImpl??fetchImpl}):null
     const gateway = createDialogueInterface({ ...interfaceOptions, enabled: true, timeoutMs }, {
-      budgetStatus: budget.status,
-      ...(pathwayTrial ? { pathwaySession: createRealSession({ stateFile: pathwayTrial.stateFile, reportFile: pathwayTrial.reportFile, singleInstance: true, fetchImpl: pathwayTrial.fetchImpl ?? fetchImpl }) } : {}),
+      budgetStatus: budget.status,validation,
+      ...(pathwayTrial ? { pathwaySession: validation?.session??createRealSession({ stateFile: pathwayTrial.stateFile, reportFile: pathwayTrial.reportFile, singleInstance: true, fetchImpl: pathwayTrial.fetchImpl ?? fetchImpl }) } : {}),
       createSession: (references,restored={}) => createRealDialogueTrialSession({ enabled: true, paidTrialAuthorized: true,
         references,initialProfile:restored.profile??{},initialModality:restored.modality??'', provider, maxTurns: 10, timeoutMs, maxHistoryCharacters: 32000 }),
     })

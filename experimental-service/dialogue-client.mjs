@@ -3,9 +3,9 @@ import {fields,composeConstraints,validateMessagingProfile,createMessagingSnapsh
 import {renderPathwayResult} from './pathway-result-view.mjs';
 const $=id=>document.getElementById(id),config=JSON.parse($('messaging-config').textContent);
 if(!['simulation','real'].includes(config.mode)||!['fictitious','real-trial'].includes(config.dialogue))throw Error('Mode de dialogue explicite requis');
-const realTrial=config.dialogue==='real-trial',realPathway=config.mode==='real';
+const realTrial=config.dialogue==='real-trial',realPathway=config.mode==='real',realValidation=Boolean(config.validationSeries);
 if(realPathway&&!realTrial)throw Error('Dialogue réel requis pour cet essai de parcours');
-let references=config.references,profile={},modality='',other='',busy=false,controller=null,epoch=0,current=null,history=[],active='discussion',draftRevision=0,proposal=null,pathwayQuota=null;
+let references=config.references,profile={},modality='',other='',busy=false,controller=null,epoch=0,current=null,history=[],active='discussion',draftRevision=0,proposal=null,pathwayQuota=null,validationCases=null,validationCaseId=null;
 const scrolls={discussion:0,courses:0};
 const labels={personnelCategory:'Groupe de personnel',entity:'Entité ou service',managerStatus:'Situation managériale',role:'Métier ou fonction',objective:'Objectif',existingSkills:'Compétences actuelles',timeAvailable:'Temps disponible',constraints:'Autres contraintes',modality:'Modalité souhaitée'};
 function node(tag,text,cls){const e=document.createElement(tag);if(text!==undefined)e.textContent=text;if(cls)e.className=cls;return e;}
@@ -13,7 +13,7 @@ function action(label,fn,parent,primary=false){const b=node('button',label,prima
 function say(text,user=false){const row=node('section',undefined,'message'+(user?' user':'')),body=node('div',undefined,'message-body');body.append(node('div',user?'Vous':realTrial?'Votre assistant · essai IA':'Votre assistant · simulation','sender'));const bubble=node('div',text,'bubble');body.append(bubble);if(!user){const avatar=node('div','✦','avatar');avatar.setAttribute('aria-hidden','true');row.append(avatar);}row.append(body);if(user){const avatar=node('div','VO','user-avatar');avatar.setAttribute('aria-hidden','true');row.append(avatar);}$('thread').append(row);return row;}
 function focusStart(el){requestAnimationFrame(()=>{if(active!=='discussion'||!el.isConnected)return;const box=$('conversation');box.scrollTop=Math.max(0,box.scrollTop+el.getBoundingClientRect().top-box.getBoundingClientRect().top-20);});}
 function status(text,error=false){$('status').textContent=text;$('status').classList.toggle('error',error);}
-function setBusy(value){busy=value;$('send-message').disabled=value;$('message').disabled=value;document.querySelectorAll('[data-confirm],#profile-form button[type=submit]').forEach(b=>b.disabled=value);}
+function setBusy(value){busy=value;$('send-message').disabled=value;$('message').disabled=value;document.querySelectorAll('[data-confirm],[data-validation-case],#profile-form button[type=submit]').forEach(b=>b.disabled=value||(b.dataset.validationCase&&validationCases?.find(c=>c.id===b.dataset.validationCase)?.attempted));}
 function invalidate(){epoch++;controller?.abort();controller=null;setBusy(false);}
 function display(name,value){const f=references.pathway.fields[name];return f?.options?.find(x=>x.value===value)?.label||value||'Non renseigné';}
 function validateField(name,value){if(name==='modality'){if(!['Présentiel','En ligne','Indifférent'].includes(value))throw Error('Choisissez une modalité proposée.');return;}
@@ -29,9 +29,9 @@ async function simulatePathway(){if(busy)return;if(pathwayBlocked()){status(path
   if(realPathway)updatePathwayQuota(null);
   const response=await fetch('/private/pathway',{method:'POST',credentials:'same-origin',cache:'no-store',redirect:'error',signal:abort.signal,headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({profile:submitted,confirmed:true,referenceRevision,requestId:t.requestId})});
   if(attempt!==epoch)return;const value=await response.json();if(attempt!==epoch)return;if(realPathway)updatePathwayQuota(value.quota);if(!response.ok)throw Error((realPathway?'Génération':'Simulation')+' non aboutie ('+response.status+'). Réponses conservées ; aucune relance automatique.');
-  showResumeNotice(value);
+  showResumeNotice(value);showValidationCases(value);
   if(value.mode!==config.mode||!(realPathway?value.result:value.preview)||!value.quota)throw Error('Mode ou résultat du parcours inattendu.');
-  current=value.savedPathway?readSavedPathway(value.savedPathway):createMessagingSnapshot(submitted,realPathway?value.result:value.preview,referenceRevision,history.length+1,modality,config.mode);history.push(current);clearChoices();const el=say('');el.classList.add('result-message');el.querySelector('.bubble').append(renderSnapshot(current));const row=node('div',undefined,'action-row');action('Voir la synthèse de mon parcours',()=>switchView('courses',true),row);action('Modifier mon profil',openProfile,row);el.querySelector('.bubble').append(row);sync();focusStart(el);status((realPathway?'Parcours réel reçu. Tentatives : ':'Simulation terminée, sans appel au moteur. Tentatives : ')+value.quota.total+'/'+value.quota.maxTotalRequests+'.');
+  current=value.savedPathway?readSavedPathway(value.savedPathway):createMessagingSnapshot(submitted,realPathway?value.result:value.preview,referenceRevision,history.length+1,modality,config.mode);history.push(current);clearChoices();const el=say('');el.classList.add('result-message');el.querySelector('.bubble').append(renderSnapshot(current));const row=node('div',undefined,'action-row');action('Voir la synthèse de mon parcours',()=>switchView('courses',true),row);action('Modifier mon profil',openProfile,row);el.querySelector('.bubble').append(row);sync();focusStart(el);status((realPathway?'Parcours réel reçu. Tentatives : ':'Simulation terminée, sans appel au moteur. Tentatives : ')+value.quota.total+'/'+value.quota.maxTotalRequests+'.');if(realValidation&&value.caseReportSaved===false)status('Parcours reçu, mais son archive privée n’a pas pu être enregistrée. Gardez cet onglet ouvert ; aucune relance autorisée.',true);
  }catch(e){if(attempt===epoch)status(e.name==='AbortError'?(realPathway?'Génération':'Simulation')+' interrompue ou délai dépassé. Réponses et ancien parcours conservés ; aucune relance automatique.':e.message,true);}
  finally{clearTimeout(timer);if(attempt===epoch){controller=null;setBusy(false);}}
 }
@@ -77,8 +77,23 @@ function applyDraft(draft){
 function nextField(){const basic=['objective','role','personnelCategory','existingSkills','timeAvailable','modality'];return [...basic,...fields.filter(k=>!basic.includes(k)&&references.pathway.fields[k].requiredInForm)].find(k=>!(k==='modality'?modality:profile[k])?.trim());}
 function ready(){try{return !nextField()&&Boolean(validateMessagingProfile(profile,references));}catch{return false;}}
 function save(){}
-function pathwayBlocked(){return realPathway&&(!pathwayQuota||!pathwayQuota.enabled||pathwayQuota.stopped||pathwayQuota.busy||pathwayQuota.total>=pathwayQuota.maxTotalRequests||pathwayQuota.daily>=pathwayQuota.maxDailyRequests);}
+function showValidationCases(value){
+ if(!realValidation)return;
+ if(!Array.isArray(value.validationCases))return;
+ validationCases=value.validationCases;validationCaseId=value.validationCaseId??null;
+ let panel=$('validation-cases');if(!panel){panel=node('section',undefined,'need-summary');panel.id='validation-cases';$('thread').prepend(panel);}
+ panel.replaceChildren(node('strong','Trois scénarios fictifs — chargement sans appel IA'));
+ for(const c of validationCases??[]){const b=action(c.id+' · '+c.label+(c.attempted?' · déjà tenté':''),async()=>{
+  if(busy)return;
+  try{const data=await dialogueRequest({action:'load-case',caseId:c.id,expectedRevision:draftRevision});proposal=null;applyDraft(data.draft);switchView('discussion');status('Profil fictif chargé. Vérifiez-le avant la génération payante.');confirmProfile();}catch(error){status(error.message,true);}
+ },panel);b.dataset.validationCase=c.id;b.disabled=busy||c.attempted;}
+}
+function pathwayBlocked(){return realPathway&&(!pathwayQuota||!pathwayQuota.enabled||pathwayQuota.stopped||pathwayQuota.busy||pathwayQuota.total>=pathwayQuota.maxTotalRequests||pathwayQuota.daily>=pathwayQuota.maxDailyRequests||(realValidation&&(!validationCases||!validationCaseId||validationCases.find(c=>c.id===validationCaseId)?.attempted)));}
 function pathwayNotice(){
+ if(pathwayQuota&&pathwayQuota.total>=pathwayQuota.maxTotalRequests)return 'Essai de parcours terminé : '+pathwayQuota.total+'/'+pathwayQuota.maxTotalRequests+' utilisé. Aucune nouvelle génération autorisée.';
+ if(realValidation&&validationCases?.length===3&&validationCases.every(c=>c.attempted))return 'Les trois scénarios ont déjà été tentés. Aucune nouvelle génération autorisée.';
+ if(realValidation&&!validationCaseId)return 'Choisissez un scénario fictif pour préparer sa confirmation.';
+ if(realValidation&&validationCases?.find(c=>c.id===validationCaseId)?.attempted)return 'Scénario '+validationCaseId+' déjà tenté. Aucune relance autorisée ; choisissez un autre scénario disponible.';
  if(!pathwayQuota)return 'État de l’essai de parcours indisponible. Actualisez les choix avant toute confirmation.';
  if(pathwayQuota.total>=pathwayQuota.maxTotalRequests)return 'Essai de parcours terminé : '+pathwayQuota.total+'/'+pathwayQuota.maxTotalRequests+' utilisé. Aucune nouvelle génération autorisée.';
  if(pathwayQuota.daily>=pathwayQuota.maxDailyRequests)return 'Limite quotidienne de parcours atteinte. Aucune nouvelle génération disponible.';
@@ -100,12 +115,12 @@ async function dialogueRequest(body){
   const response=await fetch('/private/dialogue',{method:body?'POST':'GET',credentials:'same-origin',cache:'no-store',redirect:'error',signal:abort.signal,
    headers:{Accept:'application/json',...(body?{'Content-Type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{})});
   if(attempt!==epoch)throw Error('Réponse remplacée.');
-  const value=await response.json();showResumeNotice(value);if(realPathway)updatePathwayQuota(value.pathwayQuota);if(!response.ok){if(realTrial&&value.mode==='real')updateDialogueBudget(value);const error=Error(failureMessage(value,response.status));error.budgetRefreshed=Boolean(realTrial&&value.mode==='real'&&value.budget);throw error;}
+  const value=await response.json();showResumeNotice(value);showValidationCases(value);if(realPathway)updatePathwayQuota(value.pathwayQuota);if(!response.ok){if(realTrial&&value.mode==='real')updateDialogueBudget(value);const error=Error(failureMessage(value,response.status));error.budgetRefreshed=Boolean(realTrial&&value.mode==='real'&&value.budget);throw error;}
   if(value.mode!==(realTrial?'real':'simulation')||value.pathwayMode!==config.mode)throw Error('Mode de dialogue ou parcours inattendu.');updateDialogueBudget(value);return value;
  }finally{clearTimeout(timer);if(attempt===epoch){controller=null;setBusy(false);}}
 }
 function offerNext(){
- clearChoices();$('composer').hidden=false;
+ clearChoices();$('composer').hidden=realValidation;
  if(realTrial){if(ready()||pathwayBlocked())confirmProfile();return;}
  const key=nextField();if(!key){if(ready()){confirmProfile();return;}const row=say('Certains repères doivent être corrigés dans Mon profil avant la simulation.');action('Corriger mon profil',openProfile,row.querySelector('.bubble'));focusStart(row);return;}
  const prompts={objective:'Qu’aimeriez-vous mieux faire ou apprendre ?',role:'Quel est votre métier ou votre fonction ?',personnelCategory:'À quel groupe de personnel appartenez-vous ?',existingSkills:'Quelle expérience avez-vous sur ce sujet ?',timeAvailable:'Combien de temps pouvez-vous consacrer à cette formation ?',modality:'Quelle modalité préférez-vous ?'};
@@ -117,11 +132,11 @@ function offerNext(){
  action('Compléter dans Mon profil',openProfile,row);$('thread').append(row);focusStart(el);
 }
 function confirmProfile(){
- clearChoices();$('composer').hidden=false;
+ clearChoices();$('composer').hidden=realValidation;
  if(proposal){status('Acceptez ou refusez d’abord la proposition en attente.',true);return;}
  if(pathwayBlocked()){const el=say(pathwayNotice());if(ready())profileList(profile,el.querySelector('.bubble'));focusStart(el);return;}
  if(!ready()){offerNext();return;}
- const el=say(realPathway?'Voici le profil accepté. Confirmer enverra ces informations au moteur A658-YG qui utilise OpenAI. Une seule tentative payante de parcours est autorisée, sans relance automatique.':'Voici le profil accepté. Souhaitez-vous simuler un parcours avec ces informations ?');profileList(profile,el.querySelector('.bubble'));
+ const el=say(realPathway?'Voici le profil accepté. Confirmer enverra ces informations au moteur A658-YG qui utilise OpenAI. '+(realValidation?'Une seule tentative payante est autorisée pour ce scénario, dans la limite de trois scénarios.':'Une seule tentative payante de parcours est autorisée, sans relance automatique.')+'':'Voici le profil accepté. Souhaitez-vous simuler un parcours avec ces informations ?');profileList(profile,el.querySelector('.bubble'));
  const row=node('div',undefined,'action-row question-actions');const b=action(realPathway?'Confirmer le profil et générer — essai payant':'Confirmer le profil et simuler',simulate,row,true);b.dataset.confirm='true';action('Modifier mon profil',openProfile,row);$('thread').append(row);focusStart(el);
 }
 function simulate(){if(pathwayBlocked()){status(pathwayNotice(),true);return;}if(proposal||!ready()){status('Validez les corrections et complétez les repères avant de confirmer.',true);return;}return simulatePathway();}
@@ -140,6 +155,7 @@ function showPending(reply='Une proposition précédente attend votre décision.
  status('Proposition en attente : profil inchangé, aucune recherche lancée.');
 }
 async function send(text){
+ if(realValidation){status('Utilisez les boutons de scénarios ; aucun tour de dialogue IA dans cette validation.');return;}
  text=text.trim();if(!text||busy)return;if(proposal){status('Acceptez ou refusez d’abord la proposition en attente.',true);return;}clearChoices();$('message').value='';say(text,true);proposal=null;
  try{const value=await dialogueRequest({action:'turn',requestId:crypto.randomUUID(),message:text,expectedRevision:draftRevision,referenceRevision:references.revision,...(realTrial?{paidTrialConfirmed:true}:{})});
   applyDraft(value.draft);proposal=value.proposal;
@@ -165,6 +181,6 @@ $('refresh-references').addEventListener('click',async()=>{
 });
 document.querySelectorAll('[data-view]').forEach(b=>{b.addEventListener('click',()=>switchView(b.dataset.view));b.addEventListener('keydown',event=>{if(['ArrowLeft','ArrowRight','Home','End'].includes(event.key)){event.preventDefault();const v=event.key==='Home'?'discussion':event.key==='End'?'courses':active==='discussion'?'courses':'discussion';switchView(v);$('tab-'+v).focus();}});});
 if(realTrial){$('send-message').setAttribute('aria-label','Envoyer un message — essai payant');$('send-message').title='Envoyer un message — essai payant';const meter=node('p','','source-note');meter.id='dialogue-budget';$('composer-zone').prepend(meter);}
-if(realTrial)status('Dialogue IA : chaque message envoyé peut être payant. Aucun appel OpenAI à l’ouverture.');
+if(realTrial)status(realValidation?'Validation de parcours : chargement gratuit ; génération payante après confirmation.':'Dialogue IA : chaque message envoyé peut être payant. Aucun appel OpenAI à l’ouverture.');
 if(realPathway){const meter=node('p','','source-note');meter.id='pathway-quota';meter.setAttribute('role','status');$('composer-zone').prepend(meter);updatePathwayQuota(null);}
-try{const value=await dialogueRequest();references=value.references;applyDraft(value.draft);say(realTrial?'Cet essai envoie votre profil et cet échange à OpenAI. Utilisez uniquement des données fictives. Chaque message envoyé peut consommer une tentative payante, sans relance automatique. '+(realPathway?'Le parcours réel nécessite une confirmation payante distincte.':'Les parcours restent des exemples simulés.')+' Qu’aimeriez-vous mieux faire ou apprendre ?':'Bonjour ! Ce mode de test utilise un fournisseur fictif. Chaque correction proposée attend votre acceptation ; aucun appel OpenAI.');proposal=value.proposal;if(proposal)showPending();else offerNext();restorePathway(value.savedPathway);}catch(error){status(error.message,true);}
+try{const value=await dialogueRequest();references=value.references;applyDraft(value.draft);say(realValidation?'Validation privée : chargez un des trois profils fictifs. Le chargement ne lance aucun appel IA. Chaque génération nécessite votre confirmation payante ; chaque scénario peut être tenté une fois.':realTrial?'Cet essai envoie votre profil et cet échange à OpenAI. Utilisez uniquement des données fictives. Chaque message envoyé peut consommer une tentative payante, sans relance automatique. '+(realPathway?'Le parcours réel nécessite une confirmation payante distincte.':'Les parcours restent des exemples simulés.')+' Qu’aimeriez-vous mieux faire ou apprendre ?':'Bonjour ! Ce mode de test utilise un fournisseur fictif. Chaque correction proposée attend votre acceptation ; aucun appel OpenAI.');proposal=value.proposal;if(proposal)showPending();else offerNext();restorePathway(value.savedPathway);}catch(error){status(error.message,true);}

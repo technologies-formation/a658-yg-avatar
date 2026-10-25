@@ -1,10 +1,10 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import http from 'node:http'
-import { mkdtempSync,mkdirSync,writeFileSync,readFileSync,rmSync,existsSync,statSync } from 'node:fs'
+import { mkdtempSync,mkdirSync,writeFileSync,readFileSync,rmSync,existsSync,statSync,readdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { prepareHostedDialogueTrial,prepareHostedDialoguePathwayTrial,readHostedDialogueTrialConfig,createHostedDialogueTrial,readDialogueTrialLaunch } from './hosted-dialogue-trial.mjs'
+import { prepareHostedDialogueTrial,prepareHostedDialoguePathwayTrial,prepareHostedPathwayValidation,readHostedDialogueTrialConfig,createHostedDialogueTrial,readDialogueTrialLaunch } from './hosted-dialogue-trial.mjs'
 import { HOSTED_ORIGIN } from './hosted-transport.mjs'
 import { createPilotCredential } from './pilot-auth.mjs'
 import { references } from './reference-test-fixtures.mjs'
@@ -100,4 +100,22 @@ test('préparation du parcours dans la session existante : désactivée, sauvega
  const active=readDialogueTrialLaunch(file,f.site,{AVATAR_DIALOGUE_TRIAL_ENABLED:'true',AVATAR_PATHWAY_TRIAL_ENABLED:'true',AVATAR_DIALOGUE_OPENAI_API_KEY:'FAKE_TEST_KEY'})
  assert.equal(active.pathwayTrial.enabled,true);assert.equal(active.budgetDirectory,options.budgetDirectory)
  assert.notEqual(active.pathwayStateFile,active.stateFile)
+})
+
+
+test('validation trois cas : préparation exclusive, ancien essai et sept réservations intacts, activation séparée avant clé',async t=>{
+ const f=fixture(t),prepared=prepareHostedDialogueTrial(f.file,f.site),file=prepared.configFile,raw=JSON.parse(readFileSync(file,'utf8'))
+ raw.dialogueTrial={...raw.dialogueTrial,enabled:true,paidTrialAuthorized:true,billingReviewed:true};raw.pathwayTrial={enabled:true,paidTrialAuthorized:true};writeFileSync(file,JSON.stringify(raw))
+ const old=join(raw.privateDirectory,'messaging-real-one-attempt-quotas.json');writeFileSync(old,JSON.stringify({day:1,daily:1,total:1,stopped:false}),{mode:0o600});const oldBytes=readFileSync(old,'utf8')
+ const {createDialogueBudget}=await import('./dialogue-budget.mjs'),directory=join(raw.privateDirectory,'dialogue-budget')
+ const budget=createDialogueBudget({directory,singleInstance:true});for(let n=0;n<7;n++)budget.reserve('previous_dialogue_request_'+n);budget.close()
+ const before=readdirSync(directory).map(name=>[name,readFileSync(join(directory,name),'utf8')])
+ const value=prepareHostedPathwayValidation(file,f.site);assert.equal(value.maxRequests,3)
+ const options=readHostedDialogueTrialConfig(file,f.site);assert.equal(options.pathwayTrial.series,'pilot-2026-10-25');assert.notEqual(options.pathwayStateFile,old);assert.equal(existsSync(options.pathwayStateFile),false)
+ assert.equal(readFileSync(old,'utf8'),oldBytes);assert.deepEqual(readdirSync(directory).map(name=>[name,readFileSync(join(directory,name),'utf8')]),before)
+ assert.throws(()=>prepareHostedPathwayValidation(file,f.site));
+ const env={AVATAR_DIALOGUE_TRIAL_ENABLED:'true',AVATAR_PATHWAY_TRIAL_ENABLED:'true',get AVATAR_DIALOGUE_OPENAI_API_KEY(){throw Error('Clé lue trop tôt')}}
+ assert.throws(()=>readDialogueTrialLaunch(file,f.site,env),/validation absente/)
+ const launch=readDialogueTrialLaunch(file,f.site,{AVATAR_DIALOGUE_TRIAL_ENABLED:'true',AVATAR_PATHWAY_TRIAL_ENABLED:'true',AVATAR_PATHWAY_VALIDATION_ENABLED:'true',AVATAR_DIALOGUE_OPENAI_API_KEY:'FAKE_TEST_KEY'})
+ assert.equal(launch.validationAuthorized,true);assert.equal(launch.budgetDirectory,directory)
 })

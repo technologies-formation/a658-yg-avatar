@@ -39,13 +39,13 @@ export function renderDialogueSimulationPage(references, options = {}) {
 export function renderDialogueTrialPage(references, options = {}) {
   return renderDialoguePage(references, options, true)
 }
-function renderDialoguePage(references, { timeoutMs = 10000, pathwayMode = 'simulation' } = {}, realTrial) {
+function renderDialoguePage(references, { timeoutMs = 10000, pathwayMode = 'simulation', validationSeries = false } = {}, realTrial) {
   const contract = validateProfileReferences(references)
   if (!Number.isInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 30000) fail('configuration')
-  return template.replace('/*MESSAGING_CONFIG*/', JSON.stringify({ references: contract, timeoutMs, mode: pathwayMode, pathwayTimeoutMs: pathwayMode === 'real' ? 210000 : timeoutMs, dialogue: realTrial ? 'real-trial' : 'fictitious' }).replace(/</g, '\\u003c'))
+  return template.replace('/*MESSAGING_CONFIG*/', JSON.stringify({ references: contract, timeoutMs, mode: pathwayMode, validationSeries, pathwayTimeoutMs: pathwayMode === 'real' ? 210000 : timeoutMs, dialogue: realTrial ? 'real-trial' : 'fictitious' }).replace(/</g, '\\u003c'))
     .replace('/private/messaging-client.mjs', '/private/dialogue-client.mjs')
     .replace('Simulation : aucun appel au moteur ni à OpenAI.', realTrial ? 'Dialogue IA : chaque message envoyé peut être payant. Aucun appel OpenAI à l’ouverture.' : 'Simulation : aucun appel au moteur ni à OpenAI.')
-    .replace('Pilote privé · simulation uniquement', realTrial ? (pathwayMode === 'real' ? 'Essai privé · dialogue IA · un parcours réel maximum' : 'Essai dialogue IA · parcours simulés · 10 tentatives maximum') : 'Dialogue fictif · aucun appel OpenAI')
+    .replace('Pilote privé · simulation uniquement', realTrial ? (pathwayMode === 'real' ? (validationSeries?'Validation privée · trois scénarios, une tentative chacun':'Essai privé · dialogue IA · un parcours réel maximum') : 'Essai dialogue IA · parcours simulés · 10 tentatives maximum') : 'Dialogue fictif · aucun appel OpenAI')
 }
 export function createDialogueSimulationInterface(options = {}) {
   return createDialogueInterface(options)
@@ -80,7 +80,8 @@ export function createDialogueInterface(options = {}, trial = null) {
     }
     return value
   }
-  const resources = createPrivateResources(simulation, trial ? (refs, settings) => renderDialogueTrialPage(refs, { ...settings, pathwayMode }) : renderDialogueSimulationPage, timeoutMs)
+  const validationState=value=>trial?.validation?{validationCases:trial.validation.cases(),validationCaseId:trial.validation.identify(value.session.getDraft().profile,value.session.getDraft().modality)}:{}
+  const resources = createPrivateResources(simulation, trial ? (refs, settings) => renderDialogueTrialPage(refs, { ...settings, pathwayMode,validationSeries:Boolean(trial.validation) }) : renderDialogueSimulationPage, timeoutMs)
   const send = (res, status, body) => {
     res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' })
     res.end(JSON.stringify(body))
@@ -98,10 +99,11 @@ export function createDialogueInterface(options = {}, trial = null) {
       return {modality:draft.modality,profile:accepted}
     },
     afterPathway: ({identity,profile,referenceRevision,result,confirmedContext}) => {
-      if(!resume)return {}
+      const metadata=validationState(sessions.get(identity.id))
+      if(!resume)return metadata
       const value=sessions.get(identity.id)
       value.pathway=createMessagingSnapshot(confirmedContext.profile,result.mode==='real'?result.result:result.preview,referenceRevision,(value.pathway?.number??0)+1,confirmedContext.modality,result.mode)
-      return {resumeEnabled:true,resumeSaved:persist(identity,value),savedPathway:value.pathway}
+      return {...metadata,resumeEnabled:true,resumeSaved:persist(identity,value),savedPathway:value.pathway}
     },
     serveResource: async (req, res, context) => {
       if (req.method === 'GET' && req.url === '/private/dialogue-client.mjs') {
@@ -115,7 +117,7 @@ export function createDialogueInterface(options = {}, trial = null) {
         if (req.method === 'POST' && req.headers.origin !== publicOrigin) { send(res, 403, { error: 'Origine requise' }); return true }
         const value = await entry(context.identity), session = value.session
         currentEntry = value
-        if (req.method === 'GET') { send(res, 200, { mode: dialogueMode, pathwayMode, pathwayQuota: simulation.status(), resumeEnabled:Boolean(resume),resumeSaved:value.resumeSaved,savedPathway:value.pathway??null,draft: session.getDraft(), proposal: session.getProposal(), references: value.references, ...(trial ? { usageRecords: session.getUsage(), budget: trial.budgetStatus(), lastError: value.lastError ?? null } : {}) }); return true }
+        if (req.method === 'GET') { send(res, 200, { mode: dialogueMode, pathwayMode,...validationState(value), pathwayQuota: simulation.status(), resumeEnabled:Boolean(resume),resumeSaved:value.resumeSaved,savedPathway:value.pathway??null,draft: session.getDraft(), proposal: session.getProposal(), references: value.references, ...(trial ? { usageRecords: session.getUsage(), budget: trial.budgetStatus(), lastError: value.lastError ?? null } : {}) }); return true }
         if (req.headers['content-type']?.split(';')[0].trim() !== 'application/json') { send(res, 415, { error: 'JSON requis' }); return true }
         const chunks = []; let bytes = 0
         for await (const chunk of req) { bytes += chunk.length; if (bytes > 16000) { send(res, 413, { error: 'Requête trop volumineuse' }); return true } chunks.push(chunk) }
@@ -123,13 +125,14 @@ export function createDialogueInterface(options = {}, trial = null) {
         try { body = JSON.parse(Buffer.concat(chunks).toString('utf8')) } catch { send(res, 400, { error: 'JSON invalide' }); return true }
         if (!body || typeof body !== 'object' || Array.isArray(body)) fail('invalid_request')
         let result
-        if (body.action === 'turn') { result = await session.turn({ ...body, signal: context.signal }); value.lastError = null }
+        if (body.action === 'turn') { if(trial?.validation)fail('disabled');result = await session.turn({ ...body, signal: context.signal }); value.lastError = null }
+        else if(body.action==='load-case'&&trial?.validation){const c=trial.validation.load(body.caseId,value.references);result={draft:session.editProfile(c.profile,{expectedRevision:body.expectedRevision,modality:c.modality})}}
         else if (body.action === 'accept') result = { draft: session.acceptProposal(body) }
         else if (body.action === 'reject') result = { draft: session.rejectProposal(body) }
         else if (body.action === 'edit') { result = { draft: session.editProfile(body.profile, body) };if(body.clearPathway===true)value.pathway=null }
         else fail('invalid_request')
-        if(['accept','edit'].includes(body.action))persist(context.identity,value)
-        if (!context.signal.aborted) send(res, 200, {resumeEnabled:Boolean(resume),resumeSaved:value.resumeSaved, ...result, mode: dialogueMode, pathwayMode, pathwayQuota: simulation.status(), ...(trial ? { usageRecords: session.getUsage(), budget: trial.budgetStatus() } : {}) })
+        if(['accept','edit','load-case'].includes(body.action))persist(context.identity,value)
+        if (!context.signal.aborted) send(res, 200, {resumeEnabled:Boolean(resume),resumeSaved:value.resumeSaved, ...result, mode: dialogueMode, pathwayMode,...validationState(value), pathwayQuota: simulation.status(), ...(trial ? { usageRecords: session.getUsage(), budget: trial.budgetStatus() } : {}) })
       } catch (error) {
         const code = error instanceof DialogueError || error.code==='resume_unavailable' ? error.code : 'service_unavailable'
         const status = ['stale_profile', 'stale_proposal', 'proposal_pending', 'references_changed', 'busy', 'duplicate_request'].includes(code) ? 409 : ['quota_exceeded', 'budget_stopped'].includes(code) ? 429 : code === 'timeout' ? 504 : ['disabled','resume_unavailable'].includes(code) ? 503 : 400
