@@ -65,7 +65,7 @@ try{
   assert.match(discussionResult,/Exemple fictif : les durées des cours ne sont pas comparées/)
   assert.doesNotMatch(discussionResult,/Temps disponible : 8 h|Dépassement :|Le parcours dépasse/)
   const cards=await page.locator('#thread .pathway-course').allTextContents()
-  await page.locator('#tab-courses').click();assert.equal(await page.getByText('La synthèse de votre recherche',{exact:true}).count(),1);assert.deepEqual(await page.locator('#courses-content .pathway-course').allTextContents(),cards)
+  await page.locator('#tab-courses').click();assert.equal(await page.locator('#courses-content h1').count(),1);assert.deepEqual(await page.locator('#courses-content .pathway-course').allTextContents(),cards)
   assert.equal(await page.locator('#courses-content .pathway-result').innerText(),discussionResult)
   assert.match(await page.locator('#courses-content').innerText(),/1 à 2 jours/)
   await page.getByRole('button',{name:'Ma demande',exact:true}).click();await page.locator('[name=modality]').selectOption('Présentiel')

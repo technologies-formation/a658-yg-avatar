@@ -10,6 +10,24 @@ export function renderPathwayResult(document, data, { replay = false, preferredM
   const add = (parent, tag, text) => {
     const element = document.createElement(tag)
     element.textContent = text
+    const icons = {
+      'Étapes recommandées': 'M3 5h6a4 4 0 0 1 3 2 4 4 0 0 1 3-2h6v15h-6a4 4 0 0 0-3 2 4 4 0 0 0-3-2H3z M12 7v15',
+      'Compléments': 'M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0 M12 8v8 M8 12h8',
+      'Pour information': 'M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0 M12 8h.01 M12 11v6',
+      'Limites du catalogue': 'M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0 M12 8h.01 M12 11v6',
+      'Temps de formation': 'M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0 M12 7v5l3 2',
+      'Consommation renvoyée par le moteur': 'M4 20h16 M7 16v-5 M12 16V5 M17 16V8',
+      'Consommation figurant dans les données de test': 'M4 20h16 M7 16v-5 M12 16V5 M17 16V8',
+    }
+    if (tag === 'h3' && icons[text] && typeof document.createElementNS === 'function') {
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+      svg.setAttribute('viewBox', '0 0 24 24'); svg.setAttribute('aria-hidden', 'true'); svg.setAttribute('focusable', 'false')
+      svg.setAttribute('fill', 'none'); svg.setAttribute('stroke', 'currentColor'); svg.setAttribute('stroke-width', '1.6')
+      svg.setAttribute('stroke-linecap', 'round'); svg.setAttribute('stroke-linejoin', 'round')
+      svg.style.width = '16px'; svg.style.height = '16px'; svg.style.flexShrink = '0'; svg.style.color = '#6e8178'
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path'); path.setAttribute('d', icons[text]); svg.append(path)
+      element.prepend(svg); element.style.display = 'flex'; element.style.alignItems = 'center'; element.style.gap = '8px'
+    }
     parent.append(element)
     return element
   }
