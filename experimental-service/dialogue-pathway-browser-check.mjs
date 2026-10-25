@@ -39,6 +39,7 @@ try{
    });await route.fulfill(result)
   })
   await page.goto(origin+'/private/');await page.locator('#dialogue-budget').waitFor({timeout:5000}).catch(async error=>{console.log(JSON.stringify({name,errors,status:await page.locator('#status').count()?await page.locator('#status').textContent():'no status element'}));await page.screenshot({path:'visual-check/dialogue-pathway-'+name+'-startup-error.png',fullPage:true});throw error})
+  assert.equal(await page.locator('#status').textContent(),'Dialogue IA : chaque message envoyé peut être payant. Aucun appel OpenAI à l’ouverture.')
   await page.locator('#message').fill('Je voudrais progresser sur Word pour mes rapports.')
   await page.getByRole('button',{name:'Envoyer un message — essai payant',exact:true}).click()
   await page.getByRole('button',{name:'Appliquer ces corrections',exact:true}).waitFor()

@@ -42,6 +42,7 @@ function renderDialoguePage(references, { timeoutMs = 10000, pathwayMode = 'simu
   if (!Number.isInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 30000) fail('configuration')
   return template.replace('/*MESSAGING_CONFIG*/', JSON.stringify({ references: contract, timeoutMs, mode: pathwayMode, pathwayTimeoutMs: pathwayMode === 'real' ? 210000 : timeoutMs, dialogue: realTrial ? 'real-trial' : 'fictitious' }).replace(/</g, '\\u003c'))
     .replace('/private/messaging-client.mjs', '/private/dialogue-client.mjs')
+    .replace('Simulation : aucun appel au moteur ni à OpenAI.', realTrial ? 'Dialogue IA : chaque message envoyé peut être payant. Aucun appel OpenAI à l’ouverture.' : 'Simulation : aucun appel au moteur ni à OpenAI.')
     .replace('Pilote privé · simulation uniquement', realTrial ? (pathwayMode === 'real' ? 'Essai privé · dialogue IA · un parcours réel maximum' : 'Essai dialogue IA · parcours simulés · 10 tentatives maximum') : 'Dialogue fictif · aucun appel OpenAI')
 }
 export function createDialogueSimulationInterface(options = {}) {
