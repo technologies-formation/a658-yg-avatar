@@ -8,13 +8,18 @@ const fail=()=>{throw Object.assign(Error('Reprise privée indisponible'),{code:
 const object=x=>x&&typeof x==='object'&&!Array.isArray(x)
 const profileValid=p=>object(p)&&Object.keys(p).every(k=>PROFILE_FIELDS.includes(k)&&typeof p[k]==='string'&&p[k].length<=8000)
 export function validateResume(value){
- if(!object(value)||value.version!==1||!profileValid(value.profile)||!['','Présentiel','En ligne','Indifférent'].includes(value.modality)||!/^([a-f0-9]{64})$/.test(value.referenceRevision))fail()
- if(value.pathway!==null){
-  const p=value.pathway
+ if(!object(value)||![1,2].includes(value.version)||!profileValid(value.profile)||!['','Présentiel','En ligne','Indifférent'].includes(value.modality)||!/^([a-f0-9]{64})$/.test(value.referenceRevision))fail()
+ const snapshot=p=>{
   if(!object(p)||!profileValid(p.profile)||!Number.isSafeInteger(p.number)||p.number<1||!/^([a-f0-9]{64})$/.test(p.referenceRevision)||!['real','simulation'].includes(p.mode))fail()
-  try{value={...value,pathway:createMessagingSnapshot(p.profile,p.result,p.referenceRevision,p.number,p.modality,p.mode)}}catch{fail()}
+  try{return createMessagingSnapshot(p.profile,p.result,p.referenceRevision,p.number,p.modality,p.mode)}catch{fail()}
  }
- return structuredClone({version:1,profile:value.profile,modality:value.modality,referenceRevision:value.referenceRevision,pathway:value.pathway})
+ const pathway=value.pathway===null?null:snapshot(value.pathway)
+ if(value.version===1)return structuredClone({version:1,profile:value.profile,modality:value.modality,referenceRevision:value.referenceRevision,pathway})
+ if(!Array.isArray(value.pathways)||value.pathways.length>20||!Number.isSafeInteger(value.nextNumber)||value.nextNumber<1)fail()
+ const pathways=value.pathways.map(snapshot),numbers=pathways.map(p=>p.number)
+ if(new Set(numbers).size!==numbers.length||numbers.some(n=>n>=value.nextNumber)||Boolean(pathway)!==Boolean(pathways.length))fail()
+ if(pathway&&!pathways.some(p=>JSON.stringify(p)===JSON.stringify(pathway)))fail()
+ return structuredClone({version:2,profile:value.profile,modality:value.modality,referenceRevision:value.referenceRevision,pathway,pathways,nextNumber:value.nextNumber})
 }
 export function createPrivateResumeStore(directory){
  if(typeof directory!=='string'||!isAbsolute(directory))fail()

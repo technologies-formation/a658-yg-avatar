@@ -2,6 +2,7 @@
 import { readFileSync } from 'node:fs'
 
 const modules = new Map([
+  ['/private/research-tabs.mjs', new URL('./research-tabs.mjs', import.meta.url)],
   ['/private/messaging-client.mjs', new URL('./messaging-client.mjs', import.meta.url)],
   ['/private/messaging-state.mjs', new URL('./messaging-state.mjs', import.meta.url)],
   ['/private/pathway-result-view.mjs', new URL('./pathway-result-view.mjs', import.meta.url)],

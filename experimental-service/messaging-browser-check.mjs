@@ -8,7 +8,7 @@ try{for(const [name,width,height]of [['desktop',1280,900],['mobile',390,844]]){
  try{await context.route('**/*',route=>{const request=route.request(),url=new URL(request.url()),path=url.pathname;
   if(url.origin!==origin){unexpected.push(request.url());return route.abort();}
   if(path==='/')return route.fulfill({contentType:'text/html',body:renderMessagingPage(r)});
-  if(['/private/messaging-client.mjs','/private/messaging-state.mjs','/private/pathway-result-view.mjs','/private/pathway-result.mjs'].includes(path))return route.fulfill({contentType:'text/javascript',body:readFileSync(new URL('.'+path.replace('/private',''),import.meta.url),'utf8')});
+  if(['/private/messaging-client.mjs','/private/messaging-state.mjs','/private/research-tabs.mjs','/private/pathway-result-view.mjs','/private/pathway-result.mjs'].includes(path))return route.fulfill({contentType:'text/javascript',body:readFileSync(new URL('.'+path.replace('/private',''),import.meta.url),'utf8')});
   if(path==='/private/profile-references')return route.fulfill({json:{references:r,requestId:'synthetic-ticket-'+posts}});
   if(path==='/private/pathway'&&request.method()==='POST'){const body=request.postDataJSON();assert.equal(body.confirmed,true);assert.equal(body.referenceRevision,r.revision);payloads.push(body);posts++;return route.fulfill({json:{mode:'simulation',preview:result,quota:{total:posts,maxTotalRequests:5}}});}
   unexpected.push(path);return route.abort();
@@ -29,6 +29,7 @@ try{for(const [name,width,height]of [['desktop',1280,900],['mobile',390,844]]){
  await page.waitForFunction(()=>getComputedStyle(document.getElementById('tab-courses')).color==='rgb(255, 255, 255)');
  await page.screenshot({path:join(output,'messaging-'+name+'-courses.png'),fullPage:true,animations:'disabled'});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
  await page.reload();await page.locator('#thread').getByText(/Vos réponses ont été restaurées/).waitFor();assert.equal(posts,1);assert.equal(await page.locator('#conversation .pathway-result').count(),0);
+ await page.locator('#tab-courses').click();assert.equal(await page.locator('#research-tabs [role=tab]').count(),1);assert.deepEqual(await page.locator('#courses-content .pathway-course h4').allTextContents(),cards);assert.equal(posts,1);
  await page.screenshot({path:join(output,'messaging-'+name+'-restored.png'),fullPage:true});assert.deepEqual(errors,[]);assert.deepEqual(unexpected,[]);reports.push({name,posts,sharedResult:true,stalePreservesResult:true,draftRestored:true,noExternalRequests:true});
  }finally{await context.close();}
 }}finally{await browser.close();}

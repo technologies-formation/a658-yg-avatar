@@ -12,7 +12,7 @@ const { chromium } = await import(process.env.AVATAR_PLAYWRIGHT_MODULE || 'playw
 const origin='https://dialogue-test.invalid',password='FAKE_BROWSER_TEST_PASSWORD_ONLY'
 const dir=mkdtempSync(join(tmpdir(),'avatar-dialogue-browser-'))
 const users=await Promise.all(['desktop','mobile'].map(name=>createPilotCredential({id:'browser-'+name,username:'browser-'+name,password})))
-const service=createDialogueSimulationInterface({enabled:true,publicOrigin:origin,users,stateFile:join(dir,'quotas.json'),
+const service=createDialogueSimulationInterface({enabled:true,publicOrigin:origin,users,stateFile:join(dir,'quotas.json'),resumeDirectory:join(dir,'resume'),
  isSecureRequest:req=>['127.0.0.1','::ffff:127.0.0.1'].includes(req.socket.remoteAddress),loadProfileReferences:()=>references(),preview:data()})
 const server=createServer(service.handler);await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve))
 let browser;const results=[]
@@ -63,7 +63,33 @@ try{
   await page.screenshot({path:'visual-check/dialogue-'+name+'-courses.png',fullPage:true,animations:'disabled'})
   const overflow=await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth)
   assert.equal(overflow,false);assert.deepEqual(errors,[]);assert.deepEqual(external,[])
-  results.push({name,pathways,proposalRequiresAcceptance:true,resultPreserved:true,noExternalRequests:true})
+  // Two frozen searches, keyboard selection, refresh and closure: only explicit simulation clicks build results.
+  await page.locator('#tab-discussion').click()
+  await page.getByRole('button',{name:'Confirmer ma demande et simuler',exact:true}).click()
+  await page.waitForFunction(()=>document.querySelectorAll('#research-tabs [role=tab]').length===2)
+  await page.locator('#tab-courses').click()
+  assert.equal(pathways,2)
+  await page.locator('[data-research-number="1"]').click()
+  await page.waitForFunction(()=>document.querySelector('#courses-content h1')?.textContent.startsWith('Recherche n° 1'))
+  assert.match(await page.locator('#courses-content .need-summary').innerText(),/Modalité souhaitée : en ligne/)
+  await page.locator('[data-research-number="1"]').focus();await page.keyboard.press('ArrowRight')
+  await page.waitForFunction(()=>document.querySelector('#courses-content h1')?.textContent.startsWith('Recherche n° 2'))
+  assert.match(await page.locator('#courses-content .need-summary').innerText(),/Modalité souhaitée : présentiel/)
+  await page.locator('[data-research-number="1"]').click()
+  await page.waitForFunction(()=>document.querySelector('[data-research-number="1"]')?.getAttribute('aria-selected')==='true')
+  assert.deepEqual(await page.locator('#courses-content .pathway-course').allTextContents(),cards)
+  await page.screenshot({path:'visual-check/research-tabs-'+name+'.png',fullPage:true,animations:'disabled'})
+  await page.reload();await page.locator('#thread .pathway-result').waitFor();await page.locator('#tab-courses').click()
+  assert.equal(await page.locator('#research-tabs [role=tab]').count(),2);assert.match(await page.locator('#courses-content h1').innerText(),/^Recherche n° 1/)
+  await page.getByRole('button',{name:/Fermer Recherche n° 2/}).click()
+  await page.waitForFunction(()=>document.querySelectorAll('#research-tabs [role=tab]').length===1)
+  await page.reload();await page.locator('#thread .pathway-result').waitFor();await page.locator('#tab-courses').click()
+  assert.equal(await page.locator('#research-tabs [role=tab]').count(),1)
+  await page.getByRole('button',{name:/Fermer Recherche n° 1/}).click()
+  await page.locator('#courses-content .view-empty').waitFor()
+  assert.equal(await page.locator('#course-count').innerText(),'0');assert.equal(pathways,2)
+  assert.deepEqual(errors,[]);assert.deepEqual(external,[]);assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false)
+  results.push({name,pathways,proposalRequiresAcceptance:true,resultPreserved:true,researchTabsRestored:true,closePreservesQuota:true,noExternalRequests:true})
   await context.close()
  }
  writeFileSync('visual-check/dialogue-check.json',JSON.stringify(results,null,2))

@@ -102,3 +102,13 @@ test('échec de sauvegarde après génération : résultat retourné et retrouva
  assert.equal(current.resumeSaved,false);assert.deepEqual(current.savedPathway.result,f.result);assert.equal(current.pathwayQuota.total,1)
  assert.equal(f.calls.filter(x=>x.method==='POST').length,1);assert.equal(f.dialogueCalls,0)
 })
+
+test('fermeture d’une recherche réelle : aucun remboursement de tentative ni appel moteur ou dialogue',async t=>{
+ const f=await fixture(t,{resume:true});await f.edit();await f.build(await f.ticket())
+ const response=await f.request('/private/dialogue',{body:{action:'close-research',number:1}})
+ assert.equal(response.status,200);assert.deepEqual(response.value.savedPathways,[]);assert.equal(response.value.savedPathway,null)
+ f.reopen();const state=(await f.request('/private/dialogue')).value
+ assert.deepEqual(state.savedPathways,[]);assert.equal(state.pathwayQuota.total,1);assert.equal(state.budget.attempts,0)
+ assert.equal((await f.build(await f.ticket())).status,429)
+ assert.equal(f.calls.filter(x=>x.method==='POST').length,1);assert.equal(f.dialogueCalls,0)
+})

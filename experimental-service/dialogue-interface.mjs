@@ -64,7 +64,7 @@ export function createDialogueInterface(options = {}, trial = null) {
   const persist = (identity,value) => {
     if(!resume)return true
     const draft=value.session.getDraft()
-    try{resume.write(identity.id,{version:1,profile:draft.profile,modality:draft.modality,referenceRevision:draft.referenceRevision,pathway:value.pathway??null});value.resumeSaved=true;return true}
+    try{resume.write(identity.id,{version:2,profile:draft.profile,modality:draft.modality,referenceRevision:draft.referenceRevision,pathway:value.pathway??null,pathways:value.pathways,nextNumber:value.nextNumber});value.resumeSaved=true;return true}
     catch{value.resumeSaved=false;return false}
   }
   const entry = async identity => {
@@ -74,7 +74,7 @@ export function createDialogueInterface(options = {}, trial = null) {
     if (!value) {
       if (sessions.size >= 8) fail('busy')
       const restored=resume?.read(identity.id)
-      value = { references: refs, pathway:restored?.pathway??null,resumeSaved:true, session: trial ? trial.createSession(refs,restored??{}) : createDialogueSession({ enabled: true, references: refs,initialProfile:restored?.profile??{},initialModality:restored?.modality??'',
+      value = { references: refs, pathway:restored?.pathway??null,pathways:restored?.pathways??(restored?.pathway?[restored.pathway]:[]),nextNumber:restored?.nextNumber??((restored?.pathway?.number??0)+1),resumeSaved:true, session: trial ? trial.createSession(refs,restored??{}) : createDialogueSession({ enabled: true, references: refs,initialProfile:restored?.profile??{},initialModality:restored?.modality??'',
         provider: createFictitiousDialogueProvider(), maxTurns: 10, timeoutMs }) }
       sessions.set(identity.id, value)
     }
@@ -90,6 +90,7 @@ export function createDialogueInterface(options = {}, trial = null) {
     maxAttempts: 100, windowMs: 60000,
     beforePathway: async ({ identity, profile, referenceRevision }) => {
       const value = await entry(identity), draft = value.session.getDraft()
+      if(value.pathways.length>=20)fail('invalid_request')
       if (referenceRevision !== value.references.revision) fail('references_changed')
       if (!draft.profile.existingSkills?.trim() || !draft.profile.timeAvailable?.trim() || !draft.modality) fail('invalid_profile')
       const accepted = value.session.getPathwayProfile({ expectedRevision: draft.revision })
@@ -100,10 +101,10 @@ export function createDialogueInterface(options = {}, trial = null) {
     },
     afterPathway: ({identity,profile,referenceRevision,result,confirmedContext}) => {
       const metadata=validationState(sessions.get(identity.id))
-      if(!resume)return metadata
       const value=sessions.get(identity.id)
-      value.pathway=createMessagingSnapshot(confirmedContext.profile,result.mode==='real'?result.result:result.preview,referenceRevision,(value.pathway?.number??0)+1,confirmedContext.modality,result.mode)
-      return {...metadata,resumeEnabled:true,resumeSaved:persist(identity,value),savedPathway:value.pathway}
+      value.pathway=createMessagingSnapshot(confirmedContext.profile,result.mode==='real'?result.result:result.preview,referenceRevision,value.nextNumber++,confirmedContext.modality,result.mode)
+      value.pathways.push(value.pathway)
+      return {...metadata,resumeEnabled:Boolean(resume),resumeSaved:persist(identity,value),savedPathway:value.pathway,savedPathways:value.pathways}
     },
     serveResource: async (req, res, context) => {
       if (req.method === 'GET' && req.url === '/private/dialogue-client.mjs') {
@@ -117,7 +118,7 @@ export function createDialogueInterface(options = {}, trial = null) {
         if (req.method === 'POST' && req.headers.origin !== publicOrigin) { send(res, 403, { error: 'Origine requise' }); return true }
         const value = await entry(context.identity), session = value.session
         currentEntry = value
-        if (req.method === 'GET') { send(res, 200, { mode: dialogueMode, pathwayMode,...validationState(value), pathwayQuota: simulation.status(), resumeEnabled:Boolean(resume),resumeSaved:value.resumeSaved,savedPathway:value.pathway??null,draft: session.getDraft(), proposal: session.getProposal(), references: value.references, ...(trial ? { usageRecords: session.getUsage(), budget: trial.budgetStatus(), lastError: value.lastError ?? null } : {}) }); return true }
+        if (req.method === 'GET') { send(res, 200, { mode: dialogueMode, pathwayMode,...validationState(value), pathwayQuota: simulation.status(), resumeEnabled:Boolean(resume),resumeSaved:value.resumeSaved,savedPathway:value.pathway??null,savedPathways:value.pathways,draft: session.getDraft(), proposal: session.getProposal(), references: value.references, ...(trial ? { usageRecords: session.getUsage(), budget: trial.budgetStatus(), lastError: value.lastError ?? null } : {}) }); return true }
         if (req.headers['content-type']?.split(';')[0].trim() !== 'application/json') { send(res, 415, { error: 'JSON requis' }); return true }
         const chunks = []; let bytes = 0
         for await (const chunk of req) { bytes += chunk.length; if (bytes > 16000) { send(res, 413, { error: 'Requête trop volumineuse' }); return true } chunks.push(chunk) }
@@ -129,9 +130,15 @@ export function createDialogueInterface(options = {}, trial = null) {
         else if(body.action==='load-case'&&trial?.validation){const c=trial.validation.load(body.caseId,value.references);result={draft:session.editProfile(c.profile,{expectedRevision:body.expectedRevision,modality:c.modality})}}
         else if (body.action === 'accept') result = { draft: session.acceptProposal(body) }
         else if (body.action === 'reject') result = { draft: session.rejectProposal(body) }
-        else if (body.action === 'edit') { result = { draft: session.editProfile(body.profile, body) };if(body.clearPathway===true)value.pathway=null }
+        else if (body.action === 'edit') { result = { draft: session.editProfile(body.profile, body) };if(body.clearPathway===true){value.pathway=null;value.pathways=[]} }
+        else if(['select-research','close-research'].includes(body.action)){
+          if(!Number.isSafeInteger(body.number)||!value.pathways.some(p=>p.number===body.number))fail('invalid_request')
+          if(body.action==='select-research')value.pathway=value.pathways.find(p=>p.number===body.number)
+          else{const index=value.pathways.findIndex(p=>p.number===body.number);value.pathways.splice(index,1);if(value.pathway?.number===body.number)value.pathway=value.pathways[Math.max(0,index-1)]??null}
+          result={savedPathway:value.pathway,savedPathways:value.pathways}
+        }
         else fail('invalid_request')
-        if(['accept','edit','load-case'].includes(body.action))persist(context.identity,value)
+        if(['accept','edit','load-case','select-research','close-research'].includes(body.action))persist(context.identity,value)
         if (!context.signal.aborted) send(res, 200, {resumeEnabled:Boolean(resume),resumeSaved:value.resumeSaved, ...result, mode: dialogueMode, pathwayMode,...validationState(value), pathwayQuota: simulation.status(), ...(trial ? { usageRecords: session.getUsage(), budget: trial.budgetStatus() } : {}) })
       } catch (error) {
         const code = error instanceof DialogueError || error.code==='resume_unavailable' ? error.code : 'service_unavailable'
