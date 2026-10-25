@@ -9,7 +9,8 @@ try{for(const [name,width,height]of [['desktop',1280,900],['mobile',390,844]]){
  try{await context.route('**/*',route=>{const request=route.request(),url=new URL(request.url()),path=url.pathname;
   if(url.origin!==origin){unexpected.push(request.url());return route.abort();}
   if(path==='/')return route.fulfill({contentType:'text/html',body:renderMessagingPage(r)});
-  if(['/private/messaging-client.mjs','/private/messaging-state.mjs','/private/research-tabs.mjs','/private/messaging-navigation.mjs','/private/pathway-result-view.mjs','/private/pathway-result.mjs'].includes(path))return route.fulfill({contentType:'text/javascript',body:readFileSync(new URL('.'+path.replace('/private',''),import.meta.url),'utf8')});
+  if(['/private/assistant-presentation.mjs','/private/messaging-client.mjs','/private/messaging-state.mjs','/private/research-tabs.mjs','/private/messaging-navigation.mjs','/private/pathway-result-view.mjs','/private/pathway-result.mjs'].includes(path))return route.fulfill({contentType:'text/javascript',body:readFileSync(new URL('.'+path.replace('/private',''),import.meta.url),'utf8')});
+  if(path==='/private/assistant-robot.webp')return route.fulfill({contentType:'image/webp',body:readFileSync(new URL('./assistant-robot.webp',import.meta.url))});
   if(path==='/private/profile-references')return route.fulfill({json:{references:r,requestId:'synthetic-ticket-'+posts}});
   if(path==='/private/pathway'&&request.method()==='POST'){const body=request.postDataJSON();assert.equal(body.confirmed,true);assert.equal(body.referenceRevision,r.revision);payloads.push(body);posts++;return route.fulfill({json:{mode:'simulation',preview:result,quota:{total:posts,maxTotalRequests:5}}});}
   unexpected.push(path);return route.abort();
