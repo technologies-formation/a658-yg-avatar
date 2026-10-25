@@ -82,6 +82,7 @@ try{
   await page.locator('#message').fill('TEST erreur transport')
   await page.getByRole('button',{name:'Envoyer un message — essai payant',exact:true}).click()
   await page.locator('#status').filter({hasText:/api_unavailable.*API HTTP 429.*génération/}).waitFor()
+  assert.equal(await page.locator('#assistant-working').count(),0)
   assert.match(await page.locator('#dialogue-budget').textContent(),new RegExp((name==='desktop'?'2':'4')+'/10 tentatives'))
   assert.equal((await page.locator('body').textContent()).includes('DO_NOT_EXPOSE_TEST_SECRET_OR_BODY'),false)
   await page.locator('#pilot-details summary').click()

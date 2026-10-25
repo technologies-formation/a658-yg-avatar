@@ -21,11 +21,13 @@ try{
  browser=await chromium.launch({headless:true});mkdirSync('visual-check',{recursive:true})
  for(const [name,viewport]of [['desktop',{width:1280,height:900}],['mobile',{width:390,height:844}]]){
   // Un compte synthétique par écran ; les quotas restent actifs pour chaque session.
-  const context=await browser.newContext({viewport}),page=await context.newPage(),errors=[],external=[];let pathways=0,newRequests=0
+  const context=await browser.newContext({viewport,colorScheme:'light'}),page=await context.newPage(),errors=[],external=[];let pathways=0,newRequests=0,businessPosts=0
   page.on('pageerror',e=>errors.push(e.message))
   await page.route('**/*',async route=>{
    const req=route.request(),url=new URL(req.url())
    if(url.origin!==origin){external.push(req.url());await route.abort();return;}
+   if(req.method()==='POST')businessPosts++
+   if(url.pathname==='/private/dialogue'&&req.method()==='POST'&&req.postDataJSON().action==='turn')await new Promise(resolve=>setTimeout(resolve,500))
    if(url.pathname==='/private/pathway'&&req.method()==='POST')pathways++
    if(url.pathname==='/private/dialogue'&&req.method()==='POST'&&req.postDataJSON().action==='new-request')newRequests++
    const source=req.headers()
@@ -44,9 +46,32 @@ try{
   await page.locator('#pilot-details summary').press('Enter')
   assert.equal(await page.locator('#refresh-references').isVisible(),false);assert.equal(pathways,beforeDetails)
   await page.screenshot({path:'visual-check/pilot-details-'+name+'.png',fullPage:true})
+  const postsBeforeAppearance=businessPosts
+  assert.equal(await page.locator('html').getAttribute('data-appearance'),'day')
+  assert.equal(await page.locator('#thread .sender').count(),0)
+  assert.equal(await page.locator('.subbrand').count(),0)
+  await page.emulateMedia({colorScheme:'dark'})
+  await page.waitForFunction(()=>document.documentElement.dataset.appearance==='night')
+  await page.screenshot({path:'visual-check/assistant-night-'+name+'.png',fullPage:true,animations:'disabled'})
+  await openNavigation(page);await page.locator('#appearance-toggle').focus();await page.keyboard.press('Space')
+  assert.equal(await page.locator('html').getAttribute('data-appearance'),'day')
+  if(name==='mobile')await page.locator('#close-menu').click()
+  await page.emulateMedia({colorScheme:'light'});await page.emulateMedia({colorScheme:'dark'})
+  assert.equal(await page.locator('html').getAttribute('data-appearance'),'day')
+  await page.reload();await page.getByRole('button',{name:'Progresser sur Word',exact:true}).waitFor()
+  assert.equal(await page.locator('html').getAttribute('data-appearance'),'day')
+  assert.equal(businessPosts,postsBeforeAppearance)
+  assert.equal(await page.locator('#thread .assistant-working').count(),0)
+  await page.screenshot({path:'visual-check/assistant-day-'+name+'.png',fullPage:true,animations:'disabled'})
   const accept=async()=>{await page.getByRole('button',{name:'Appliquer ces corrections',exact:true}).click()}
+  const oldExpressions=await page.locator('#thread .assistant-robot').evaluateAll(items=>items.map(e=>e.dataset.expression))
   await page.getByRole('button',{name:'Progresser sur Word',exact:true}).click()
+  await page.locator('#assistant-working').waitFor()
+  assert.equal(await page.locator('#assistant-working [data-expression=thinking]').count(),1)
+  await page.screenshot({path:'visual-check/assistant-thinking-'+name+'.png',fullPage:true,animations:'disabled'})
   await page.getByRole('button',{name:'Appliquer ces corrections',exact:true}).waitFor()
+  assert.equal(await page.locator('#assistant-working').count(),0)
+  assert.deepEqual((await page.locator('#thread .assistant-robot').evaluateAll(items=>items.map(e=>e.dataset.expression))).slice(0,oldExpressions.length),oldExpressions)
   await clickNavigation(page,'#open-profile')
   assert.equal(await page.locator('[name=objective]').inputValue(),'')
   await page.getByRole('button',{name:'Fermer',exact:true}).click();await accept()

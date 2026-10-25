@@ -2,6 +2,7 @@
 import { readFileSync } from 'node:fs'
 
 const modules = new Map([
+  ['/private/assistant-presentation.mjs', new URL('./assistant-presentation.mjs', import.meta.url)],
   ['/private/messaging-navigation.mjs', new URL('./messaging-navigation.mjs', import.meta.url)],
   ['/private/research-tabs.mjs', new URL('./research-tabs.mjs', import.meta.url)],
   ['/private/messaging-client.mjs', new URL('./messaging-client.mjs', import.meta.url)],
@@ -14,12 +15,13 @@ const csp = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'u
 export function createPrivateResources(session, renderPage, timeoutMs) {
   return async (req, res, { signal }) => {
     if (req.method !== 'GET') return false
-    if (req.url !== '/' && req.url !== '/private/' && !modules.has(req.url)) return false
+    if (req.url !== '/' && req.url !== '/private/' && !modules.has(req.url) && req.url !== '/private/assistant-robot.webp') return false
     let body, type
-    if (modules.has(req.url)) { body = readFileSync(modules.get(req.url), 'utf8'); type = 'text/javascript' }
+    if (req.url === '/private/assistant-robot.webp') { body = readFileSync(new URL('./assistant-robot.webp', import.meta.url)); type = 'image/webp' }
+    else if (modules.has(req.url)) { body = readFileSync(modules.get(req.url), 'utf8'); type = 'text/javascript' }
     else { body = renderPage(await session.getReferences({ signal }), { timeoutMs }); type = 'text/html' }
     if (signal.aborted) return true
-    res.writeHead(200, { 'Content-Type': type + '; charset=utf-8', 'Cache-Control': 'no-store',
+    res.writeHead(200, { 'Content-Type': type + (type === 'image/webp' ? '' : '; charset=utf-8'), 'Cache-Control': 'no-store',
       'X-Content-Type-Options': 'nosniff', 'Content-Security-Policy': csp, 'Referrer-Policy': 'no-referrer' })
     res.end(body)
     return true

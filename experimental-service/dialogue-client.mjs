@@ -1,3 +1,4 @@
+import {createAssistantAvatar,initAssistantPresentation} from './assistant-presentation.mjs';
 import {initMessagingNavigation,confirmNewRequest} from './messaging-navigation.mjs';
 import {renderResearchTabs} from './research-tabs.mjs';
 // Client privé : dialogue fictif ou essai IA explicite ; uniquement des routes du serveur.
@@ -12,12 +13,13 @@ const scrolls={discussion:0,courses:0};
 const labels={personnelCategory:'Groupe de personnel',entity:'Entité ou service',managerStatus:'Situation managériale',role:'Métier ou fonction',objective:'Objectif',existingSkills:'Compétences actuelles',timeAvailable:'Temps disponible',constraints:'Autres contraintes',modality:'Modalité souhaitée'};
 document.title='A658-YG — Assistant formation';$('open-profile').lastChild.textContent='Ma demande';$('profile-title').textContent='Les repères de ma demande';$('view-caption').textContent='Votre échange avec l’assistant';
 const navigation=initMessagingNavigation(document);
+const presentation=initAssistantPresentation(document);
 function node(tag,text,cls){const e=document.createElement(tag);if(text!==undefined)e.textContent=text;if(cls)e.className=cls;return e;}
 function action(label,fn,parent,primary=false){const b=node('button',label,primary?'primary':'');b.type='button';b.addEventListener('click',fn);parent.append(b);return b;}
-function say(text,user=false){const row=node('section',undefined,'message'+(user?' user':'')),body=node('div',undefined,'message-body');body.append(node('div',user?'Vous':realTrial?'Votre assistant · essai IA':'Votre assistant · simulation','sender'));const bubble=node('div',text,'bubble');body.append(bubble);if(!user){const avatar=node('div','✦','avatar');avatar.setAttribute('aria-hidden','true');row.append(avatar);}row.append(body);if(user){const avatar=node('div','VO','user-avatar');avatar.setAttribute('aria-hidden','true');row.append(avatar);}$('thread').append(row);return row;}
+function say(text,user=false){const row=node('section',undefined,'message'+(user?' user':'')),body=node('div',undefined,'message-body');row.setAttribute('role','group');row.setAttribute('aria-label',user?'Votre message':'Message de l’assistant');const bubble=node('div',text,'bubble');body.append(bubble);if(!user)row.append(createAssistantAvatar(document,'answer'));row.append(body);$('thread').append(row);return row;}
 function focusStart(el){requestAnimationFrame(()=>{if(active!=='discussion'||!el.isConnected)return;const box=$('conversation');box.scrollTop=Math.max(0,box.scrollTop+el.getBoundingClientRect().top-box.getBoundingClientRect().top-20);});}
 function status(text,error=false){$('status').textContent=text;$('status').classList.toggle('error',error);}
-function setBusy(value){busy=value;$('send-message').disabled=value;$('message').disabled=value;document.querySelectorAll('[data-confirm],[data-validation-case],#profile-form button[type=submit],#research-tabs button').forEach(b=>b.disabled=value||(b.dataset.validationCase&&validationCases?.find(c=>c.id===b.dataset.validationCase)?.attempted));}
+function setBusy(value,activity=''){busy=value;presentation.activity(value?activity:'');$('send-message').disabled=value;$('message').disabled=value;document.querySelectorAll('[data-confirm],[data-validation-case],#profile-form button[type=submit],#research-tabs button').forEach(b=>b.disabled=value||(b.dataset.validationCase&&validationCases?.find(c=>c.id===b.dataset.validationCase)?.attempted));}
 function invalidate(){epoch++;controller?.abort();controller=null;setBusy(false);}
 function display(name,value){const f=references.pathway.fields[name];return f?.options?.find(x=>x.value===value)?.label||value||'Non renseigné';}
 function validateField(name,value){if(name==='modality'){if(!['Présentiel','En ligne','Indifférent'].includes(value))throw Error('Choisissez une modalité proposée.');return;}
@@ -28,7 +30,7 @@ function clearChoices(){document.querySelectorAll('.question-actions').forEach(e
 function profileList(p,parent){const dl=node('dl',undefined,'need-grid');for(const key of fields){const group=node('div');group.append(node('dt',labels[key]),node('dd',display(key,p[key])));dl.append(group);}parent.append(dl);}
 async function ticket(){const response=await fetch('/private/profile-references',{credentials:'same-origin',cache:'no-store',redirect:'error',headers:{Accept:'application/json'},signal:controller?.signal});if(!response.ok)throw Error('Choix indisponibles ('+response.status+'). Actualisez les choix avant de confirmer.');const t=await response.json();if(!t.references?.pathway?.fields||typeof t.references.revision!=='string'||typeof t.requestId!=='string')throw Error('Référentiel invalide');return t;}
 async function simulatePathway(){if(busy)return;if(history.length>=20){status('Fermez une recherche avant d’en créer une nouvelle (20 maximum).',true);return;}if(pathwayBlocked()){status(pathwayNotice(),true);return;}let submitted;try{submitted=validateMessagingProfile(profile,references);}catch(e){status(e.message,true);openProfile();return;}
- invalidate();const attempt=epoch,referenceRevision=references.revision;controller=new AbortController();const abort=controller;setBusy(true);status(realPathway?'Génération en cours : une tentative payante. Ne confirmez pas de nouveau.':'Simulation en cours. Aucune relance automatique.');const timer=setTimeout(()=>abort.abort(),config.pathwayTimeoutMs??config.timeoutMs);
+ invalidate();const attempt=epoch,referenceRevision=references.revision;controller=new AbortController();const abort=controller;setBusy(true,'Recherche en cours…');status(realPathway?'Génération en cours : une tentative payante. Ne confirmez pas de nouveau.':'Simulation en cours. Aucune relance automatique.');const timer=setTimeout(()=>abort.abort(),config.pathwayTimeoutMs??config.timeoutMs);
  try{const t=await ticket();if(attempt!==epoch)return;if(t.references.revision!==referenceRevision)throw Error('Les choix du catalogue ont changé. Actualisez-les et confirmez de nouveau.');
   if(realPathway)updatePathwayQuota(null);
   const response=await fetch('/private/pathway',{method:'POST',credentials:'same-origin',cache:'no-store',redirect:'error',signal:abort.signal,headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({profile:submitted,confirmed:true,referenceRevision,requestId:t.requestId})});
@@ -136,7 +138,7 @@ function updateDialogueBudget(value){if(realTrial&&value.budget){$('dialogue-bud
 function failureMessage(value,statusCode){const code=typeof value.code==='string'&&/^[a-z_]{1,60}$/.test(value.code)?value.code:'unknown';const upstream=Number.isInteger(value.httpStatus)?' · API HTTP '+value.httpStatus+' · '+(value.stage==='count'?'comptage':'génération'):'';return 'Dialogue non abouti — '+code+' · HTTP '+statusCode+upstream+'. Demande conservée ; aucune relance automatique.';}
 async function dialogueRequest(body){
  if(busy)throw Error('Une demande est déjà en cours.');
- invalidate();const attempt=epoch,abort=new AbortController();controller=abort;setBusy(true);const timer=setTimeout(()=>abort.abort(),config.timeoutMs);
+ invalidate();const attempt=epoch,abort=new AbortController();controller=abort;setBusy(true,body?.action==='turn'?'Réflexion en cours…':'');const timer=setTimeout(()=>abort.abort(),config.timeoutMs);
  try{
   const response=await fetch('/private/dialogue',{method:body?'POST':'GET',credentials:'same-origin',cache:'no-store',redirect:'error',signal:abort.signal,
    headers:{Accept:'application/json',...(body?{'Content-Type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{})});
