@@ -13,7 +13,7 @@ export function renderPathwayResult(document, data, { replay = false, preferredM
     parent.append(element)
     return element
   }
-  add(root, 'h2', replay ? 'Aperçu hors ligne du parcours' : 'Ton parcours de formation')
+  add(root, 'h2', replay ? 'Aperçu hors ligne du parcours' : data.abstain || empty ? 'Résultat de votre recherche' : 'Votre parcours de formation')
   if (replay) add(root, 'p', 'Données de test pour vérifier l’affichage ; elles ne répondent pas à ton profil. Aucun appel au moteur ni à OpenAI.')
   add(root, 'p', data.summary)
   if (data.interpretedGoal) add(root, 'p', 'Objectif interprété : ' + data.interpretedGoal)

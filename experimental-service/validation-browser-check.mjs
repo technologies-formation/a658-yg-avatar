@@ -42,7 +42,7 @@ try{
   if(index===1)await page.setViewportSize({width:390,height:844})
   await page.locator('#tab-discussion').click()
   await page.locator('[data-validation-case='+id+']').click()
-  const confirm=page.getByRole('button',{name:'Confirmer le profil et générer — essai payant',exact:true});await confirm.waitFor()
+  const confirm=page.getByRole('button',{name:'Confirmer ma demande et générer — essai payant',exact:true});await confirm.waitFor()
   assert.equal(engineCalls,index);assert.equal(dialogueCalls,0)
   await confirm.click();await page.locator('#status').filter({hasText:new RegExp('Parcours réel reçu. Tentatives : '+(index+1)+'/3')}).waitFor()
   assert.equal(engineCalls,index+1);assert.equal(postRoutes,index+1);assert.equal(await page.locator('[data-validation-case='+id+']').isDisabled(),true)
@@ -53,7 +53,7 @@ try{
   if(index===0){await page.reload();await page.locator('#thread .pathway-course').first().waitFor();assert.equal(engineCalls,1);assert.equal(await page.locator('[data-validation-case=V1]').isDisabled(),true)}
  }
  await page.reload();await page.locator('#pathway-quota').filter({hasText:/3\/3 utilisé/}).waitFor()
- assert.equal(await page.getByRole('button',{name:'Confirmer le profil et générer — essai payant',exact:true}).count(),0)
+ assert.equal(await page.getByRole('button',{name:'Confirmer ma demande et générer — essai payant',exact:true}).count(),0)
  for(const id of ['V1','V2','V3'])assert.equal(await page.locator('[data-validation-case='+id+']').isDisabled(),true)
  assert.equal(engineCalls,3);assert.equal(postRoutes,3);assert.equal(dialogueCalls,0);assert.equal(readFileSync(old,'utf8'),'OLD_QUOTA_MUST_REMAIN');assert.deepEqual(errors,[]);assert.deepEqual(external,[])
  await page.screenshot({path:'visual-check/validation-completed.png',fullPage:true})
