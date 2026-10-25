@@ -1,3 +1,4 @@
+import {openNavigation,clickNavigation} from './browser-navigation-fixtures.mjs';
 // Contrôle de la série préparée : profils et moteur fictifs uniquement.
 import {createServer,request as httpRequest} from 'node:http'
 import {mkdtempSync,mkdirSync,rmSync,writeFileSync,readFileSync} from 'node:fs'
@@ -40,7 +41,7 @@ try{
  const refused=await page.evaluate(async revision=>{const response=await fetch('/private/dialogue',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'turn',paidTrialConfirmed:true,requestId:'forbidden_validation_turn_0001',message:'Je voudrais progresser',expectedRevision:0,referenceRevision:revision})});return response.status},refs.revision);assert.equal(refused,503);assert.equal(dialogueCalls,0)
  for(const [index,id]of ['V1','V2','V3'].entries()){
   if(index===1)await page.setViewportSize({width:390,height:844})
-  await page.locator('#tab-discussion').click()
+  await clickNavigation(page,'#tab-discussion')
   await page.locator('[data-validation-case='+id+']').click()
   const confirm=page.getByRole('button',{name:'Confirmer ma demande et générer — essai payant',exact:true});await confirm.waitFor()
   assert.equal(engineCalls,index);assert.equal(dialogueCalls,0)
@@ -48,7 +49,7 @@ try{
   assert.equal(engineCalls,index+1);assert.equal(postRoutes,index+1);assert.equal(await page.locator('[data-validation-case='+id+']').isDisabled(),true)
   assert.equal(await confirm.count(),0);assert.match(await page.locator('#dialogue-budget').textContent(),/7\/10 tentatives/)
   const record=JSON.parse(readFileSync(join(directory,id+'.result.json'),'utf8'));assert.equal(record.caseId,id)
-  await page.locator('#tab-courses').click();await page.screenshot({path:'visual-check/validation-'+id+'-courses.png',fullPage:true})
+  await clickNavigation(page,'#tab-courses');await page.screenshot({path:'visual-check/validation-'+id+'-courses.png',fullPage:true})
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false)
   if(index===0){await page.reload();await page.locator('#thread .pathway-course').first().waitFor();assert.equal(engineCalls,1);assert.equal(await page.locator('[data-validation-case=V1]').isDisabled(),true)}
  }

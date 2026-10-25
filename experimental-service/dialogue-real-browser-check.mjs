@@ -1,3 +1,4 @@
+import {openNavigation,clickNavigation} from './browser-navigation-fixtures.mjs';
 // Vérification de l’interface fictive : serveur local, authentification réelle, aucun moteur externe.
 import { createServer, request as httpRequest } from 'node:http'
 import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from 'node:fs'
@@ -43,12 +44,12 @@ try{
   await page.locator('#message').fill('Je voudrais progresser sur Word pour mes rapports.')
   await page.getByRole('button',{name:'Envoyer un message — essai payant',exact:true}).click()
   await page.getByRole('button',{name:'Appliquer ces corrections',exact:true}).waitFor()
-  await page.getByRole('button',{name:'Ma demande',exact:true}).click()
+  await clickNavigation(page,'#open-profile')
   assert.equal(await page.locator('[name=objective]').inputValue(),'')
   await page.getByRole('button',{name:'Fermer',exact:true}).click()
   await page.getByRole('button',{name:'Appliquer ces corrections',exact:true}).click()
   await page.getByText('Repère enregistré dans votre demande.',{exact:true}).waitFor()
-  await page.getByRole('button',{name:'Ma demande',exact:true}).click()
+  await clickNavigation(page,'#open-profile')
   assert.equal(await page.locator('[name=objective]').inputValue(),'Progresser sur Word pour mes rapports')
   await page.locator('[name=role]').fill('Assistant administratif')
   await page.locator('[name=personnelCategory]').selectOption('TEST-A')
@@ -65,11 +66,11 @@ try{
   assert.match(discussionResult,/Exemple fictif : les durées des cours ne sont pas comparées/)
   assert.doesNotMatch(discussionResult,/Temps disponible : 8 h|Dépassement :|Le parcours dépasse/)
   const cards=await page.locator('#thread .pathway-course').allTextContents()
-  await page.locator('#tab-courses').click();assert.equal(await page.locator('#courses-content h1').count(),1);assert.deepEqual(await page.locator('#courses-content .pathway-course').allTextContents(),cards)
+  await clickNavigation(page,'#tab-courses');assert.equal(await page.locator('#courses-content h1').count(),1);assert.deepEqual(await page.locator('#courses-content .pathway-course').allTextContents(),cards)
   assert.equal(await page.locator('#courses-content .pathway-result').innerText(),discussionResult)
   assert.match(await page.locator('#courses-content').innerText(),/1 à 2 jours/)
-  await page.getByRole('button',{name:'Ma demande',exact:true}).click();await page.locator('[name=modality]').selectOption('Présentiel')
-  await page.getByRole('button',{name:'Enregistrer ma demande',exact:true}).click();await page.locator('#tab-courses').click()
+  await clickNavigation(page,'#open-profile');await page.locator('[name=modality]').selectOption('Présentiel')
+  await page.getByRole('button',{name:'Enregistrer ma demande',exact:true}).click();await clickNavigation(page,'#tab-courses')
   await page.locator('#courses-content').getByText(/La demande a changé ; ces résultats restent/).waitFor()
   assert.deepEqual(await page.locator('#courses-content .pathway-course').allTextContents(),cards);assert.equal(pathways,1)
   assert.equal(await page.locator('#tab-courses').getAttribute('aria-selected'),'true')
@@ -77,7 +78,7 @@ try{
   const overflow=await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth)
   assert.equal(overflow,false);assert.deepEqual(errors,[]);assert.deepEqual(external,[])
   results.push({name,pathways,proposalRequiresAcceptance:true,resultPreserved:true,noExternalRequests:true,transport:'fake'})
-  await page.locator('#tab-discussion').click()
+  await clickNavigation(page,'#tab-discussion')
   await page.locator('#message').fill('TEST erreur transport')
   await page.getByRole('button',{name:'Envoyer un message — essai payant',exact:true}).click()
   await page.locator('#status').filter({hasText:/api_unavailable.*API HTTP 429.*génération/}).waitFor()
