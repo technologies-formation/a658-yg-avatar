@@ -199,7 +199,7 @@ $('message').maxLength=1500;$('message').placeholder='Décrivez votre besoin…'
 $('open-profile').addEventListener('click',openProfile);$('close-profile').addEventListener('click',()=>$('profile-dialog').close());
 $('restart').addEventListener('click',async()=>{
  if(busy)return;
- try{const value=await dialogueRequest({action:'edit',profile:{},modality:'',expectedRevision:draftRevision});proposal=null;$('thread').replaceChildren();applyDraft(value.draft);switchView('discussion',true);say(realTrial?'Nouvelle demande. Les compteurs payants restent inchangés. Décrivez votre besoin de formation.':'Nouvelle demande fictive. Les compteurs ne sont pas réinitialisés.');offerNext();}catch(error){status(error.message,true);}
+ try{const value=await dialogueRequest({action:'edit',profile:{},modality:'',expectedRevision:draftRevision});proposal=null;$('thread').replaceChildren();applyDraft(value.draft);switchView('discussion',true);say('Commençons une nouvelle demande. Vos recherches précédentes restent disponibles à gauche.');offerNext();status('Nouvelle demande commencée. Recherches conservées ; compteurs inchangés.');}catch(error){status(error.message,true);}
 });
 $('refresh-references').addEventListener('click',async()=>{
  if(busy)return;try{const value=await dialogueRequest();references=value.references;proposal=value.proposal;applyDraft(value.draft);clearChoices();status(value.lastError?failureMessage(value.lastError,value.lastError.status):'Brouillon accepté rechargé. Le résultat précédent reste conservé ; aucune recherche automatique.',Boolean(value.lastError));if(proposal)showPending();else offerNext();restorePathway(value.savedPathway,value.savedPathways);}catch(error){status(error.message,true);}
