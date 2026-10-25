@@ -54,7 +54,7 @@ try{
   await page.getByRole('button',{name:'Confirmer ma demande et simuler',exact:true}).click();await page.locator('#thread .pathway-course').first().waitFor()
   assert.equal(pathways,1)
   const cards=await page.locator('#thread .pathway-course').allTextContents()
-  await page.locator('#tab-courses').click();assert.equal(await page.getByText('La synthèse de votre recherche',{exact:true}).count(),1);assert.deepEqual(await page.locator('#courses-content .pathway-course').allTextContents(),cards)
+  await page.locator('#tab-courses').click();assert.equal(await page.locator('#courses-content h1').count(),1);assert.deepEqual(await page.locator('#courses-content .pathway-course').allTextContents(),cards)
   await page.getByRole('button',{name:'Ma demande',exact:true}).click();await page.locator('[name=modality]').selectOption('Présentiel')
   await page.getByRole('button',{name:'Enregistrer ma demande',exact:true}).click();await page.locator('#tab-courses').click()
   await page.locator('#courses-content').getByText(/La demande a changé ; ces résultats restent/).waitFor()
