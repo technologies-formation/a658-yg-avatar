@@ -76,7 +76,7 @@ function renderSnapshot(snapshot){const root=node('div');const marker=node('div'
  // Le rendu existant conserve positions, catégories, gaps, durées et liens validés.
  const items=[...(snapshot.result.recommendedSteps??snapshot.result.steps??[]),...(snapshot.result.optionalSteps??[]),...(snapshot.result.informationalCourses??[])];
  [...view.querySelectorAll('.pathway-course')].forEach((card,i)=>{const item=items[i];action('En discuter avec l’assistant',()=>discuss(snapshot,item),card).className='course-discuss';});root.append(view);return root;}
-function discuss(snapshot,item){switchView('discussion');say('Parlons de '+item.course.code+' — '+item.course.title+' (recherche n° '+snapshot.number+').',true);const reply=say(item.rationale+'\n\nCette explication reprend uniquement la justification reçue et ne déclenche aucun nouvel appel IA.');if((snapshot.result.informationalCourses??[]).includes(item))reply.querySelector('.bubble').append(node('p','Cette formation reste pour information : vérifiez ses conditions d’accès.'));focusStart(reply);}
+function discuss(snapshot,item){switchView('discussion');say('Parlons de '+item.course.code+' — '+item.course.title+' (recherche « '+researchLabel(snapshot)+' »).',true);const reply=say(item.rationale+'\n\nCette explication reprend uniquement la justification reçue et ne déclenche aucun nouvel appel IA.');if((snapshot.result.informationalCourses??[]).includes(item))reply.querySelector('.bubble').append(node('p','Cette formation reste pour information : vérifiez ses conditions d’accès.'));focusStart(reply);}
 function updateResearchTabs(focusNumber){
  const bar=renderResearchTabs(document,{history,current,busy,view:active,select:selectResearch,close:closeResearch});
  bar.hidden=!history.length;

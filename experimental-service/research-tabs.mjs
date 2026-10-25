@@ -5,12 +5,12 @@ export function renderResearchTabs(document,{history,current,busy=false,view='co
 
  const buttons=[]
  for(const snapshot of history){
-  const selected=view==='courses'&&snapshot.number===current?.number,full='Recherche n° '+snapshot.number+' — '+snapshot.profile.objective
+  const selected=view==='courses'&&snapshot.number===current?.number,full=String(snapshot.profile.objective??'').trim()||researchLabel(snapshot)
   const group=document.createElement('div');group.className='research-tab-group'+(selected?' selected':'')
   const tab=document.createElement('button');tab.type='button';tab.id='research-tab-'+snapshot.number;tab.dataset.researchNumber=snapshot.number;tab.setAttribute('role','tab');tab.setAttribute('aria-selected',String(selected));tab.setAttribute('aria-controls','courses-content');tab.setAttribute('aria-label',full);tab.title=full;tab.tabIndex=snapshot.number===current?.number?0:-1;tab.disabled=busy
-  tab.className='research-tab';const number=document.createElement('span');number.className='research-tab-number';number.textContent='Recherche n° '+snapshot.number;const title=document.createElement('span');title.className='research-tab-title';title.textContent=researchLabel(snapshot).split(' — ').slice(1).join(' — ');tab.append(number,title)
+  tab.className='research-tab';const title=document.createElement('span');title.className='research-tab-title';title.textContent=researchLabel(snapshot);tab.append(title)
   tab.addEventListener('click',()=>select(snapshot.number));buttons.push(tab)
-  const dismiss=document.createElement('button');dismiss.type='button';dismiss.textContent='×';dismiss.setAttribute('aria-label','Fermer '+full);dismiss.title='Fermer cette recherche';dismiss.disabled=busy;dismiss.className='research-close';dismiss.addEventListener('click',()=>close(snapshot.number))
+  const dismiss=document.createElement('button');dismiss.type='button';dismiss.textContent='×';dismiss.setAttribute('aria-label','Fermer la recherche : '+full);dismiss.title='Fermer cette recherche';dismiss.disabled=busy;dismiss.className='research-close';dismiss.addEventListener('click',()=>close(snapshot.number))
   group.append(tab,dismiss);bar.append(group)
   tab.addEventListener('keydown',event=>{
    const i=buttons.indexOf(tab);let index

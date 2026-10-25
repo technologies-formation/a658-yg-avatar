@@ -29,5 +29,5 @@ export function researchLabel(snapshot){
  while(shortened&&words.length>1&&/^(?:avec|pour|de|des|du|et|en|à|au|aux|sous|le|la|les|un|une|mes|mon|ma)$/iu.test(words.at(-1)))words.pop();
  let excerpt=words.join(' ');if(excerpt.length>72){excerpt=excerpt.slice(0,69).trimEnd();shortened=true;}
  excerpt=excerpt.charAt(0).toLocaleUpperCase('fr')+excerpt.slice(1);
- return 'Recherche n° '+snapshot.number+' — '+excerpt+(shortened?'…':'');
+ return excerpt+(shortened?'…':'');
 }
