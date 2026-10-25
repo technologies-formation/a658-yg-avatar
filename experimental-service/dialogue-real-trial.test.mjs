@@ -12,12 +12,12 @@ import { data } from './result-test-fixtures.mjs'
 const origin='https://dialogue-real-test.invalid',refs=references(),password='TEST_PASSWORD_ONLY'
 const text='Je voudrais mieux organiser mes tâches.',id='real_dialogue_request_0001'
 const json=value=>new Response(JSON.stringify(value),{headers:{'Content-Type':'application/json'}})
-async function fixture(t,{invalid=false,httpError=false}={}) {
+async function fixture(t,{invalid=false,httpError=false,resume=false}={}) {
  const dir=mkdtempSync(join(tmpdir(),'avatar-real-wiring-')),budgetDirectory=join(dir,'budget');mkdirSync(budgetDirectory,{mode:0o700})
  const users=await Promise.all(['alice','bob'].map(id=>createPilotCredential({id,username:id,password})))
  let calls=0
  const options={enabled:true,paidTrialAuthorized:true,apiKey:'FAKE_KEY_ONLY',budgetDirectory,publicOrigin:origin,users,
-  stateFile:join(dir,'quotas.json'),loadProfileReferences:()=>refs,preview:data(),isSecureRequest:req=>req.headers['x-test-secure']==='true',
+  ...(resume?{resumeDirectory:join(dir,'resume')}:{}),stateFile:join(dir,'quotas.json'),loadProfileReferences:()=>refs,preview:data(),isSecureRequest:req=>req.headers['x-test-secure']==='true',
   fetchImpl:async(url,init)=>{
    calls++
    if(url.endsWith('/input_tokens'))return json({object:'response.input_tokens',input_tokens:1000})
@@ -117,4 +117,17 @@ test('échec API : code, étape et budget immédiats, diagnostic conservé pour 
  const state=(await f.request('/private/dialogue')).value
  assert.equal(state.lastError.code,'api_unavailable');assert.equal(state.lastError.httpStatus,429);assert.equal(state.budget.attempts,1)
  assert.equal((await f.request('/private/dialogue',{user:'bob'})).value.lastError,null);assert.equal(f.calls,2)
+})
+
+
+test('reprise du dialogue : seules les corrections acceptées sont conservées, sans messages bruts ni réinitialisation du budget',async t=>{
+ const f=await fixture(t,{resume:true})
+ assert.equal((await f.request('/private/dialogue',{body:turn()})).status,200)
+ f.reopen();let state=(await f.request('/private/dialogue')).value
+ assert.deepEqual(state.draft.profile,{});assert.equal(state.proposal,null);assert.deepEqual(state.usageRecords,[]);assert.equal(state.budget.attempts,1)
+ const second=await f.request('/private/dialogue',{body:turn(2)})
+ const accepted=await f.request('/private/dialogue',{body:{action:'accept',proposalId:second.value.proposal.id,expectedRevision:0,confirmed:true}})
+ assert.equal(accepted.value.resumeSaved,true)
+ f.reopen();state=(await f.request('/private/dialogue')).value
+ assert.equal(state.draft.profile.objective,'Mieux organiser les tâches');assert.equal(state.proposal,null);assert.deepEqual(state.usageRecords,[]);assert.equal(state.budget.attempts,2);assert.equal(f.calls,4)
 })
