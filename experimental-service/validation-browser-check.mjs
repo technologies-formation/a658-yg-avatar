@@ -53,7 +53,7 @@ try{
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false)
   if(index===0){await page.reload();await page.locator('#thread .pathway-course').first().waitFor();assert.equal(engineCalls,1);assert.equal(await page.locator('[data-validation-case=V1]').isDisabled(),true)}
  }
- await page.reload();await page.locator('#pathway-quota').filter({hasText:/3\/3 utilisé/}).waitFor()
+ await page.reload();await page.locator('#pathway-quota').filter({hasText:/3\/3 utilisé/}).waitFor({state:'attached'})
  assert.equal(await page.getByRole('button',{name:'Confirmer ma demande et générer — essai payant',exact:true}).count(),0)
  for(const id of ['V1','V2','V3'])assert.equal(await page.locator('[data-validation-case='+id+']').isDisabled(),true)
  assert.equal(engineCalls,3);assert.equal(postRoutes,3);assert.equal(dialogueCalls,0);assert.equal(readFileSync(old,'utf8'),'OLD_QUOTA_MUST_REMAIN');assert.deepEqual(errors,[]);assert.deepEqual(external,[])

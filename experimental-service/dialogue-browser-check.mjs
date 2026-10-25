@@ -37,6 +37,13 @@ try{
    });await route.fulfill(result)
   })
   await page.goto(origin+'/private/');await page.getByRole('button',{name:'Progresser sur Word',exact:true}).waitFor();await checkMobileNavigation(page)
+  assert.equal(await page.locator('#pilot-details').getAttribute('open'),null)
+  assert.equal(await page.locator('#refresh-references').isVisible(),false)
+  const beforeDetails=pathways;await page.locator('#pilot-details summary').click()
+  assert.equal(await page.locator('#refresh-references').isVisible(),true)
+  await page.locator('#pilot-details summary').press('Enter')
+  assert.equal(await page.locator('#refresh-references').isVisible(),false);assert.equal(pathways,beforeDetails)
+  await page.screenshot({path:'visual-check/pilot-details-'+name+'.png',fullPage:true})
   const accept=async()=>{await page.getByRole('button',{name:'Appliquer ces corrections',exact:true}).click()}
   await page.getByRole('button',{name:'Progresser sur Word',exact:true}).click()
   await page.getByRole('button',{name:'Appliquer ces corrections',exact:true}).waitFor()

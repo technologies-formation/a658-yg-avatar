@@ -39,7 +39,7 @@ try{
     request.on('error',reject);request.end(req.postDataBuffer()||undefined)
    });await route.fulfill(result)
   })
-  await page.goto(origin+'/private/');await page.locator('#dialogue-budget').waitFor({timeout:5000}).catch(async error=>{console.log(JSON.stringify({name,errors,status:await page.locator('#status').count()?await page.locator('#status').textContent():'no status element'}));await page.screenshot({path:'visual-check/dialogue-pathway-'+name+'-startup-error.png',fullPage:true});throw error})
+  await page.goto(origin+'/private/');await page.locator('#dialogue-budget').waitFor({state:'attached',timeout:5000}).catch(async error=>{console.log(JSON.stringify({name,errors,status:await page.locator('#status').count()?await page.locator('#status').textContent():'no status element'}));await page.screenshot({path:'visual-check/dialogue-pathway-'+name+'-startup-error.png',fullPage:true});throw error})
   assert.equal(await page.locator('#status').textContent(),'Dialogue IA : chaque message envoyé peut être payant. Aucun appel OpenAI à l’ouverture.')
   await page.locator('#message').fill('Je voudrais progresser sur Word pour mes rapports.')
   await page.getByRole('button',{name:'Envoyer un message — essai payant',exact:true}).click()
@@ -105,7 +105,7 @@ try{
   const fresh=await context.newPage()
   for(const size of [{width:1280,height:900},{width:390,height:844}]){
    await fresh.setViewportSize(size);await fresh.goto(origin+'/private/')
-   await fresh.locator('#pathway-quota').filter({hasText:/1\/1 utilisé/}).waitFor()
+   await fresh.locator('#pathway-quota').filter({hasText:/1\/1 utilisé/}).waitFor({state:'attached'})
    assert.equal(await fresh.getByRole('button',{name:'Confirmer ma demande et générer — essai payant',exact:true}).count(),0)
    assert.match(await fresh.locator('#dialogue-budget').textContent(),/2\/10 tentatives/)
    await fresh.locator('#thread .pathway-course').first().waitFor()
