@@ -115,10 +115,29 @@ export function renderPathwayResult(document, data, { replay = false, preferredM
       add(root, 'p', 'Exemple fictif : les durées des cours ne sont pas comparées à votre temps disponible. Consultez le profil confirmé pour retrouver votre disponibilité.')
     } else {
       const duration = data.durationSummary
-      for (const [field, label] of [['budgetHours', 'Temps disponible'], ['recommendedHours', 'Étapes recommandées'], ['excessHours', 'Dépassement']]) {
-        if (duration[field] != null) add(root, 'p', label + ' : ' + duration[field] + ' h')
+      const metrics = add(root, 'div', '')
+      metrics.className = 'duration-metrics'
+      const metric = (label, value, tone = 'neutral') => {
+        const card = add(metrics, 'div', '')
+        card.className = 'duration-metric ' + tone
+        add(card, 'p', label)
+        add(card, 'strong', value)
       }
-      if (duration.withinBudget === false) add(root, 'p', 'Le parcours dépasse le temps disponible.')
+      if (duration.budgetHours != null) metric('Votre disponibilité', duration.budgetHours + ' h')
+      const recommended = data.recommendedSteps ?? data.steps ?? []
+      if (data.abstain || !recommended.length) {
+        add(root, 'p', 'Aucun parcours proposé : durée non calculée.')
+      } else {
+        metric('Durée du parcours', duration.recommendedHours == null ? 'Non renseignée' : duration.recommendedHours + ' h')
+        if (duration.excessHours > 0) {
+          metric('Dépassement', '+ ' + duration.excessHours + ' h', 'warning')
+          const warning = add(root, 'p', 'Le parcours dépasse le temps disponible.')
+          warning.className = 'duration-notice warning'
+        } else if (duration.withinBudget === true && duration.durationsKnown === true && duration.verified === true && duration.budgetVerified === true) {
+          const notice = add(root, 'p', 'Le parcours respecte votre temps disponible.')
+          notice.className = 'duration-notice success'
+        }
+      }
       if (duration.durationsKnown === false || duration.verified === false || duration.budgetVerified === false) {
         add(root, 'p', 'La vérification des durées est incomplète.')
       }

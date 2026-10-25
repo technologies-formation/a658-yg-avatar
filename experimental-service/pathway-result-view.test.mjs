@@ -28,8 +28,8 @@ test('affichage : rubriques distinctes, ordre, durées, public et mesures sans m
   assert.match(content, /Exemple fictif : les durées des cours ne sont pas comparées/)
   assert.doesNotMatch(content, /Temps disponible :|Dépassement :|Le parcours dépasse/)
   const real = text(renderPathwayResult(document, value))
-  assert.match(real, /Temps disponible : 8 h/)
-  assert.match(real, /Dépassement : 8 h/)
+  assert.match(real, /Votre disponibilité\n8 h/)
+  assert.match(real, /Dépassement\n\+ 8 h/)
   assert.match(real, /Le parcours dépasse le temps disponible/)
   assert.match(content, /Tokens d’entrée : 100/)
   assert.match(content, /0.00123 USD/)
@@ -118,4 +118,20 @@ test('sessions : types, provenance et dates incohérentes refusés sans afficher
   const value=data();value.recommendedSteps[0].course.sessionAvailability=availability
   assert.throws(()=>renderPathwayResult(document,value),e=>e.code==='invalid_response')
  }
+})
+
+
+test('durée : absence de parcours, dépassement et conformité vérifiée restent distincts', () => {
+  const value = data()
+  value.durationSummary = { budgetHours: 40, recommendedHours: 0, excessHours: 0, withinBudget: true, durationsKnown: true, verified: true, budgetVerified: true }
+  const absent = { ...value, recommendedSteps: [], optionalSteps: [], informationalCourses: [], abstain: true }
+  const content = text(renderPathwayResult(document, absent))
+  assert.match(content, /Votre disponibilité\n40 h/)
+  assert.match(content, /Aucun parcours proposé : durée non calculée/)
+  assert.doesNotMatch(content, /Durée du parcours|Dépassement|respecte votre temps/)
+  value.durationSummary.recommendedHours = 16
+  assert.match(text(renderPathwayResult(document, value)), /Le parcours respecte votre temps disponible/)
+  value.durationSummary.verified = false
+  assert.doesNotMatch(text(renderPathwayResult(document, value)), /Le parcours respecte votre temps disponible/)
+  assert.match(text(renderPathwayResult(document, value)), /vérification des durées est incomplète/)
 })
