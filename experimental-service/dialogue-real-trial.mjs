@@ -20,8 +20,8 @@ export function createRealDialogueTrialInterface(options = {}) {
     const gateway = createDialogueInterface({ ...interfaceOptions, enabled: true, timeoutMs }, {
       budgetStatus: budget.status,
       ...(pathwayTrial ? { pathwaySession: createRealSession({ stateFile: pathwayTrial.stateFile, reportFile: pathwayTrial.reportFile, singleInstance: true, fetchImpl: pathwayTrial.fetchImpl ?? fetchImpl }) } : {}),
-      createSession: references => createRealDialogueTrialSession({ enabled: true, paidTrialAuthorized: true,
-        references, provider, maxTurns: 10, timeoutMs, maxHistoryCharacters: 32000 }),
+      createSession: (references,restored={}) => createRealDialogueTrialSession({ enabled: true, paidTrialAuthorized: true,
+        references,initialProfile:restored.profile??{},initialModality:restored.modality??'', provider, maxTurns: 10, timeoutMs, maxHistoryCharacters: 32000 }),
     })
     return { ...gateway, budgetStatus: budget.status,
       close() { gateway.close(); budget.close() },

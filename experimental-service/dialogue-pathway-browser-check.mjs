@@ -16,7 +16,7 @@ const budgetDirectory=join(dir,'budget');mkdirSync(budgetDirectory,{mode:0o700})
 const service=createRealDialogueTrialInterface({enabled:true,paidTrialAuthorized:true,apiKey:'FAKE_BROWSER_KEY_ONLY',budgetDirectory,fetchImpl:async(url,init)=>{
  apiCalls++;if(url.endsWith('/input_tokens'))return new Response(JSON.stringify({object:'response.input_tokens',input_tokens:1000}),{headers:{'Content-Type':'application/json'}});
  const last=JSON.parse(JSON.parse(init.body).input[0].content).messages.at(-1);if(last.text==='TEST erreur transport')return new Response('DO_NOT_EXPOSE_TEST_SECRET_OR_BODY',{status:429,headers:{'Content-Type':'application/json'}});return new Response(JSON.stringify({status:'completed',model:'gpt-6-luna',usage:{input_tokens:1000,output_tokens:100},output:[{type:'message',role:'assistant',content:[{type:'output_text',text:JSON.stringify({kind:'ask',reply:'Quels documents rédigez-vous au quotidien ?',changes:[{field:'objective',value:'Progresser sur Word pour mes rapports',evidence:[{messageId:last.id,quote:last.text}]}]})}]}]}),{headers:{'Content-Type':'application/json'}});
- },pathwayTrial:{enabled:true,paidTrialAuthorized:true,stateFile:join(dir,'engine-quotas.json'),reportFile:join(dir,'engine-report.json'),fetchImpl:async(url,init)=>{if(url.endsWith('/api/profile-references'))return new Response(JSON.stringify(references()),{headers:{'Content-Type':'application/json',ETag:'"'+references().revision+'"'}});engineCalls++;engineRequests.push(JSON.parse(init.body));return new Response(JSON.stringify(engineResult),{headers:{'Content-Type':'application/json'}})}},publicOrigin:origin,users,stateFile:join(dir,'quotas.json'),
+ },pathwayTrial:{enabled:true,paidTrialAuthorized:true,stateFile:join(dir,'engine-quotas.json'),reportFile:join(dir,'engine-report.json'),fetchImpl:async(url,init)=>{if(url.endsWith('/api/profile-references'))return new Response(JSON.stringify(references()),{headers:{'Content-Type':'application/json',ETag:'"'+references().revision+'"'}});engineCalls++;engineRequests.push(JSON.parse(init.body));return new Response(JSON.stringify(engineResult),{headers:{'Content-Type':'application/json'}})}},resumeDirectory:join(dir,'resume'),publicOrigin:origin,users,stateFile:join(dir,'quotas.json'),
  isSecureRequest:req=>['127.0.0.1','::ffff:127.0.0.1'].includes(req.socket.remoteAddress),loadProfileReferences:()=>references(),preview:data()})
 const server=createServer(service.handler);await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve))
 let browser;const results=[]
@@ -101,6 +101,10 @@ try{
    await fresh.locator('#pathway-quota').filter({hasText:/1\/1 utilisé/}).waitFor()
    assert.equal(await fresh.getByRole('button',{name:'Confirmer le profil et générer — essai payant',exact:true}).count(),0)
    assert.match(await fresh.locator('#dialogue-budget').textContent(),/2\/10 tentatives/)
+   await fresh.locator('#thread .pathway-course').first().waitFor()
+   assert.deepEqual(await fresh.locator('#thread .pathway-course').allTextContents(),cards)
+   await fresh.locator('#tab-courses').click();assert.deepEqual(await fresh.locator('#courses-content .pathway-course').allTextContents(),cards)
+   await fresh.getByRole('button',{name:'Mon profil',exact:true}).click();assert.equal(await fresh.locator('[name=modality]').inputValue(),'Présentiel');await fresh.getByRole('button',{name:'Fermer',exact:true}).click()
    assert.equal(engineCalls,1);assert.equal(apiCalls,4)
    await fresh.screenshot({path:'visual-check/pathway-quota-'+size.width+'.png',fullPage:true})
   }

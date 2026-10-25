@@ -79,7 +79,7 @@ export function createHostedDialogueTrial(options = {}) {
     createGateway:({isSecureRequest})=>createRealDialogueTrialInterface({enabled:true,paidTrialAuthorized:true,
       publicOrigin:options.publicOrigin,users:options.users,isSecureRequest,stateFile:options.stateFile,
       loadProfileReferences:options.loadProfileReferences,preview:options.preview,budgetDirectory:options.budgetDirectory,
-      apiKey:options.apiKey,fetchImpl:options.fetchImpl,timeoutMs:30000,
+      apiKey:options.apiKey,fetchImpl:options.fetchImpl,timeoutMs:30000,resumeDirectory:join(options.privateDirectory,'resume'),
       ...(pathway?{pathwayTrial:{...pathway,stateFile:options.pathwayStateFile,reportFile:options.pathwayReportFile,fetchImpl:options.pathwayFetchImpl??options.fetchImpl}}:{})})})
 }
 

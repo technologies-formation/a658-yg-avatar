@@ -2,7 +2,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import http from 'node:http'
-import {mkdtempSync,mkdirSync,rmSync,readFileSync} from 'node:fs'
+import {mkdtempSync,mkdirSync,rmSync,readFileSync,chmodSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {createRealDialogueTrialInterface} from './dialogue-real-trial.mjs'
@@ -12,19 +12,19 @@ import {data} from './result-test-fixtures.mjs'
 const origin='https://dialogue-pathway.invalid',refs=references(),password='FAKE_TEST_PASSWORD_ONLY'
 const profile={personnelCategory:'TEST-A',role:'Assistant',objective:'Organiser mes tâches',existingSkills:'Je débute',timeAvailable:'1 à 2 jours'}
 const json=x=>new Response(JSON.stringify(x),{headers:{'Content-Type':'application/json'}})
-async function fixture(t,{failure=false}={}){
+async function fixture(t,{failure=false,resume=false,saveFailure=false}={}){
  const dir=mkdtempSync(join(tmpdir(),'avatar-pathway-wiring-')),budgetDirectory=join(dir,'budget');mkdirSync(budgetDirectory,{mode:0o700})
  const users=await Promise.all(['alice','bob'].map(id=>createPilotCredential({id,username:id,password})))
  const calls=[],result=data();let dialogueCalls=0
  const options={enabled:true,paidTrialAuthorized:true,apiKey:'FAKE_KEY_ONLY',budgetDirectory,publicOrigin:origin,users,
-  stateFile:join(dir,'simulation-quotas.json'),isSecureRequest:req=>req.headers['x-test-secure']==='true',
+  ...(resume?{resumeDirectory:join(dir,'resume')}:{}),stateFile:join(dir,'simulation-quotas.json'),isSecureRequest:req=>req.headers['x-test-secure']==='true',
   fetchImpl:async()=>{dialogueCalls++;throw Error('Aucun appel de dialogue attendu')},
   pathwayTrial:{enabled:true,paidTrialAuthorized:true,stateFile:join(dir,'real-quotas.json'),reportFile:join(dir,'real-report.json'),fetchImpl:async(url,init)=>{
    calls.push({url,method:init?.method||'GET',body:init?.body&&JSON.parse(init.body)})
    assert.ok(url.startsWith('https://api.a658yg-catalogue.ch/'))
    if(url.endsWith('/api/profile-references'))return new Response(JSON.stringify(refs),{headers:{'Content-Type':'application/json',ETag:'"'+refs.revision+'"'}})
    if(failure)return new Response('{}',{status:503,headers:{'Content-Type':'application/json'}})
-   assert.equal(url,'https://api.a658yg-catalogue.ch/api/pathway');return json(result)
+   assert.equal(url,'https://api.a658yg-catalogue.ch/api/pathway');if(saveFailure)chmodSync(join(dir,'resume'),0o755);return json(result)
   }}}
  let service=createRealDialogueTrialInterface(options)
  const server=http.createServer((req,res)=>service.handler(req,res));await new Promise(r=>server.listen(0,'127.0.0.1',r))
@@ -72,5 +72,33 @@ test('parcours réel : erreur moteur réserve la tentative durablement, aucune r
  assert.equal(f.service.status().total,1)
  await f.request('/private/dialogue');await f.request('/private/');f.reopen();await f.edit()
  assert.equal((await f.build(await f.ticket())).status,429)
+ assert.equal(f.calls.filter(x=>x.method==='POST').length,1);assert.equal(f.dialogueCalls,0)
+})
+
+
+test('reprise : profil et parcours exacts après redémarrage, isolation et nouvelle demande sans réinitialisation de quota',async t=>{
+ const f=await fixture(t,{resume:true});await f.edit()
+ const built=await f.build(await f.ticket());assert.equal(built.status,200);assert.equal(built.value.resumeSaved,true)
+ const snapshot=built.value.savedPathway;assert.equal(snapshot.mode,'real');assert.deepEqual(snapshot.result,f.result)
+ f.reopen()
+ const resumed=(await f.request('/private/dialogue')).value
+ assert.deepEqual(resumed.draft.profile,profile);assert.equal(resumed.draft.modality,'En ligne');assert.deepEqual(resumed.savedPathway,snapshot)
+ assert.equal(resumed.pathwayQuota.total,1);assert.equal(resumed.budget.attempts,0)
+ const other=(await f.request('/private/dialogue',{user:'bob'})).value;assert.deepEqual(other.draft.profile,{});assert.equal(other.savedPathway,null)
+ await f.request('/private/dialogue',{body:{action:'edit',profile:{...profile,objective:'Une autre demande'},modality:'Présentiel',expectedRevision:0}})
+ f.reopen();const changed=(await f.request('/private/dialogue')).value
+ assert.equal(changed.draft.profile.objective,'Une autre demande');assert.equal(changed.draft.modality,'Présentiel');assert.deepEqual(changed.savedPathway,snapshot)
+ await f.request('/private/dialogue',{body:{action:'edit',profile:{},modality:'',clearPathway:true,expectedRevision:0}})
+ f.reopen();const cleared=(await f.request('/private/dialogue')).value
+ assert.deepEqual(cleared.draft.profile,{});assert.equal(cleared.savedPathway,null);assert.equal(cleared.pathwayQuota.total,1)
+ assert.equal(f.calls.filter(x=>x.method==='POST').length,1);assert.equal(f.dialogueCalls,0)
+})
+
+
+test('échec de sauvegarde après génération : résultat retourné et retrouvable en mémoire, compteur conservé et aucune relance',async t=>{
+ const f=await fixture(t,{resume:true,saveFailure:true});await f.edit()
+ const response=await f.build(await f.ticket());assert.equal(response.status,200);assert.equal(response.value.resumeSaved,false);assert.deepEqual(response.value.result,f.result)
+ const current=(await f.request('/private/dialogue')).value
+ assert.equal(current.resumeSaved,false);assert.deepEqual(current.savedPathway.result,f.result);assert.equal(current.pathwayQuota.total,1)
  assert.equal(f.calls.filter(x=>x.method==='POST').length,1);assert.equal(f.dialogueCalls,0)
 })
