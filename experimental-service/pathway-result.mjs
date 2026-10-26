@@ -57,6 +57,16 @@ export function validatePathwayResult(data) {
         const unknown = object(availability) && availability.source === null && date === null &&
           availability.hasOpenSession === null && availability.hasScheduledSession === null
         if (!known && !unknown) fail('invalid_response', 'Indicateurs de sessions invalides')
+        if (availability.scheduledOpeningDates !== undefined) {
+          const dates = availability.scheduledOpeningDates
+          if (!known || !availability.hasScheduledSession || !Array.isArray(dates) || dates.length > 100 || dates.some((value, index) =>
+            typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value) ||
+            !Number.isFinite(Date.parse(value + 'T12:00:00Z')) || new Date(value + 'T12:00:00Z').toISOString().slice(0, 10) !== value ||
+            value <= date || (index > 0 && dates[index - 1] >= value))) {
+            fail('invalid_response', 'Dates d’ouverture invalides')
+          }
+        }
+
       }
       for (const field of ['duration', 'public']) {
         if (item.course[field] != null && typeof item.course[field] !== 'string') {
@@ -107,3 +117,13 @@ export function validatePathwayResult(data) {
   return { mode: 'historical-pathway', empty: count === 0, result: data }
 }
 
+
+
+// Call only after validatePathwayResult; these dates are official metadata, never model prose.
+export function scheduledOpeningLabel(availability, now = new Date()) {
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Paris', year: 'numeric', month: '2-digit', day: '2-digit' }).format(now)
+  const next = availability?.scheduledOpeningDates?.find(date => date >= today)
+  if (!next) return 'Ouverture programmée signalée'
+  const date = new Intl.DateTimeFormat('fr-CH', { timeZone: 'UTC', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(next + 'T12:00:00Z'))
+  return 'Ouverture des inscriptions prévue le ' + date
+}

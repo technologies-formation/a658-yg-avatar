@@ -135,3 +135,19 @@ test('durée : absence de parcours, dépassement et conformité vérifiée reste
   assert.doesNotMatch(text(renderPathwayResult(document, value)), /Le parcours respecte votre temps disponible/)
   assert.match(text(renderPathwayResult(document, value)), /vérification des durées est incomplète/)
 })
+
+
+test('sessions : date d’ouverture future distincte du début, conservée et ignorée en simulation',()=>{
+ const value=data()
+ value.recommendedSteps[0].course.sessionAvailability={hasOpenSession:true,hasScheduledSession:true,observedOn:'2026-10-23',source:'official-session-icons',scheduledOpeningDates:['2998-11-03']}
+ const before=structuredClone(value)
+ const result=text(renderPathwayResult(document,value))
+ assert.match(result,/Inscriptions ouvertes lors du relevé/)
+ assert.match(result,/Ouverture des inscriptions prévue le 3 novembre 2998/)
+ assert.deepEqual(value,before)
+ assert.doesNotMatch(text(renderPathwayResult(document,value,{replay:true})),/3 novembre 2998/)
+ for(const dates of [['2026-02-30'],['2026-10-22'],['2998-11-03','2998-11-03'],['2999-01-01','2998-11-03'],['<script>'],null]){
+  value.recommendedSteps[0].course.sessionAvailability.scheduledOpeningDates=dates
+  assert.throws(()=>renderPathwayResult(document,value))
+ }
+})

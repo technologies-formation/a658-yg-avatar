@@ -1,3 +1,4 @@
+import {scheduledOpeningLabel} from './pathway-result.mjs'
 import {createMessagingSnapshot,researchLabel,composeConstraints} from './messaging-state.mjs'
 
 export const AI_GUIDANCE='L’assistant IA peut faire des erreurs. Vérifiez les informations et les conditions d’accès sur les fiches officielles. En cas de doute, rapprochez-vous de votre service RH ou de votre hiérarchie.'
@@ -104,7 +105,7 @@ export function renderPathwayPdf(model,{jsPDF,fonts,logo}={}){
       const known=!model.simulation&&available?.source==='official-session-icons'&&available.observedOn<=model.date.toISOString().slice(0,10)
       const statuses=[]
       if(known&&available.hasOpenSession)statuses.push('Inscriptions ouvertes lors du relevé')
-      if(known&&available.hasScheduledSession)statuses.push('Ouverture programmée signalée')
+      if(known&&available.hasScheduledSession)statuses.push(scheduledOpeningLabel(available,model.date))
       parts.push({text:statuses.length?statuses.join(' ; ')+' - relevé du '+available.observedOn.split('-').reverse().join('/')+'. Situation actuelle à vérifier.':'Sessions : à vérifier sur la fiche officielle.',size:8.5,color:muted})
       const cardWidth=right-left-8
       const height=parts.reduce((h,p)=>h+linesFor(p.text,p.size,p.style||'normal',cardWidth).length*p.size*.352778*1.42+1,0)+(course.sourceUrl?8:2)+3

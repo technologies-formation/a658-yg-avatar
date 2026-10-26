@@ -5,6 +5,7 @@ import {createRequire} from 'node:module'
 import {createPdfModel,renderPathwayPdf,AI_GUIDANCE} from './pathway-pdf.mjs'
 import {createMessagingSnapshot} from './messaging-state.mjs'
 import {data} from './result-test-fixtures.mjs'
+import {scheduledOpeningLabel} from './pathway-result.mjs'
 const {jsPDF}=createRequire(import.meta.url)('./vendor/jspdf.umd.min.js')
 const fonts={regular:readFileSync(new URL('./vendor/DejaVuSans.ttf',import.meta.url)).toString('base64'),bold:readFileSync(new URL('./vendor/DejaVuSans-Bold.ttf',import.meta.url)).toString('base64')}
 const profile={personnelCategory:'PAT',role:'Assistante administrative',objective:'Rédiger mes rapports : modèles et efficacité',existingSkills:'Quelques bases',timeAvailable:'1 à 2 jours',constraints:'Modalité souhaitée : en ligne\nLe lundi uniquement'}
@@ -45,4 +46,19 @@ test('PDF : document téléchargeable, polices embarquées, liens officiels et p
   assert.ok(result.getNumberOfPages()>1)
   assert.ok(result.getNumberOfPages()<100)
   assert.deepEqual(saved.profile,profile)
+})
+
+
+test('sessions PDF : ouverture datée figée et repli si la date est passée',()=>{
+ const result=data()
+ const availability={hasOpenSession:true,hasScheduledSession:true,observedOn:'2026-10-26',source:'official-session-icons',scheduledOpeningDates:['2026-11-03','2026-12-09']}
+ result.recommendedSteps[0].course.sessionAvailability=availability
+ const model=createPdfModel(snapshot(result),{now:new Date('2026-10-26T12:00:00Z')})
+ assert.deepEqual(model.groups[0][1][0].course.sessionAvailability,availability)
+ assert.equal(scheduledOpeningLabel(availability,model.date),'Ouverture des inscriptions prévue le 3 novembre 2026')
+ assert.equal(scheduledOpeningLabel(availability,new Date('2026-11-04T12:00:00Z')),'Ouverture des inscriptions prévue le 9 décembre 2026')
+ assert.equal(scheduledOpeningLabel(availability,new Date('2027-01-01T12:00:00Z')),'Ouverture programmée signalée')
+ const doc=renderPathwayPdf(model,{jsPDF,fonts})
+ const output=doc.output()
+ assert.ok(output.startsWith('%PDF-'))
 })

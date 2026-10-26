@@ -1,5 +1,5 @@
 // Affichage seul : aucune requête, aucun stockage, aucun HTML issu du résultat.
-import { validatePathwayResult } from './pathway-result.mjs'
+import { validatePathwayResult, scheduledOpeningLabel } from './pathway-result.mjs'
 
 export function renderPathwayResult(document, data, { replay = false, preferredModality = '' } = {}) {
   const { empty } = validatePathwayResult(data)
@@ -86,7 +86,7 @@ export function renderPathwayResult(document, data, { replay = false, preferredM
         }
       }
       if (knownAvailability && availability.hasOpenSession) sessionBadge('Inscriptions ouvertes lors du relevé', false)
-      if (knownAvailability && availability.hasScheduledSession) sessionBadge('Ouverture programmée signalée', true)
+      if (knownAvailability && availability.hasScheduledSession) sessionBadge(scheduledOpeningLabel(availability), true)
       if (!knownAvailability || (!availability.hasOpenSession && !availability.hasScheduledSession)) {
         add(sessions, 'p', 'Disponibilité des sessions : à vérifier sur la fiche officielle.')
       }
