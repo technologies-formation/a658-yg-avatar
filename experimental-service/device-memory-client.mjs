@@ -69,7 +69,7 @@ export function initDeviceMemory({document,meta,request,getRevision,isBusy,onBus
    if(!await confirmRestore())return
    if(isBusy()||dead||!checkExpiry())return
    const attempt=++generation;onBusy(true);resume.disabled=true;render()
-   try{const value=await request({action:'device-restore',confirmed:true,expectedRevision:getRevision(),expectedStateToken:latest,copy:record.copy});if(attempt!==generation)return;pending=false;latest=value.deviceMemory.stateToken;notice?.remove();notice=null;onRestore(value);message='Copie reprise sans appel IA. Les quotas sont inchangés.';changed=true;schedule()}catch{message='La reprise a été refusée. La demande actuelle et la copie sont conservées ; rechargez la page pour vérifier.'}finally{onBusy(false);resume.disabled=false;render()}
+   try{const value=await request({action:'device-restore',confirmed:true,expectedRevision:getRevision(),expectedStateToken:latest,copy:record.copy});if(attempt!==generation)return;pending=false;latest=value.deviceMemory.stateToken;notice?.remove();notice=null;onRestore(value);message='Copie reprise sans appel IA. Les quotas sont inchangés.';changed=true;schedule()}catch{message='La reprise n’a pas pu être confirmée. La copie est conservée. Rechargez la page pour vérifier la demande avant de recommencer.'}finally{onBusy(false);resume.disabled=false;render()}
   })
   keep.addEventListener('click',()=>{if(isBusy())return;pending=false;notice?.remove();notice=null;changed=true;message='La demande actuelle remplacera la copie de cet appareil.';render();schedule()})
   notice.append(resume,keep);parent.append(notice)
