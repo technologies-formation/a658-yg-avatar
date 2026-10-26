@@ -4,7 +4,7 @@ export function renderResearchTabs(document,{history,current,busy=false,view='co
  const bar=document.createElement('div');bar.id='research-tabs';bar.setAttribute('role','tablist');bar.setAttribute('aria-label','Recherches enregistrées');bar.setAttribute('aria-orientation','vertical')
 
  const buttons=[]
- for(const snapshot of history){
+ for(const snapshot of [...history].sort((a,b)=>b.number-a.number)){
   const selected=view==='courses'&&snapshot.number===current?.number,full=String(snapshot.profile.objective??'').trim()||researchLabel(snapshot)
   const group=document.createElement('div');group.className='research-tab-group'+(selected?' selected':'')
   const tab=document.createElement('button');tab.type='button';tab.id='research-tab-'+snapshot.number;tab.dataset.researchNumber=snapshot.number;tab.setAttribute('role','tab');tab.setAttribute('aria-selected',String(selected));tab.setAttribute('aria-controls','courses-content');tab.setAttribute('aria-label',full);tab.title=full;tab.tabIndex=snapshot.number===current?.number?0:-1;tab.disabled=busy

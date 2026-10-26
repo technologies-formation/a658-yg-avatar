@@ -92,6 +92,7 @@ try{
   await clickNavigation(page,'#tab-courses');assert.equal(await page.locator('#courses-content h1').count(),1);assert.deepEqual(await page.locator('#courses-content .pathway-course').allTextContents(),cards)
   // Cancellation and Escape keep the draft, the unsent text and the exact reading position.
   await clickNavigation(page,'#tab-discussion');await page.locator('#message').fill('Un message encore non envoyé')
+  await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))))
   const beforeThread=await page.locator('#thread').innerHTML()
   await page.locator('#conversation').evaluate(e=>e.scrollTop=Math.max(0,e.scrollHeight-e.clientHeight-80))
   const beforeScroll=await page.locator('#conversation').evaluate(e=>e.scrollTop)
@@ -117,6 +118,7 @@ try{
   await page.waitForFunction(()=>document.querySelectorAll('#research-tabs [role=tab]').length===2)
   await clickNavigation(page,'#tab-courses')
   assert.equal(pathways,2);assert.doesNotMatch(await page.locator('#research-list').innerText(),/Recherche n°/);assert.doesNotMatch(await page.locator('#courses-content h1').innerText(),/Recherche n°/);assert.equal(await page.locator('#research-tabs .research-tab-number').count(),0)
+  assert.deepEqual(await page.locator('#research-tabs [role=tab]').evaluateAll(tabs=>tabs.map(tab=>Number(tab.dataset.researchNumber))),[2,1])
   await clickNavigation(page,'[data-research-number="1"]')
   await page.waitForFunction(()=>document.querySelector('[data-research-number="1"]')?.getAttribute('aria-selected')==='true')
   assert.match(await page.locator('#courses-content .need-summary').innerText(),/Modalité souhaitée : en ligne/)
