@@ -6,6 +6,7 @@ import { readHostedConfig } from './hosted-simulation.mjs'
 import { createHostedTransport } from './hosted-transport.mjs'
 import { createRealDialogueTrialInterface } from './dialogue-real-trial.mjs'
 import {VALIDATION_SERIES} from './pathway-validation.mjs'
+import {readHostedEmail} from './research-email.mjs'
 import { TRIAL_POLICY } from './dialogue-budget.mjs'
 
 export function readHostedDialogueTrialConfig(configFile, siteDirectory) {
@@ -97,7 +98,7 @@ export function createHostedDialogueTrial(options = {}) {
   return createHostedTransport({...options,responseTimeoutMs:pathway?210000:35000,socketTimeoutMs:pathway?215000:40000,
     createGateway:({isSecureRequest})=>createRealDialogueTrialInterface({enabled:true,paidTrialAuthorized:true,
       publicOrigin:options.publicOrigin,users:options.users,isSecureRequest,stateFile:options.stateFile,
-      loadProfileReferences:options.loadProfileReferences,preview:options.preview,budgetDirectory:options.budgetDirectory,
+      loadProfileReferences:options.loadProfileReferences,preview:options.preview,mail:options.mail,budgetDirectory:options.budgetDirectory,
       apiKey:options.apiKey,fetchImpl:options.fetchImpl,timeoutMs:30000,resumeDirectory:join(options.privateDirectory,'resume'),
       ...(pathway?{pathwayTrial:{...pathway,directory:options.validationDirectory,validationAuthorized:options.validationAuthorized,stateFile:options.pathwayStateFile,reportFile:options.pathwayReportFile,fetchImpl:options.pathwayFetchImpl??options.fetchImpl}}:{})})})
 }
@@ -111,7 +112,7 @@ export function readDialogueTrialLaunch(configFile,siteDirectory,environment) {
   if(options.pathwayTrial?.series&&environment.AVATAR_PATHWAY_VALIDATION_ENABLED!=='true')throw Error('Activation distincte de validation absente')
   const apiKey=environment.AVATAR_DIALOGUE_OPENAI_API_KEY
   if (typeof apiKey !== 'string' || !apiKey.trim() || /\s/.test(apiKey)) throw Error('Clé serveur distincte absente')
-  return {...options,apiKey,validationAuthorized:options.pathwayTrial?.series?true:false}
+  return {...options,apiKey,mail:readHostedEmail(environment,options.privateDirectory),validationAuthorized:options.pathwayTrial?.series?true:false}
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   try {

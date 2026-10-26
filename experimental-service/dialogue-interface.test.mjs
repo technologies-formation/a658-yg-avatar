@@ -11,10 +11,10 @@ import { data } from './result-test-fixtures.mjs'
 const origin = 'https://dialogue-test.invalid'
 const r = references()
 const profile = { personnelCategory: 'TEST-A', role: 'Assistant', objective: 'Organiser les tâches de test', existingSkills: 'Je débute', timeAvailable: '1 à 2 jours' }
-async function fixture(t,{resume=false}={}) {
+async function fixture(t,{resume=false,mail=null}={}) {
  const dir = mkdtempSync(join(tmpdir(),'avatar-dialogue-interface-')), password = 'TEST_LOCAL_PASSWORD_ONLY'
  const users = await Promise.all(['alice','bob'].map(id=>createPilotCredential({id,username:id,password})))
- const options = { enabled:true, publicOrigin:origin, users, stateFile:join(dir,'quotas.json'),
+ const options = { mail, enabled:true, publicOrigin:origin, users, stateFile:join(dir,'quotas.json'),
   isSecureRequest:req=>req.headers['x-test-secure']==='true', loadProfileReferences:()=>r, preview:data(),...(resume?{resumeDirectory:join(dir,'resume')}:{}) };let service=createDialogueSimulationInterface(options)
  const server = http.createServer((req,res)=>service.handler(req,res));await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve))
  t.after(async()=>{server.closeAllConnections();await new Promise(resolve=>server.close(resolve));rmSync(dir,{recursive:true,force:true})})
@@ -109,4 +109,23 @@ test('onglets : deux recherches exactes, nouvelle demande, sélection et fermetu
  assert.deepEqual(response.value.savedPathways,[]);assert.equal(response.value.savedPathway,null)
  f.reopen();state=(await f.request('/private/dialogue')).value;assert.equal(state.savedPathway,null);assert.equal(state.pathwayQuota.total,2)
  const third=await build(profile,0);assert.equal(third.savedPathway.number,3);assert.equal(third.quota.total,3)
+})
+
+test('courriel HTTP : recherche de l’identité seulement, confirmation, origine et aucun appel au moteur',async t=>{
+ const sends=[],mail={enabled:true,async send(value){if(!value.confirmed)throw Object.assign(new Error(),{code:'invalid_email_request'});sends.push(value);return {accepted:true}}}
+ const {request,service}=await fixture(t,{mail})
+ const page=await request('/private/');assert.match(page.text,/"emailEnabled":true/)
+ const edit=await request('/private/dialogue',{body:{action:'edit',profile,modality:'En ligne',expectedRevision:0}})
+ const ticket=(await request('/private/profile-references')).value
+ const generated=await request('/private/pathway',{body:{profile:{...edit.value.draft.profile,constraints:'Modalité souhaitée : en ligne'},confirmed:true,referenceRevision:r.revision,requestId:ticket.requestId}})
+ assert.equal(generated.status,200);const number=generated.value.savedPathway.number,body={number,recipient:'reader@example.invalid',requestId:'5c040b48-7359-4ee5-9099-260462fb50d7',confirmed:true}
+ assert.equal((await request('/private/research-email',{body,auth:false})).status,401)
+ assert.equal((await request('/private/research-email',{body,secure:false})).status,401)
+ assert.equal((await request('/private/research-email',{body,source:''})).status,403)
+ assert.equal((await request('/private/research-email',{body,user:'bob'})).status,404)
+ assert.equal((await request('/private/research-email',{body:{...body,snapshot:{}}})).status,400)
+ await request('/private/dialogue',{body:{action:'edit',profile:{...profile,objective:'Un nouveau brouillon distinct'},modality:'Présentiel',expectedRevision:edit.value.draft.revision}})
+ const result=await request('/private/research-email',{body});assert.equal(result.status,200);assert.equal(sends.length,1);assert.equal(sends[0].snapshot.profile.objective,profile.objective);assert.equal(sends[0].snapshot.modality,'En ligne');assert.equal(service.status().total,1)
+ assert.equal((await request('/private/research-email-client.mjs',{auth:false})).status,401)
+ assert.equal((await request('/private/research-email.mjs')).status,404)
 })

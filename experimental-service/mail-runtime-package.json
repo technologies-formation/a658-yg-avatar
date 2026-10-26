@@ -1,0 +1,7 @@
+{
+  "name": "a658-private-mail-runtime",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Dépendance optionnelle installée uniquement dans le dossier privé de messagerie",
+  "dependencies": { "nodemailer": "10.2.1" }
+}

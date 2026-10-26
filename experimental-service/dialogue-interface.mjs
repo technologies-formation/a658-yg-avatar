@@ -1,4 +1,5 @@
 // Interface privée partagée : simulation par défaut, assemblage réel explicitement fourni.
+import {createResearchEmailHandler} from './research-email-handler.mjs'
 import {createPrivateResumeStore} from './private-resume-store.mjs'
 import {createMessagingSnapshot} from './messaging-state.mjs'
 import { readFileSync } from 'node:fs'
@@ -39,10 +40,10 @@ export function renderDialogueSimulationPage(references, options = {}) {
 export function renderDialogueTrialPage(references, options = {}) {
   return renderDialoguePage(references, options, true)
 }
-function renderDialoguePage(references, { timeoutMs = 10000, pathwayMode = 'simulation', validationSeries = false } = {}, realTrial) {
+function renderDialoguePage(references, { timeoutMs = 10000, pathwayMode = 'simulation', validationSeries = false, emailEnabled = false } = {}, realTrial) {
   const contract = validateProfileReferences(references)
   if (!Number.isInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 30000) fail('configuration')
-  return template.replace('/*MESSAGING_CONFIG*/', JSON.stringify({ references: contract, timeoutMs, mode: pathwayMode, validationSeries, pathwayTimeoutMs: pathwayMode === 'real' ? 210000 : timeoutMs, dialogue: realTrial ? 'real-trial' : 'fictitious' }).replace(/</g, '\\u003c'))
+  return template.replace('/*MESSAGING_CONFIG*/', JSON.stringify({ references: contract, timeoutMs, mode: pathwayMode, validationSeries, emailEnabled, pathwayTimeoutMs: pathwayMode === 'real' ? 210000 : timeoutMs, dialogue: realTrial ? 'real-trial' : 'fictitious' }).replace(/</g, '\\u003c'))
     .replace('/private/messaging-client.mjs', '/private/dialogue-client.mjs')
     .replace('Simulation : aucun appel au moteur ni à OpenAI.', realTrial ? 'Dialogue IA : chaque message envoyé peut être payant. Aucun appel OpenAI à l’ouverture.' : 'Simulation : aucun appel au moteur ni à OpenAI.')
     .replace('Pilote privé · simulation uniquement', realTrial ? (pathwayMode === 'real' ? (validationSeries?'Validation privée · trois scénarios, une tentative chacun':'Essai privé · dialogue IA · un parcours réel maximum') : 'Essai dialogue IA · parcours simulés · 10 tentatives maximum') : 'Dialogue fictif · aucun appel OpenAI')
@@ -81,7 +82,8 @@ export function createDialogueInterface(options = {}, trial = null) {
     return value
   }
   const validationState=value=>trial?.validation?{validationCases:trial.validation.cases(),validationCaseId:trial.validation.identify(value.session.getDraft().profile,value.session.getDraft().modality)}:{}
-  const resources = createPrivateResources(simulation, trial ? (refs, settings) => renderDialogueTrialPage(refs, { ...settings, pathwayMode,validationSeries:Boolean(trial.validation) }) : renderDialogueSimulationPage, timeoutMs)
+  const emailHandler=createResearchEmailHandler({mail:options.mail,entry,publicOrigin})
+  const resources = createPrivateResources(simulation, trial ? (refs, settings) => renderDialogueTrialPage(refs, { ...settings, pathwayMode,validationSeries:Boolean(trial.validation),emailEnabled:Boolean(options.mail?.enabled) }) : (refs,settings)=>renderDialogueSimulationPage(refs,{...settings,emailEnabled:Boolean(options.mail?.enabled)}), timeoutMs)
   const send = (res, status, body) => {
     res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' })
     res.end(JSON.stringify(body))
@@ -107,6 +109,7 @@ export function createDialogueInterface(options = {}, trial = null) {
       return {...metadata,resumeEnabled:Boolean(resume),resumeSaved:persist(identity,value),savedPathway:value.pathway,savedPathways:value.pathways}
     },
     serveResource: async (req, res, context) => {
+      if(await emailHandler(req,res,context))return true
       if (req.method === 'GET' && req.url === '/private/dialogue-client.mjs') {
         res.writeHead(200, { 'Content-Type': 'text/javascript; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' })
         res.end(readFileSync(new URL('./dialogue-client.mjs', import.meta.url), 'utf8')); return true

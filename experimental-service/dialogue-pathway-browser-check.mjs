@@ -1,3 +1,4 @@
+import {createResearchEmailService} from './research-email.mjs'
 import {openNavigation,clickNavigation} from './browser-navigation-fixtures.mjs';
 // Vérification de l’interface fictive : serveur local, authentification réelle, aucun moteur externe.
 import { createServer, request as httpRequest } from 'node:http'
@@ -14,7 +15,8 @@ const origin='https://dialogue-test.invalid',password='FAKE_BROWSER_TEST_PASSWOR
 const dir=mkdtempSync(join(tmpdir(),'avatar-dialogue-browser-'))
 const users=await Promise.all(['desktop'].map(name=>createPilotCredential({id:'browser-'+name,username:'browser-'+name,password})))
 const budgetDirectory=join(dir,'budget');mkdirSync(budgetDirectory,{mode:0o700});let apiCalls=0,engineCalls=0;const engineRequests=[];const engineResult=data();engineResult.recommendedSteps[0].course.sessionAvailability={hasOpenSession:true,hasScheduledSession:false,observedOn:'2026-10-23',source:'official-session-icons'};engineResult.optionalSteps[0].course.sessionAvailability={hasOpenSession:true,hasScheduledSession:true,observedOn:'2026-10-23',source:'official-session-icons'};engineResult.optionalSteps[0].course.deliveryMode={value:'in_person',sourceField:'titleRaw',evidence:engineResult.optionalSteps[0].course.title};engineResult.informationalCourses[0].course.deliveryMode={value:'online',sourceField:'titleRaw',evidence:engineResult.informationalCourses[0].course.title};engineResult.durationSummary={budgetHours:16,recommendedHours:16,excessHours:0,withinBudget:true}
-const service=createRealDialogueTrialInterface({enabled:true,paidTrialAuthorized:true,apiKey:'FAKE_BROWSER_KEY_ONLY',budgetDirectory,fetchImpl:async(url,init)=>{
+const emails=[],mail=createResearchEmailService({directory:join(dir,'mail'),from:'sender@example.invalid',transport:{async sendMail(message){emails.push(message);return {accepted:[message.to.address],rejected:[]}}}})
+const service=createRealDialogueTrialInterface({mail,enabled:true,paidTrialAuthorized:true,apiKey:'FAKE_BROWSER_KEY_ONLY',budgetDirectory,fetchImpl:async(url,init)=>{
  apiCalls++;if(url.endsWith('/input_tokens'))return new Response(JSON.stringify({object:'response.input_tokens',input_tokens:1000}),{headers:{'Content-Type':'application/json'}});
  const last=JSON.parse(JSON.parse(init.body).input[0].content).messages.at(-1);if(last.text==='TEST erreur transport')return new Response('DO_NOT_EXPOSE_TEST_SECRET_OR_BODY',{status:429,headers:{'Content-Type':'application/json'}});return new Response(JSON.stringify({status:'completed',model:'gpt-6-luna',usage:{input_tokens:1000,output_tokens:100},output:[{type:'message',role:'assistant',content:[{type:'output_text',text:JSON.stringify({kind:'ask',reply:'Quels documents rédigez-vous au quotidien ?',changes:[{field:'objective',value:'Progresser sur Word pour mes rapports',evidence:[{messageId:last.id,quote:last.text}]}]})}]}]}),{headers:{'Content-Type':'application/json'}});
  },pathwayTrial:{enabled:true,paidTrialAuthorized:true,stateFile:join(dir,'engine-quotas.json'),reportFile:join(dir,'engine-report.json'),fetchImpl:async(url,init)=>{if(url.endsWith('/api/profile-references'))return new Response(JSON.stringify(references()),{headers:{'Content-Type':'application/json',ETag:'"'+references().revision+'"'}});engineCalls++;engineRequests.push(JSON.parse(init.body));return new Response(JSON.stringify(engineResult),{headers:{'Content-Type':'application/json'}})}},resumeDirectory:join(dir,'resume'),publicOrigin:origin,users,stateFile:join(dir,'quotas.json'),
@@ -76,6 +78,10 @@ try{
   assert.equal(await page.locator('#courses-content .plan-status h1').textContent(),researchHeading)
   assert.equal(await page.locator('#courses-content').evaluate(e=>e.querySelector('[data-research-summary]').compareDocumentPosition(e.querySelector('.need-summary'))&Node.DOCUMENT_POSITION_FOLLOWING),4)
   assert.match(await page.locator('#courses-content').innerText(),/1 à 2 jours/)
+  await page.locator('[data-email-export]').click();await page.locator('#research-email-dialog').waitFor()
+  assert.equal(emails.length,0)
+  await page.locator('#research-email-dialog').getByRole('button',{name:'Annuler',exact:true}).click()
+  assert.equal(emails.length,0);assert.equal(await page.locator('#research-email-dialog').count(),0)
   const downloadReady=page.waitForEvent('download')
   await page.locator('[data-pdf-export]').click()
   const pdf=await downloadReady;assert.match(pdf.suggestedFilename(),/^a658yg-recherche-.*\.pdf$/)
@@ -98,6 +104,20 @@ try{
   const historicalDownload=page.waitForEvent('download');await page.locator('[data-pdf-export]').click()
   await (await historicalDownload).saveAs('visual-check/pathway-summary-historical-'+name+'.pdf')
   assert.equal(engineCalls,1);assert.equal(pathways,1)
+  await page.locator('[data-email-export]').click()
+  await page.locator('#research-email-address').fill('reader@example.invalid')
+  assert.equal(emails.length,0)
+  await page.screenshot({path:'visual-check/research-email-mobile-night.png',fullPage:true,animations:'disabled'})
+  await page.locator('#research-email-dialog').getByRole('button',{name:'Envoyer ma synthèse',exact:true}).click()
+  await page.locator('.email-status').filter({hasText:/prise en charge/}).waitFor()
+  assert.equal(emails.length,1);assert.equal(emails[0].to.address,'reader@example.invalid');assert.equal(emails[0].attachments.length,1)
+  assert.ok(emails[0].attachments[0].content.length>10000)
+  assert.match(emails[0].text,/L’assistant IA peut faire des erreurs/)
+  await page.locator('#research-email-dialog').getByRole('button',{name:'Fermer',exact:true}).click()
+  await page.locator('[data-email-export]').click();await page.setViewportSize({width:1280,height:900})
+  await page.screenshot({path:'visual-check/research-email-desktop-night.png',fullPage:true,animations:'disabled'})
+  await page.locator('#research-email-dialog').getByRole('button',{name:'Annuler',exact:true}).click()
+  await page.setViewportSize({width:390,height:844});assert.equal(emails.length,1);assert.equal(engineCalls,1);assert.equal(pathways,1)
 
   assert.equal(await page.locator('#tab-courses').getAttribute('aria-selected'),'true')
   await page.screenshot({path:'visual-check/dialogue-pathway-'+name+'-courses.png',fullPage:true,animations:'disabled'})
