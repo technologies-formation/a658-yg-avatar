@@ -6,15 +6,16 @@ L’adresse saisie n’est pas un compte utilisateur, n’est pas conservée dan
 
 ## Configuration du service d’envoi
 
-L’intégration proposée utilise une boîte expéditrice Infomaniak existante : `mail.infomaniak.com`, port 465 avec TLS et validation du certificat. Il faut disposer de cette boîte et de son mot de passe de messagerie (pas du mot de passe du Manager). Aucun achat ou création de compte n’est effectué par le code.
+L’intégration accepte deux fournisseurs explicitement autorisés : Infomaniak (`mail.infomaniak.com`) et Gmail (`smtp.gmail.com`), sur le port 465 avec TLS et validation du certificat. Il faut disposer de la boîte expéditrice. Pour Infomaniak, utiliser son mot de passe de messagerie (pas celui du Manager). Pour Gmail, utiliser un mot de passe d’application dédié avec la validation en deux étapes ; le mot de passe habituel du compte n’est pas accepté par cette intégration. Les espaces de présentation du mot de passe d’application sont retirés. Le mode Gmail est limité aux adresses `@gmail.com` pour ce pilote ; OAuth et les domaines Google Workspace personnalisés ne sont pas implémentés. Aucun achat ou création de compte n’est effectué par le code.
 
 La dépendance Nodemailer est fixée à 10.2.1 (publication officielle du 22 octobre 2026). Installer le manifeste `mail-runtime-package.json` comme `package.json` dans `<privateDirectory>/mail-runtime`, puis lancer `npm install --ignore-scripts --no-audit --no-fund` dans ce dossier privé ; conserver le fichier de verrouillage obtenu. Ce dossier ne doit pas être publié ni ajouté à Git.
 
 Les variables suivantes sont lues uniquement à l’activation :
 
 - `AVATAR_MAIL_ENABLED=true`
+- `AVATAR_MAIL_PROVIDER` : `infomaniak` (valeur par défaut) ou `gmail` ; aucun hôte arbitraire.
 - `AVATAR_MAIL_FROM` : adresse complète de la boîte expéditrice ; utilisée aussi pour l’authentification SMTP.
-- `AVATAR_MAIL_PASSWORD` : mot de passe de cette boîte, conservé dans le fichier d’environnement privé 0600 existant ou un fichier d’environnement privé distinct.
+- `AVATAR_MAIL_PASSWORD` : mot de passe de cette boîte ou mot de passe d’application Gmail dédié, conservé dans le fichier d’environnement privé 0600 existant ou un fichier d’environnement privé distinct.
 
 Aucun secret ne doit être copié dans une conversation, un dépôt, une capture, une commande avec mot de passe en clair ou les journaux. Le lanceur conserve toutes les autorisations de dialogue et parcours existantes. Aucun test SMTP, aucune connexion ni aucun message ne sont lancés à l’ouverture ou au démarrage ; la première transmission nécessite « Envoyer ma synthèse ».
 
@@ -34,4 +35,4 @@ Tests : authentification/HTTPS/origine, isolation entre identités, résultat hi
 
 Les alertes administrateur pour la consommation de CATALOGUE et ASSISTANT constituent une fonction distincte. Besoin exprimé : avertir avant épuisement pour pouvoir intervenir. Seuils proposés à discuter : 80 %, 95 %, puis blocage ; distinguer appels/tokens/budget applicatif du crédit global OpenAI, éviter les doublons et préciser les destinataires. Aucune alerte planifiée ni surveillance du solde fournisseur n’est activée par cette livraison.
 
-Sources techniques : https://www.infomaniak.com/en/support/faq/468/understanding-mail-server-ports-and-protocols ; https://nodemailer.com/smtp ; https://github.com/nodemailer/nodemailer/releases/tag/v10.2.1
+Sources techniques : https://support.google.com/accounts/answer/185833 ; https://developers.google.com/workspace/gmail/imap/imap-smtp ; https://www.infomaniak.com/en/support/faq/468/understanding-mail-server-ports-and-protocols ; https://nodemailer.com/smtp ; https://github.com/nodemailer/nodemailer/releases/tag/v10.2.1

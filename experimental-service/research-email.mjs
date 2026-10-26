@@ -71,14 +71,19 @@ export function createResearchEmailService({directory,from,transport,now=Date.no
  }}
 }
 
-// Chargement explicite du seul compte expéditeur Infomaniak ; aucun réseau à l’ouverture.
+// Chargement explicite du compte expéditeur ; fournisseurs autorisés et aucun réseau à l’ouverture.
 export function readHostedEmail(environment,privateDirectoryPath,{loadNodemailer}={}){
  if(environment.AVATAR_MAIL_ENABLED!=='true')return null
- const from=emailAddress(environment.AVATAR_MAIL_FROM),password=environment.AVATAR_MAIL_PASSWORD
+ const provider=environment.AVATAR_MAIL_PROVIDER??'infomaniak'
+ const hosts={infomaniak:'mail.infomaniak.com',gmail:'smtp.gmail.com'}
+ if(!Object.hasOwn(hosts,provider))fail('mail_configuration')
+ const from=emailAddress(environment.AVATAR_MAIL_FROM),rawPassword=environment.AVATAR_MAIL_PASSWORD
+ const password=provider==='gmail'&&typeof rawPassword==='string'?rawPassword.replace(/ /g,''):rawPassword
+ if(provider==='gmail'&&(!/^[A-Za-z0-9]{16}$/.test(password??'')||!/@gmail\.com$/i.test(from)))fail('mail_configuration')
  if(typeof password!=='string'||!password||/[\r\n\0]/.test(password))fail('mail_configuration')
  const require=createRequire(import.meta.url)
  const nodemailer=loadNodemailer?loadNodemailer():require(join(privateDirectoryPath,'mail-runtime/node_modules/nodemailer'))
- const transport=nodemailer.createTransport({host:'mail.infomaniak.com',port:465,secure:true,pool:false,
+ const transport=nodemailer.createTransport({host:hosts[provider],port:465,secure:true,pool:false,
   auth:{user:from,pass:password},tls:{minVersion:'TLSv1.2',rejectUnauthorized:true},connectionTimeout:10000,greetingTimeout:10000,socketTimeout:15000,
   logger:false,debug:false,disableFileAccess:true,disableUrlAccess:true,maxRecipients:1})
  return createResearchEmailService({directory:join(privateDirectoryPath,'mail-outbox'),from,transport})

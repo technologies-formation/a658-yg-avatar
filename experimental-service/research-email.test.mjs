@@ -59,3 +59,14 @@ test('courriel : limite globale persistante, indépendante des identités et des
  await assert.rejects(createResearchEmailService(options).send({...request(),identity:'new-user'}),{code:'mail_limit'})
  assert.equal(calls,20)
 })
+
+
+test('courriel : Gmail explicite avec mot de passe d’application, aucun appel à l’ouverture',t=>{
+ const dir=directory(t);let settings,loaded=0
+ const loadNodemailer=()=>{loaded++;return {createTransport(value){settings=value;return {sendMail(){throw Error('not at startup')}}}}}
+ const environment={AVATAR_MAIL_ENABLED:'true',AVATAR_MAIL_PROVIDER:'gmail',AVATAR_MAIL_FROM:'sender@gmail.com',AVATAR_MAIL_PASSWORD:'abcd efgh ijkl mnop'}
+ assert.ok(readHostedEmail(environment,dir,{loadNodemailer}).enabled)
+ assert.equal(settings.host,'smtp.gmail.com');assert.equal(settings.port,465);assert.equal(settings.secure,true);assert.equal(settings.auth.pass,'abcdefghijklmnop');assert.equal(settings.auth.user,'sender@gmail.com');assert.equal(settings.tls.rejectUnauthorized,true)
+ for(const change of [{AVATAR_MAIL_PROVIDER:'untrusted.invalid'},{AVATAR_MAIL_PROVIDER:'__proto__'},{AVATAR_MAIL_FROM:'sender@example.invalid'},{AVATAR_MAIL_PASSWORD:'invalid'},{AVATAR_MAIL_PASSWORD:'abcd\nefg hijk lmnop'}])assert.throws(()=>readHostedEmail({...environment,...change},dir,{loadNodemailer}))
+ assert.equal(loaded,1)
+})
