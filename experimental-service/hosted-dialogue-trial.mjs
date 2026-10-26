@@ -102,7 +102,7 @@ export function createHostedDialogueTrial(options = {}) {
     createGateway:({isSecureRequest})=>createRealDialogueTrialInterface({enabled:true,paidTrialAuthorized:true,
       publicOrigin:options.publicOrigin,users:options.users,isSecureRequest,stateFile:options.stateFile,
       loadProfileReferences:options.loadProfileReferences,preview:options.preview,mail:options.mail,consumption:options.consumption,budgetDirectory:options.budgetDirectory,
-      apiKey:options.apiKey,fetchImpl:options.fetchImpl,timeoutMs:30000,resumeDirectory:join(options.privateDirectory,'resume'),
+      apiKey:options.apiKey,fetchImpl:options.fetchImpl,timeoutMs:30000,resumeDirectory:join(options.privateDirectory,'resume'),deviceMemoryEnabled:options.deviceMemoryEnabled??false,
       ...(pathway?{pathwayTrial:{...pathway,directory:options.validationDirectory,validationAuthorized:options.validationAuthorized,stateFile:options.pathwayStateFile,reportFile:options.pathwayReportFile,fetchImpl:options.consumption?async(url,init)=>{
         const fetcher=options.pathwayFetchImpl??options.fetchImpl??globalThis.fetch
         if(url==='https://api.a658yg-catalogue.ch/api/pathway'&&init?.method==='POST')return fetcher(url,{...init,headers:{...init.headers,'X-A658-Report-Token':options.consumption.token}})
@@ -123,7 +123,7 @@ export function readDialogueTrialLaunch(configFile,siteDirectory,environment) {
   if(options.pathwayTrial?.series&&environment.AVATAR_PATHWAY_VALIDATION_ENABLED!=='true')throw Error('Activation distincte de validation absente')
   const apiKey=environment.AVATAR_DIALOGUE_OPENAI_API_KEY
   if (typeof apiKey !== 'string' || !apiKey.trim() || /\s/.test(apiKey)) throw Error('Clé serveur distincte absente')
-  return {...options,apiKey,dailyReport:readDailyReportEnvironment(environment,options.privateDirectory),consumption:readConsumptionEnvironment(environment,{defaultDirectory:join(options.privateDirectory,'consumption'),siteDirectory}),mail:readHostedEmail(environment,options.privateDirectory),validationAuthorized:options.pathwayTrial?.series?true:false}
+  return {...options,apiKey,deviceMemoryEnabled:environment.AVATAR_DEVICE_MEMORY_ENABLED==='true',dailyReport:readDailyReportEnvironment(environment,options.privateDirectory),consumption:readConsumptionEnvironment(environment,{defaultDirectory:join(options.privateDirectory,'consumption'),siteDirectory}),mail:readHostedEmail(environment,options.privateDirectory),validationAuthorized:options.pathwayTrial?.series?true:false}
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   try {

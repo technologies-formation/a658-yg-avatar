@@ -139,3 +139,15 @@ test('nouvelle demande confirmée : ancien contexte retiré, quotas, usage et an
  await s.turn(request({requestId:'dialogue_request_0002',message:fresh,expectedRevision:1}))
  assert.deepEqual(contexts[1],[fresh]);assert.equal(s.status().attemptedTurns,2)
 })
+
+
+test('reprise explicite : ancien contexte retiré sans remettre les tentatives ni identifiants à zéro',async()=>{
+ const seen=[]
+ const session=setup([], {provider:{mode:'simulation',async respond(value){seen.push(value.messages);return answer([])}}})
+ await session.turn(request())
+ const draft=session.editProfile(profile,{expectedRevision:0,clearConversation:true})
+ assert.equal(session.status().attemptedTurns,1)
+ await assert.rejects(session.turn(request({expectedRevision:draft.revision})),code('duplicate_request'))
+ await session.turn(request({requestId:'dialogue_request_0002',expectedRevision:draft.revision}))
+ assert.equal(seen[1].length,1);assert.equal(session.status().attemptedTurns,2)
+})

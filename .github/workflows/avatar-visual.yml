@@ -40,6 +40,10 @@ jobs:
           AVATAR_PLAYWRIGHT_MODULE: ${{ runner.temp }}/avatar-browser/node_modules/playwright/index.mjs
           AVATAR_CATALOGUE_MODULE: .contract-source/server/profileReferences.mjs
         run: node experimental-service/visual-check.mjs
+      - name: Verify optional device memory without AI calls
+        env:
+          AVATAR_PLAYWRIGHT_MODULE: ${{ runner.temp }}/avatar-browser/node_modules/playwright/index.mjs
+        run: node experimental-service/device-memory-browser-check.mjs
       - name: Verify summary after mobile and desktop resizing
         env:
           AVATAR_PLAYWRIGHT_MODULE: ${{ runner.temp }}/avatar-browser/node_modules/playwright/index.mjs

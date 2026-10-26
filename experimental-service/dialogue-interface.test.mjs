@@ -11,10 +11,10 @@ import { data } from './result-test-fixtures.mjs'
 const origin = 'https://dialogue-test.invalid'
 const r = references()
 const profile = { personnelCategory: 'TEST-A', role: 'Assistant', objective: 'Organiser les tâches de test', existingSkills: 'Je débute', timeAvailable: '1 à 2 jours' }
-async function fixture(t,{resume=false,mail=null}={}) {
+async function fixture(t,{resume=false,mail=null,deviceMemoryEnabled=false,deviceMemoryNow=Date.now}={}) {
  const dir = mkdtempSync(join(tmpdir(),'avatar-dialogue-interface-')), password = 'TEST_LOCAL_PASSWORD_ONLY'
  const users = await Promise.all(['alice','bob'].map(id=>createPilotCredential({id,username:id,password})))
- const options = { mail, enabled:true, publicOrigin:origin, users, stateFile:join(dir,'quotas.json'),
+ const options = { mail, deviceMemoryEnabled,deviceMemoryNow, enabled:true, publicOrigin:origin, users, stateFile:join(dir,'quotas.json'),
   isSecureRequest:req=>req.headers['x-test-secure']==='true', loadProfileReferences:()=>r, preview:data(),...(resume?{resumeDirectory:join(dir,'resume')}:{}) };let service=createDialogueSimulationInterface(options)
  const server = http.createServer((req,res)=>service.handler(req,res));await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve))
  t.after(async()=>{server.closeAllConnections();await new Promise(resolve=>server.close(resolve));rmSync(dir,{recursive:true,force:true})})
@@ -24,7 +24,7 @@ async function fixture(t,{resume=false,mail=null}={}) {
    let text='';res.on('data',x=>text+=x);res.on('end',()=>{let value;try{value=JSON.parse(text)}catch{}resolve({status:res.statusCode,text,value,headers:res.headers})})})
   req.on('error',reject);req.end(raw||body&&JSON.stringify(body))
  })
- return {get service(){return service},request,reopen(){service.close();service=createDialogueSimulationInterface(options)}}
+ return {dir,get service(){return service},request,reopen(){service.close();service=createDialogueSimulationInterface(options)}}
 }
 
 test('interface fictive protégée et fermée aux ressources serveur',async t=>{
@@ -128,4 +128,36 @@ test('courriel HTTP : recherche de l’identité seulement, confirmation, origin
  const result=await request('/private/research-email',{body});assert.equal(result.status,200);assert.equal(sends.length,1);assert.equal(sends[0].snapshot.profile.objective,profile.objective);assert.equal(sends[0].snapshot.modality,'En ligne');assert.equal(service.status().total,1)
  assert.equal((await request('/private/research-email-client.mjs',{auth:false})).status,401)
  assert.equal((await request('/private/research-email.mjs')).status,404)
+})
+
+
+test('copie sur appareil : accès authentifié, confirmation, restauration signée et quotas conservés',async t=>{
+ let clock=Date.parse('2026-10-26T12:00:00Z')
+ const f=await fixture(t,{resume:true,deviceMemoryEnabled:true,deviceMemoryNow:()=>clock}),request=f.request
+ let initial=await request('/private/dialogue');assert.match(initial.value.deviceMemory.scope,/^[a-f0-9]{64}$/)
+ assert.equal((await request('/private/dialogue',{body:{action:'device-save'}})).status,400)
+ let edited=await request('/private/dialogue',{body:{action:'edit',profile,modality:'En ligne',expectedRevision:0}})
+ const ticket=await request('/private/profile-references')
+ assert.equal((await request('/private/pathway',{body:{profile:{...edited.value.draft.profile,constraints:'Modalité souhaitée : en ligne'},confirmed:true,referenceRevision:r.revision,requestId:ticket.value.requestId}})).status,200)
+ const saved=await request('/private/dialogue',{body:{action:'device-save',confirmed:true}})
+ assert.equal(saved.status,200);assert.equal(saved.value.deviceCopy.state.pathways.length,1)
+ const copy=saved.value.deviceCopy
+ assert.equal(saved.headers['set-cookie'],undefined)
+ edited=await request('/private/dialogue',{body:{action:'edit',profile:{...profile,objective:'Une autre demande de test'},modality:'Présentiel',expectedRevision:edited.value.draft.revision}})
+ const body={action:'device-restore',copy,confirmed:true,expectedStateToken:edited.value.deviceMemory.stateToken,expectedRevision:edited.value.draft.revision}
+ assert.equal((await request('/private/dialogue',{body:{...body,confirmed:false}})).status,400)
+ assert.equal((await request('/private/dialogue',{body:{...body,expectedStateToken:saved.value.deviceMemory.stateToken}})).status,400)
+ assert.equal((await request('/private/dialogue',{body:{...body,copy:{...copy,state:{...copy.state,profile:{...profile,objective:"Altération de la copie"}}}}})).status,400)
+ const bob=await request('/private/dialogue',{user:'bob'})
+ assert.equal((await request('/private/dialogue',{user:'bob',body:{...body,expectedRevision:0,expectedStateToken:bob.value.deviceMemory.stateToken}})).status,400)
+ assert.equal((await request('/private/dialogue',{body,source:'https://autre.invalid'})).status,403)
+ const restored=await request('/private/dialogue',{body});assert.equal(restored.status,200)
+ assert.equal(restored.value.draft.profile.objective,profile.objective);assert.deepEqual(restored.value.savedPathways,copy.state.pathways)
+ assert.equal(f.service.status().total,1)
+ f.reopen();const reopened=await request('/private/dialogue');assert.equal(reopened.value.draft.profile.objective,profile.objective)
+ assert.equal((await request('/private/dialogue',{body:{...body,expectedRevision:reopened.value.draft.revision,expectedStateToken:reopened.value.deviceMemory.stateToken}})).status,200)
+ clock=copy.expiresAt
+ const current=await request('/private/dialogue')
+ assert.equal((await request('/private/dialogue',{body:{...body,expectedRevision:current.value.draft.revision,expectedStateToken:current.value.deviceMemory.stateToken}})).status,400)
+ assert.equal(f.service.status().total,1)
 })

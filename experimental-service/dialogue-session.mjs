@@ -106,12 +106,13 @@ function createSession(options, realTrial) {
       // Compteurs, identifiants déjà utilisés et consommation sont conservés.
       return snapshot()
     },
-    editProfile(value, { expectedRevision, modality: nextModality = modality } = {}) {
+    editProfile(value, { expectedRevision, modality: nextModality = modality, clearConversation = false } = {}) {
       available(); if (active) fail('busy')
       if (expectedRevision !== revision) fail('stale_profile')
       if (!modalities.includes(nextModality)) fail('invalid_profile')
       const next = profileValue(value)
       profile = next; modality = nextModality; revision++; pending = null
+      if(clearConversation===true)history.length=0
       return snapshot()
     },
     acceptProposal({ proposalId, expectedRevision, confirmed = false } = {}) {
