@@ -1,3 +1,5 @@
+import {readDailyReportEnvironment,createDailyReporter} from './daily-report.mjs'
+import {readConsumptionEnvironment} from './consumption-ledger.mjs'
 // Lanceur distinct : préparation sans réseau, activation explicitement verrouillée.
 import { writeFileSync, mkdirSync, copyFileSync, chmodSync, rmSync, existsSync, lstatSync, realpathSync, readFileSync, renameSync, constants, rmdirSync } from 'node:fs'
 import { basename, dirname, join } from 'node:path'
@@ -95,12 +97,21 @@ export function createHostedDialogueTrial(options = {}) {
   const pathway = options.pathwayTrial?.enabled ? options.pathwayTrial : null
   if (pathway && pathway.paidTrialAuthorized !== true) throw Error('Essai de parcours non activé explicitement')
   if(pathway?.series&&options.validationAuthorized!==true)throw Error('Validation distincte non autorisée au lancement')
-  return createHostedTransport({...options,responseTimeoutMs:pathway?210000:35000,socketTimeoutMs:pathway?215000:40000,
+  const reporter=options.dailyReport?createDailyReporter({config:options.dailyReport,mail:options.mail,consumption:options.consumption,fetchImpl:options.reportFetchImpl}):null
+  const hosted=createHostedTransport({...options,responseTimeoutMs:pathway?210000:35000,socketTimeoutMs:pathway?215000:40000,
     createGateway:({isSecureRequest})=>createRealDialogueTrialInterface({enabled:true,paidTrialAuthorized:true,
       publicOrigin:options.publicOrigin,users:options.users,isSecureRequest,stateFile:options.stateFile,
-      loadProfileReferences:options.loadProfileReferences,preview:options.preview,mail:options.mail,budgetDirectory:options.budgetDirectory,
+      loadProfileReferences:options.loadProfileReferences,preview:options.preview,mail:options.mail,consumption:options.consumption,budgetDirectory:options.budgetDirectory,
       apiKey:options.apiKey,fetchImpl:options.fetchImpl,timeoutMs:30000,resumeDirectory:join(options.privateDirectory,'resume'),
-      ...(pathway?{pathwayTrial:{...pathway,directory:options.validationDirectory,validationAuthorized:options.validationAuthorized,stateFile:options.pathwayStateFile,reportFile:options.pathwayReportFile,fetchImpl:options.pathwayFetchImpl??options.fetchImpl}}:{})})})
+      ...(pathway?{pathwayTrial:{...pathway,directory:options.validationDirectory,validationAuthorized:options.validationAuthorized,stateFile:options.pathwayStateFile,reportFile:options.pathwayReportFile,fetchImpl:options.consumption?async(url,init)=>{
+        const fetcher=options.pathwayFetchImpl??options.fetchImpl??globalThis.fetch
+        if(url==='https://api.a658yg-catalogue.ch/api/pathway'&&init?.method==='POST')return fetcher(url,{...init,headers:{...init.headers,'X-A658-Report-Token':options.consumption.token}})
+        return fetcher(url,init)
+      }:options.pathwayFetchImpl??options.fetchImpl}}:{})})})
+  if(reporter){
+    hosted.server.once('listening',()=>reporter.start());hosted.server.once('close',()=>reporter.stop())
+  }
+  return hosted
 }
 
 // Séparer la lecture d’environnement afin de tester qu’un lancement refusé ne lit pas la clé.
@@ -112,7 +123,7 @@ export function readDialogueTrialLaunch(configFile,siteDirectory,environment) {
   if(options.pathwayTrial?.series&&environment.AVATAR_PATHWAY_VALIDATION_ENABLED!=='true')throw Error('Activation distincte de validation absente')
   const apiKey=environment.AVATAR_DIALOGUE_OPENAI_API_KEY
   if (typeof apiKey !== 'string' || !apiKey.trim() || /\s/.test(apiKey)) throw Error('Clé serveur distincte absente')
-  return {...options,apiKey,mail:readHostedEmail(environment,options.privateDirectory),validationAuthorized:options.pathwayTrial?.series?true:false}
+  return {...options,apiKey,dailyReport:readDailyReportEnvironment(environment,options.privateDirectory),consumption:readConsumptionEnvironment(environment,{defaultDirectory:join(options.privateDirectory,'consumption'),siteDirectory}),mail:readHostedEmail(environment,options.privateDirectory),validationAuthorized:options.pathwayTrial?.series?true:false}
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   try {

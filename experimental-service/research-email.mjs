@@ -86,5 +86,12 @@ export function readHostedEmail(environment,privateDirectoryPath,{loadNodemailer
  const transport=nodemailer.createTransport({host:hosts[provider],port:465,secure:true,pool:false,
   auth:{user:from,pass:password},tls:{minVersion:'TLSv1.2',rejectUnauthorized:true},connectionTimeout:10000,greetingTimeout:10000,socketTimeout:15000,
   logger:false,debug:false,disableFileAccess:true,disableUrlAccess:true,maxRecipients:1})
- return createResearchEmailService({directory:join(privateDirectoryPath,'mail-outbox'),from,transport})
+ const service=createResearchEmailService({directory:join(privateDirectoryPath,'mail-outbox'),from,transport})
+ return {...service,async sendReport({recipient,subject,text,html}){
+  emailAddress(recipient)
+  if(typeof subject!=='string'||/[\r\n]/.test(subject)||subject.length>200||typeof text!=='string'||typeof html!=='string')fail('invalid_email_request')
+  const info=await transport.sendMail({from:{name:'A658-YG · Suivi OpenAI',address:from},to:{address:recipient},subject,text,html,disableFileAccess:true,disableUrlAccess:true})
+  if(!info?.accepted?.some(x=>String(x).toLowerCase()===recipient.toLowerCase())||info.rejected?.length)fail('mail_unconfirmed')
+  return {accepted:true}
+ }}
 }

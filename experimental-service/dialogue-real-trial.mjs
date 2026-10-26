@@ -1,3 +1,4 @@
+import {trackConsumption,calculatedUsage} from './consumption-ledger.mjs'
 // Assemblage préparé sans lanceur : désactivé par défaut, clé explicite, registre dédié.
 import {isAbsolute, dirname} from 'node:path'
 import {createPathwayValidation,VALIDATION_SERIES} from './pathway-validation.mjs'
@@ -18,13 +19,14 @@ export function createRealDialogueTrialInterface(options = {}) {
   const budget = createDialogueBudget({ directory: budgetDirectory, singleInstance: true })
   try {
     const provider = createOpenAIDialogueProvider({ enabled: true, paidTrialAuthorized: true, apiKey, budget, fetchImpl, timeoutMs })
+    const observedProvider=options.consumption?{...provider,respond:(payload,context)=>trackConsumption(options.consumption.ledger,'assistant','dialogue',()=>provider.respond(payload,context),calculatedUsage)}:provider
     if(pathwayTrial?.series&&(pathwayTrial.series!==VALIDATION_SERIES||pathwayTrial.validationAuthorized!==true))throw new DialogueError('configuration')
     const validation=pathwayTrial?.series?createPathwayValidation({directory:pathwayTrial.directory,fetchImpl:pathwayTrial.fetchImpl??fetchImpl}):null
     const gateway = createDialogueInterface({ ...interfaceOptions, enabled: true, timeoutMs }, {
       budgetStatus: budget.status,validation,
       ...(pathwayTrial ? { pathwaySession: validation?.session??createRealSession({ stateFile: pathwayTrial.stateFile, reportFile: pathwayTrial.reportFile, singleInstance: true, fetchImpl: pathwayTrial.fetchImpl ?? fetchImpl }) } : {}),
       createSession: (references,restored={}) => createRealDialogueTrialSession({ enabled: true, paidTrialAuthorized: true,
-        references,initialProfile:restored.profile??{},initialModality:restored.modality??'', provider, maxTurns: 10, timeoutMs, maxHistoryCharacters: 32000 }),
+        references,initialProfile:restored.profile??{},initialModality:restored.modality??'', provider:observedProvider, maxTurns: 10, timeoutMs, maxHistoryCharacters: 32000 }),
     })
     return { ...gateway, budgetStatus: budget.status,
       close() { gateway.close(); budget.close() },
