@@ -10,6 +10,7 @@ import {references} from './reference-test-fixtures.mjs'
 import {data} from './result-test-fixtures.mjs'
 import {clickNavigation} from './browser-navigation-fixtures.mjs'
 const {chromium}=await import(process.env.AVATAR_PLAYWRIGHT_MODULE||'playwright')
+const bounded=promise=>{let timer;return Promise.race([promise,new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error('Délai du scénario dépassé')),30000)})]).finally(()=>clearTimeout(timer))}
 const origin='https://device-test.invalid',password='FAKE_DEVICE_BROWSER_ONLY',dir=mkdtempSync(join(tmpdir(),'device-browser-'))
 const users=await Promise.all(['alice','bob'].map(id=>createPilotCredential({id,username:id,password})))
 const service=createDialogueSimulationInterface({enabled:true,deviceMemoryEnabled:true,resumeDirectory:join(dir,'resume'),stateFile:join(dir,'quota.json'),publicOrigin:origin,users,isSecureRequest:()=>true,loadProfileReferences:()=>references(),preview:data()})
@@ -26,7 +27,7 @@ try{
   const result=await new Promise((resolve,reject)=>{
    const request=httpRequest({hostname:'127.0.0.1',port:server.address().port,path:url.pathname+url.search,method:req.method(),headers:{host:url.host,authorization:'Basic '+Buffer.from(user+':'+password).toString('base64'),...(headers.origin?{origin:headers.origin}:{}),...(headers['content-type']?{'content-type':headers['content-type']}:{})}},res=>{const chunks=[];res.on('data',x=>chunks.push(x));res.on('end',()=>resolve({status:res.statusCode,headers:res.headers,body:Buffer.concat(chunks)}))})
    request.on('error',reject);request.end(req.postDataBuffer()||undefined)
-  });if(holdCopies&&req.postData()?.includes('\"action\":\"device-save\"')){holdCopies=false;copyStarted?.();await new Promise(resolve=>{releaseCopy=resolve});await route.fulfill(result);copyFinished?.();return}
+  });if(holdCopies&&req.postData()?.includes('"action":"device-save"')){holdCopies=false;copyStarted?.();await new Promise(resolve=>{releaseCopy=resolve});await route.fulfill(result);copyFinished?.();return}
   if(result.status===200&&/\.(?:mjs|webp)$/.test(url.pathname))staticCache.set(url.pathname,result);await route.fulfill(result)
  })
  const api=body=>page.evaluate(async body=>{const response=await fetch('/private/dialogue',{...(body?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{})});if(!response.ok)throw Error('HTTP '+response.status);return response.json()},body)
@@ -52,12 +53,12 @@ try{
  await page.locator('#resume-device-copy').click();await page.locator('#confirm-device-restore').click();await page.locator('#status').filter({hasText:'Copie reprise'}).waitFor()
  assert.equal((await api()).draft.profile.objective,profile.objective);assert.equal(service.status().total,0)
  const started=new Promise(resolve=>{copyStarted=resolve}),finished=new Promise(resolve=>{copyFinished=resolve});holdCopies=true
- await clickNavigation(page,'#open-profile');await page.locator('[name=objective]').fill('Une dernière demande avant effacement');await page.locator('#profile-form button[type=submit]').click();await started
- await clickNavigation(page,'#open-profile');await page.locator('#forget-device').click();releaseCopy();await finished;await page.waitForFunction(()=>!document.querySelector('#remember-device').disabled)
+ await clickNavigation(page,'#open-profile');await page.locator('[name=objective]').fill('Une dernière demande avant effacement');await page.locator('#profile-form button[type=submit]').click();await bounded(started)
+ await clickNavigation(page,'#open-profile');await page.locator('#forget-device').click();releaseCopy();await bounded(finished);await page.waitForFunction(()=>!document.querySelector('#remember-device').disabled)
  assert.deepEqual(await copies(),[]);assert.equal((await api()).draft.profile.objective,'Une dernière demande avant effacement')
  await page.evaluate(()=>{Storage.prototype.setItem=function(){throw new DOMException('Blocked','QuotaExceededError')}})
  await page.locator('#remember-device').check();await page.locator('#device-memory-status').filter({hasText:'n’a pas pu'}).waitFor();assert.equal(await page.locator('#remember-device').isChecked(),false)
  assert.equal(paid,0);assert.deepEqual(external,[]);assert.deepEqual(errors,[])
  console.log(JSON.stringify({ok:true,paidCalls:paid,checks:['opt-in','30-day-copy','account-isolation','explicit-resume','cancel','forget','blocked-storage','desktop-mobile']}))
  await context.close()
-}finally{await browser?.close();server.closeAllConnections();await new Promise(resolve=>server.close(resolve));service.close();rmSync(dir,{recursive:true,force:true})}
+}catch(error){mkdirSync('visual-check',{recursive:true});await browser?.contexts()[0]?.pages()[0]?.screenshot({path:'visual-check/device-memory-failure.png',fullPage:true}).catch(()=>{});throw error}finally{releaseCopy?.();await browser?.close();server.closeAllConnections();await new Promise(resolve=>server.close(resolve));service.close();rmSync(dir,{recursive:true,force:true})}
