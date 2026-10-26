@@ -7,7 +7,29 @@ export function createAssistantAvatar(document, expression = 'ready') {
   return avatar
 }
 
+// Icône d’onglet dérivée du visage existant, sans nouvel asset ni appel extérieur.
+function installAssistantFavicon(document) {
+  const image = new document.defaultView.Image()
+  image.onload = () => {
+    try {
+      const canvas = document.createElement('canvas')
+      canvas.width = 64; canvas.height = 64
+      const context = canvas.getContext('2d')
+      const tile = image.naturalWidth / 3
+      context.drawImage(image, tile * .035, image.naturalHeight * .175,
+        tile * .93, image.naturalHeight * .565, 1, 11, 62, 42)
+      const icon = document.createElement('link')
+      icon.rel = 'icon'; icon.type = 'image/png'; icon.sizes = '64x64'
+      icon.href = canvas.toDataURL('image/png'); icon.dataset.assistantIcon = 'true'
+      document.head.querySelectorAll('link[rel="icon"]').forEach(previous => previous.remove())
+      document.head.append(icon)
+    } catch { /* L’icône ne doit jamais bloquer la discussion. */ }
+  }
+  image.src = '/private/assistant-robot.webp'
+}
+
 export function initAssistantPresentation(document) {
+  installAssistantFavicon(document)
   const root = document.documentElement
   const media = document.defaultView.matchMedia('(prefers-color-scheme: dark)')
   const toggle = document.getElementById('appearance-toggle')

@@ -18,7 +18,7 @@ const binaries = new Map([
   ['/private/pdf-font-regular.ttf', [new URL('./vendor/DejaVuSans.ttf', import.meta.url),'font/ttf']],
   ['/private/pdf-font-bold.ttf', [new URL('./vendor/DejaVuSans-Bold.ttf', import.meta.url),'font/ttf']],
 ])
-const csp = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"
+const csp = "default-src 'self'; img-src 'self' data:; script-src 'self' 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"
 
 export function createPrivateResources(session, renderPage, timeoutMs) {
   return async (req, res, { signal }) => {
