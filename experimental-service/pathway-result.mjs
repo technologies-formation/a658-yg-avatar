@@ -1,3 +1,4 @@
+import {readCatalogueVersion} from './catalogue-version.mjs'
 // Contrat de résultat partagé entre le transport serveur et l’affichage. Aucun accès réseau.
 export class PathwayAdapterError extends Error {
   constructor(code, message, status) {
@@ -27,6 +28,7 @@ export function validatePathwayResult(data) {
       (!Array.isArray(data.recommendedSteps) && !Array.isArray(data.steps))) {
     fail('invalid_response', 'Reponse parcours non conforme')
   }
+  if(data.catalogue!==undefined&&!readCatalogueVersion(data.catalogue))fail('invalid_response','Version du catalogue invalide')
   let count = 0
   for (const category of ['recommendedSteps', 'steps', 'optionalSteps', 'informationalCourses']) {
     if (data[category] === undefined) continue
@@ -38,6 +40,35 @@ export function validatePathwayResult(data) {
       }
       if (item.course.sourceUrl != null && !officialLink(item.course.sourceUrl)) {
         fail('invalid_response', 'Lien de formation non autorise')
+      }
+      if (item.course.deliveryMode !== undefined) {
+        const mode = item.course.deliveryMode
+        if (!object(mode) || !['online','in_person','hybrid','unknown'].includes(mode.value) ||
+            (mode.value === 'unknown' ? mode.sourceField !== null || mode.evidence !== null
+              : mode.sourceField !== 'titleRaw' || mode.evidence !== item.course.title)) {
+          fail('invalid_response', 'Preuve de modalite invalide')
+        }
+      }
+      if (item.course.sessionAvailability !== undefined) {
+        const availability = item.course.sessionAvailability
+        const date = availability?.observedOn
+        const validDate = typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date) &&
+          Number.isFinite(Date.parse(date + 'T12:00:00Z')) && new Date(date + 'T12:00:00Z').toISOString().slice(0, 10) === date
+        const known = object(availability) && availability.source === 'official-session-icons' && validDate &&
+          typeof availability.hasOpenSession === 'boolean' && typeof availability.hasScheduledSession === 'boolean'
+        const unknown = object(availability) && availability.source === null && date === null &&
+          availability.hasOpenSession === null && availability.hasScheduledSession === null
+        if (!known && !unknown) fail('invalid_response', 'Indicateurs de sessions invalides')
+        if (availability.scheduledOpeningDates !== undefined) {
+          const dates = availability.scheduledOpeningDates
+          if (!known || !availability.hasScheduledSession || !Array.isArray(dates) || dates.length > 100 || dates.some((value, index) =>
+            typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value) ||
+            !Number.isFinite(Date.parse(value + 'T12:00:00Z')) || new Date(value + 'T12:00:00Z').toISOString().slice(0, 10) !== value ||
+            value <= date || (index > 0 && dates[index - 1] >= value))) {
+            fail('invalid_response', 'Dates d’ouverture invalides')
+          }
+        }
+
       }
       for (const field of ['duration', 'public']) {
         if (item.course[field] != null && typeof item.course[field] !== 'string') {
@@ -88,3 +119,46 @@ export function validatePathwayResult(data) {
   return { mode: 'historical-pathway', empty: count === 0, result: data }
 }
 
+
+
+// Call only after validatePathwayResult; these dates are official metadata, never model prose.
+export function scheduledOpeningLabel(availability, now = new Date()) {
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Paris', year: 'numeric', month: '2-digit', day: '2-digit' }).format(now)
+  const next = availability?.scheduledOpeningDates?.find(date => date >= today)
+  if (!next) return 'Ouverture programmée signalée'
+  const date = new Intl.DateTimeFormat('fr-CH', { timeZone: 'UTC', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(next + 'T12:00:00Z'))
+  return 'Ouverture des inscriptions prévue le ' + date
+}
+
+// Présentation partagée écran/PDF, sans ajout ni classement de formations.
+export function courseDisplayDetails(course, { replay = false, now = new Date(), objective = '' } = {}) {
+  const modes = { online: 'En ligne', in_person: 'Présentiel', hybrid: 'Hybride' }
+  const availability = course.sessionAvailability
+  const known = !replay && availability?.source === 'official-session-icons' && availability.observedOn <= now.toISOString().slice(0, 10)
+  const statuses = []
+  if (known && availability.hasOpenSession) statuses.push({ kind: 'open', label: 'Inscriptions ouvertes' })
+  if (known && availability.hasScheduledSession) {
+    const full = scheduledOpeningLabel(availability, now)
+    statuses.push({ kind: 'scheduled', label: full === 'Ouverture programmée signalée' ? 'Ouverture programmée' : full })
+  }
+  if (!statuses.length) statuses.push({ kind: 'unknown', label: 'Disponibilité à vérifier' })
+  const sessionNote = known
+    ? 'Indicateurs relevés le ' + availability.observedOn.split('-').reverse().join('/') + '. Vérifiez la situation actuelle et les conditions sur la fiche officielle.'
+    : 'Disponibilité des sessions : à vérifier sur la fiche officielle.'
+  let versionNote = ''
+  const products = ['Word', 'Excel', 'PowerPoint', 'Outlook', 'Access']
+  for (const product of products) {
+    const expression = new RegExp('\\b' + product + '(?:\\s+version)?\\s+(2010|2013|2016|2019|2021|2024|365)\\b', 'ig')
+    const requested = [...String(objective).matchAll(expression)].map(match => match[1])
+    const offered = [...course.title.matchAll(expression)].map(match => match[1])
+    if (new Set(requested).size === 1 && new Set(offered).size === 1 && requested[0] !== offered[0]) {
+      versionNote = 'Version différente : ' + product + ' ' + offered[0] + '. Votre demande mentionne ' + product + ' ' + requested[0] + '. Vérifiez les écarts sur la fiche officielle.'
+      break
+    }
+  }
+  return {
+    duration: course.duration || (course.durationHours == null ? 'Non renseignée' : course.durationHours + ' h'),
+    modality: modes[course.deliveryMode?.value] || 'Modalité à vérifier',
+    statuses, sessionNote, versionNote,
+  }
+}

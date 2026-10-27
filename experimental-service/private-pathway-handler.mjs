@@ -2,7 +2,7 @@
 import { randomUUID } from 'node:crypto'
 
 export function createPrivatePathwayHandler({
-  enabled = false, publicOrigin, authenticate, session, now = Date.now, serveResource = null,
+  enabled = false, publicOrigin, authenticate, session, now = Date.now, serveResource = null, beforePathway = null, afterPathway = null,
 } = {}) {
   if (typeof enabled !== 'boolean') throw Error('Activation booléenne requise')
   const send = (res, status, body) => {
@@ -16,7 +16,7 @@ export function createPrivatePathwayHandler({
   if (origin.protocol !== 'https:' || origin.origin !== publicOrigin ||
       typeof authenticate !== 'function' || typeof session?.getReferences !== 'function' ||
       typeof session?.buildPathway !== 'function' || typeof session?.stop !== 'function' || typeof now !== 'function' ||
-      (serveResource !== null && typeof serveResource !== 'function')) {
+      (serveResource !== null && typeof serveResource !== 'function') || (beforePathway !== null && typeof beforePathway !== 'function') || (afterPathway !== null && typeof afterPathway !== 'function')) {
     throw Error('Origine HTTPS, identité vérifiée côté serveur et session explicites requises')
   }
   let stopped = false
@@ -41,7 +41,7 @@ export function createPrivatePathwayHandler({
       const cancel = () => { if (!res.writableEnded) controller.abort() }
       res.on('close', cancel)
       try {
-        if (serveResource && await serveResource(req, res, { signal: controller.signal }) === true) return
+        if (serveResource && await serveResource(req, res, { signal: controller.signal, identity }) === true) return
         prune()
         if (req.method === 'GET' && req.url === '/private/profile-references') {
           if (tickets.size >= 32) return send(res, 429, { error: 'Trop de confirmations en attente' })
@@ -73,17 +73,20 @@ export function createPrivatePathwayHandler({
         }
         if (stopped || controller.signal.aborted) return send(res, 503, { error: 'Service privé désactivé' })
         tickets.delete(body.requestId)
+        const confirmedContext = beforePathway ? await beforePathway({ identity, profile: body.profile, referenceRevision: ticket.revision, signal: controller.signal }) : null
         const result = await session.buildPathway(body.profile, {
           confirmed: true, referenceRevision: ticket.revision, requestId: body.requestId, signal: controller.signal,
         })
-        if (!controller.signal.aborted) send(res, 200, result)
+        const saved = afterPathway ? await afterPathway({ identity, profile: body.profile, referenceRevision: ticket.revision, result, confirmedContext }) : {}
+        if (!controller.signal.aborted) send(res, 200, { ...result, ...saved })
       } catch (error) {
-        const codes = { references_changed: 409, invalid_profile: 400, busy: 409, duplicate_request: 409,
+        const codes = { proposal_pending: 409, stale_profile: 409, references_changed: 409, invalid_profile: 400, busy: 409, duplicate_request: 409,
           quota_exceeded: 429, disabled: 503, session_unavailable: 503, references_unavailable: 503, timeout: 504 }
         const status = codes[error.code] ?? 502
         if (!res.writableEnded && !controller.signal.aborted) send(res, status, {
           error: 'Demande non aboutie ; réponses conservées. Aucune relance automatique.',
           code: Object.hasOwn(codes, error.code) ? error.code : 'service_unavailable',
+          ...(typeof session.status === 'function' ? { quota: session.status() } : {}),
         })
       } finally { res.removeListener('close', cancel) }
     },

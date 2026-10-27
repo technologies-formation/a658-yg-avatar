@@ -1,12 +1,13 @@
-// Raccordement commun aux essais privés : une tentative durable, rapport sans profil.
+// Raccordement commun : une tentative par défaut ; série de trois explicitement configurée.
 import { writeFileSync } from 'node:fs'
 import { createPathwaySession } from './pathway-session.mjs'
 const backend = 'https://api.a658yg-catalogue.ch'
-export function createRealSession({ stateFile, reportFile, singleInstance, fetchImpl = globalThis.fetch }) {
+export function createRealSession({ stateFile, reportFile, singleInstance, fetchImpl = globalThis.fetch, maxRequests = 1, beforeReserve = null, unlimited = false }) {
+  if(typeof unlimited!=='boolean'||![1,3].includes(maxRequests))throw Error('Plafond d’essai invalide')
   const session = createPathwaySession({ enabled: true, singleInstance, stateFile,
     endpoint: backend + '/api/pathway', referencesEndpoint: backend + '/api/profile-references',
     allowedOrigins: [backend], pathwayTimeoutMs: 200000, referenceTimeoutMs: 5000,
-    maxDailyRequests: 1, maxTotalRequests: 1, fetchImpl,
+    maxDailyRequests: maxRequests, maxTotalRequests: maxRequests, unlimited, fetchImpl, beforeReserve,
   })
   const realSession = {
     status: session.status, getReferences: session.getReferences, stop: session.stop,
@@ -20,7 +21,7 @@ export function createRealSession({ stateFile, reportFile, singleInstance, fetch
       }
       // La tentative est déjà réservée. Un échec de rapport n'entraîne jamais un nouvel appel.
       let reportSaved = false
-      try { writeFileSync(reportFile, JSON.stringify(report, null, 2), { flag: 'wx', mode: 0o600 }); reportSaved = true } catch {}
+      try { writeFileSync(maxRequests===1&&!unlimited?reportFile:reportFile.replace(/\.json$/, '-'+session.status().total+'.json'), JSON.stringify(report, null, 2), { flag: 'wx', mode: 0o600 }); reportSaved = true } catch {}
       return { mode: 'real', result, quota: session.status(), reportSaved }
     },
   }

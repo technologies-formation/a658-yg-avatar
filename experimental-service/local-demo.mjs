@@ -61,7 +61,7 @@ export function createLocalDemo({ port=8799, stateFile=join(homedir(),'.a658-yg-
   res.setHeader('Content-Security-Policy',"default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'")
   const json=(status,data)=>{res.writeHead(status,{'Content-Type':'application/json; charset=utf-8'});res.end(JSON.stringify(data))}
   if(req.headers.host!=='127.0.0.1:'+port) return json(403,{error:'Hote interdit'})
-  const modules={'/local/pathway-result-view.mjs':'pathway-result-view.mjs','/local/pathway-result.mjs':'pathway-result.mjs'}
+  const modules={'/local/catalogue-version.mjs':'catalogue-version.mjs','/local/pathway-result-view.mjs':'pathway-result-view.mjs','/local/pathway-result.mjs':'pathway-result.mjs'}
   if(req.method==='GET'&&Object.hasOwn(modules,req.url)){
    if(!preview)return json(404,{error:'Aperçu non configuré'})
    res.writeHead(200,{'Content-Type':'text/javascript; charset=utf-8'});res.end(readFileSync(new URL(modules[req.url],import.meta.url),'utf8'));return

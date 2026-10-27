@@ -1,7 +1,7 @@
 name: Avatar browser simulation
 on:
   push:
-    branches: ['feat/avatar-interactive-local']
+    branches: ['feat/avatar-interactive-local', 'feat/avatar-messaging-simulation']
     paths:
       - 'index.html'
       - 'experimental-service/**'
@@ -27,18 +27,56 @@ jobs:
         with:
           node-version: '22'
       - name: Install browser test tooling outside the project
-        run: npm install --prefix "$RUNNER_TEMP/avatar-browser" --ignore-scripts --no-audit --no-fund playwright@1.62.1
+        run: npm install --prefix "$RUNNER_TEMP/avatar-browser" --ignore-scripts --no-audit --no-fund playwright@1.62.1 nodemailer@10.2.1
+      - name: Verify optional email MIME assembly without SMTP
+        env:
+          AVATAR_NODEMAILER_MODULE: ${{ runner.temp }}/avatar-browser/node_modules/nodemailer
+        run: node experimental-service/mail-runtime-check.mjs
       - name: Install Chromium and system dependencies
+        timeout-minutes: 3
         run: node "$RUNNER_TEMP/avatar-browser/node_modules/playwright/cli.js" install --with-deps chromium
       - name: Exercise the local questionnaire on desktop and mobile
         env:
           AVATAR_PLAYWRIGHT_MODULE: ${{ runner.temp }}/avatar-browser/node_modules/playwright/index.mjs
           AVATAR_CATALOGUE_MODULE: .contract-source/server/profileReferences.mjs
         run: node experimental-service/visual-check.mjs
+      - name: Verify optional device memory without AI calls
+        env:
+          AVATAR_PLAYWRIGHT_MODULE: ${{ runner.temp }}/avatar-browser/node_modules/playwright/index.mjs
+        run: node experimental-service/device-memory-browser-check.mjs
       - name: Verify summary after mobile and desktop resizing
         env:
           AVATAR_PLAYWRIGHT_MODULE: ${{ runner.temp }}/avatar-browser/node_modules/playwright/index.mjs
         run: node experimental-service/summary-resize-browser-check.mjs
+      - name: Verify the opt-in messaging simulation
+        env:
+          AVATAR_PLAYWRIGHT_MODULE: ${{ runner.temp }}/avatar-browser/node_modules/playwright/index.mjs
+        run: node experimental-service/messaging-browser-check.mjs
+      - name: Verify the isolated fictitious dialogue interface
+        env:
+          AVATAR_PLAYWRIGHT_MODULE: ${{ runner.temp }}/avatar-browser/node_modules/playwright/index.mjs
+        run: node experimental-service/dialogue-browser-check.mjs
+      - name: Verify real dialogue assembly using fake transport only
+        env:
+          AVATAR_PLAYWRIGHT_MODULE: ${{ runner.temp }}/avatar-browser/node_modules/playwright/index.mjs
+        run: node experimental-service/dialogue-real-browser-check.mjs
+      - name: Verify real pathway messaging using fake catalogue and dialogue transports
+        env:
+          AVATAR_PLAYWRIGHT_MODULE: ${{ runner.temp }}/avatar-browser/node_modules/playwright/index.mjs
+        run: node experimental-service/dialogue-pathway-browser-check.mjs
+      - name: Verify the opt-in private unlimited pilot with fake transports
+        env:
+          AVATAR_PLAYWRIGHT_MODULE: ${{ runner.temp }}/avatar-browser/node_modules/playwright/index.mjs
+          AVATAR_BROWSER_UNLIMITED: 'true'
+        run: node experimental-service/dialogue-pathway-browser-check.mjs
+      - name: Verify three fixed validation cases without paid calls
+        env:
+          AVATAR_PLAYWRIGHT_MODULE: ${{ runner.temp }}/avatar-browser/node_modules/playwright/index.mjs
+        run: node experimental-service/validation-browser-check.mjs
+      - name: Verify the daily report layout without sending email
+        env:
+          AVATAR_PLAYWRIGHT_MODULE: ${{ runner.temp }}/avatar-browser/node_modules/playwright/index.mjs
+        run: node experimental-service/daily-report-browser-check.mjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:

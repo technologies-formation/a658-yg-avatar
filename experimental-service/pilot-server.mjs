@@ -6,12 +6,13 @@ import { isAbsolute } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { createPilotSimulation } from './pilot-simulation.mjs'
 import { createPilotPrivateHandler } from './pilot-private.mjs'
+import { renderMessagingPage } from './messaging-page.mjs'
 import { renderPrivatePage } from './private-page.mjs'
 import { createPrivateResources } from './private-resources.mjs'
 import { MAX_REFERENCE_BYTES } from './profile-references.mjs'
 
 export function createPilotSimulationServer({ enabled = false, publicOrigin, tls, users, maxAttempts, windowMs,
-  stateFile, maxDailyRequests, maxTotalRequests, singleInstance, loadProfileReferences, preview, timeoutMs = 10000 } = {}) {
+  stateFile, maxDailyRequests, maxTotalRequests, singleInstance, loadProfileReferences, preview, timeoutMs = 10000, interface: interfaceName = 'legacy' } = {}) {
   if (typeof enabled !== 'boolean') throw Error('Activation booléenne requise')
   if (!enabled) return { server: http.createServer((_req, res) => {
     res.writeHead(503, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' })
@@ -22,10 +23,11 @@ export function createPilotSimulationServer({ enabled = false, publicOrigin, tls
       !tls?.key || !tls?.cert || !Number.isInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 210000) {
     throw Error('Origine HTTPS locale, certificat et délai explicites requis')
   }
+  if (!['legacy', 'messaging'].includes(interfaceName)) throw Error('Interface de simulation inconnue')
   const simulation = createPilotSimulation({ stateFile, maxDailyRequests, maxTotalRequests, singleInstance, loadProfileReferences, preview })
   const gateway = createPilotPrivateHandler({ enabled: true, publicOrigin, session: simulation, users, maxAttempts, windowMs,
     isSecureRequest: req => req.socket.encrypted === true,
-    serveResource: createPrivateResources(simulation, renderPrivatePage, timeoutMs),
+    serveResource: createPrivateResources(simulation, interfaceName === 'messaging' ? renderMessagingPage : renderPrivatePage, timeoutMs),
   })
   const server = https.createServer({ key: tls.key, cert: tls.cert }, gateway.handler)
   server.requestTimeout = 15000
