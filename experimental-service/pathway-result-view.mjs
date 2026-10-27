@@ -56,7 +56,7 @@ export function renderPathwayResult(document, data, { replay = false, preferredM
       const header = add(body, 'div', ''); header.className = 'course-header'
       if (typeof document.createElementNS === 'function') {
         const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
-        icon.setAttribute('viewBox', '0 0 24 24'); icon.setAttribute('aria-hidden', 'true'); icon.setAttribute('class', 'course-document-icon')
+        icon.setAttribute('viewBox', '0 0 24 24'); icon.setAttribute('width', '25'); icon.setAttribute('height', '30'); icon.setAttribute('aria-hidden', 'true'); icon.setAttribute('class', 'course-document-icon')
         const path = document.createElementNS('http://www.w3.org/2000/svg', 'path'); path.setAttribute('d', 'M6 3h8l4 4v14H6z M14 3v5h4 M9 12h6 M9 15h6 M9 18h4')
         icon.append(path); header.append(icon)
       }
