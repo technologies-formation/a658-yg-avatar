@@ -11,10 +11,10 @@ import { data } from './result-test-fixtures.mjs'
 const origin = 'https://dialogue-test.invalid'
 const r = references()
 const profile = { personnelCategory: 'TEST-A', role: 'Assistant', objective: 'Organiser les tâches de test', existingSkills: 'Je débute', timeAvailable: '1 à 2 jours' }
-async function fixture(t,{resume=false,mail=null,deviceMemoryEnabled=false,deviceMemoryNow=Date.now}={}) {
+async function fixture(t,{resume=false,mail=null,deviceMemoryEnabled=false,deviceMemoryNow=Date.now,loadCatalogueStatus}={}) {
  const dir = mkdtempSync(join(tmpdir(),'avatar-dialogue-interface-')), password = 'TEST_LOCAL_PASSWORD_ONLY'
  const users = await Promise.all(['alice','bob'].map(id=>createPilotCredential({id,username:id,password})))
- const options = { mail, deviceMemoryEnabled,deviceMemoryNow, enabled:true, publicOrigin:origin, users, stateFile:join(dir,'quotas.json'),
+ const options = { mail, loadCatalogueStatus, deviceMemoryEnabled,deviceMemoryNow, enabled:true, publicOrigin:origin, users, stateFile:join(dir,'quotas.json'),
   isSecureRequest:req=>req.headers['x-test-secure']==='true', loadProfileReferences:()=>r, preview:data(),...(resume?{resumeDirectory:join(dir,'resume')}:{}) };let service=createDialogueSimulationInterface(options)
  const server = http.createServer((req,res)=>service.handler(req,res));await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve))
  t.after(async()=>{server.closeAllConnections();await new Promise(resolve=>server.close(resolve));rmSync(dir,{recursive:true,force:true})})
@@ -160,4 +160,15 @@ test('copie sur appareil : accès authentifié, confirmation, restauration sign�
  const current=await request('/private/dialogue')
  assert.equal((await request('/private/dialogue',{body:{...body,expectedRevision:current.value.draft.revision,expectedStateToken:current.value.deviceMemory.stateToken}})).status,400)
  assert.equal(f.service.status().total,1)
+})
+
+
+test('date du catalogue : lecture privée seule, repli explicite et aucun quota consommé',async t=>{
+ const version={snapshotDate:'2026-10-27',snapshotHash:'a'.repeat(64)};let unavailable=false
+ const f=await fixture(t,{loadCatalogueStatus:async()=>{if(unavailable)throw Error();return version}})
+ assert.equal((await f.request('/private/catalogue-status',{auth:false})).status,401)
+ assert.deepEqual((await f.request('/private/catalogue-status')).value,{catalogue:version})
+ assert.equal((await f.request('/private/catalogue-status',{body:{}})).status,405)
+ unavailable=true;assert.equal((await f.request('/private/catalogue-status')).status,503)
+ assert.equal(f.service.status().total,0)
 })

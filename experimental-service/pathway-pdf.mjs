@@ -1,3 +1,4 @@
+import {catalogueVersionLabel} from './catalogue-version.mjs'
 import {scheduledOpeningLabel} from './pathway-result.mjs'
 import {createMessagingSnapshot,researchLabel,composeConstraints} from './messaging-state.mjs'
 
@@ -24,7 +25,7 @@ export function createPdfModel(snapshot,{references,now=new Date()}={}){
   const date=new Date(now)
   if(!Number.isFinite(date.getTime()))throw Error('Date d’export invalide.')
   const slug=saved.profile.objective?.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,60)||'formation'
-  return {title:researchLabel(saved),criteria,groups,summary:result.summary,interpretedGoal:result.interpretedGoal||'',gaps:result.gaps??[],duration:result.durationSummary??null,
+  return {title:researchLabel(saved),catalogueLabel:catalogueVersionLabel(result.catalogue,{results:true,simulation}),criteria,groups,summary:result.summary,interpretedGoal:result.interpretedGoal||'',gaps:result.gaps??[],duration:result.durationSummary??null,
     simulation,noPathway,guidance:AI_GUIDANCE,date,filename:'a658yg-recherche-'+slug+'.pdf'}
 }
 
@@ -59,6 +60,7 @@ export function renderPathwayPdf(model,{jsPDF,fonts,logo}={}){
   const heading=text=>{ensure(17);y+=3;write(text,{size:11,style:'bold',after:3})}
   header();write(model.title,{size:19,style:'bold',after:3})
   write(model.simulation?'PARCOURS SIMULÉ - exemple fixe, sans personnalisation':'La synthèse de ma recherche',{size:9,color:muted,after:4})
+  write(model.catalogueLabel,{size:8.5,color:muted,after:4})
   heading('Les critères de ma recherche')
   const objective=model.criteria.find(([label])=>label==='Objectif')
   if(objective)write(objective[0]+' : '+objective[1],{size:9,after:3})

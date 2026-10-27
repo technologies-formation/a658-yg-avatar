@@ -1,3 +1,4 @@
+import {fetchCatalogueStatus} from './catalogue-status.mjs'
 import {readDailyReportEnvironment,createDailyReporter} from './daily-report.mjs'
 import {readConsumptionEnvironment} from './consumption-ledger.mjs'
 // Lanceur distinct : préparation sans réseau, activation explicitement verrouillée.
@@ -101,7 +102,7 @@ export function createHostedDialogueTrial(options = {}) {
   const hosted=createHostedTransport({...options,responseTimeoutMs:pathway?210000:35000,socketTimeoutMs:pathway?215000:40000,
     createGateway:({isSecureRequest})=>createRealDialogueTrialInterface({enabled:true,paidTrialAuthorized:true,
       publicOrigin:options.publicOrigin,users:options.users,isSecureRequest,stateFile:options.stateFile,
-      loadProfileReferences:options.loadProfileReferences,preview:options.preview,mail:options.mail,consumption:options.consumption,budgetDirectory:options.budgetDirectory,
+      loadProfileReferences:options.loadProfileReferences,preview:options.preview,loadCatalogueStatus:()=>fetchCatalogueStatus({fetchImpl:options.catalogueStatusFetchImpl??options.fetchImpl??globalThis.fetch}),mail:options.mail,consumption:options.consumption,budgetDirectory:options.budgetDirectory,
       apiKey:options.apiKey,fetchImpl:options.fetchImpl,timeoutMs:30000,resumeDirectory:join(options.privateDirectory,'resume'),deviceMemoryEnabled:options.deviceMemoryEnabled??false,
       ...(pathway?{pathwayTrial:{...pathway,directory:options.validationDirectory,validationAuthorized:options.validationAuthorized,stateFile:options.pathwayStateFile,reportFile:options.pathwayReportFile,fetchImpl:options.consumption?async(url,init)=>{
         const fetcher=options.pathwayFetchImpl??options.fetchImpl??globalThis.fetch

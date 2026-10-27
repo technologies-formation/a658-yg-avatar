@@ -20,7 +20,7 @@ test('le résultat conservé garde ses rubriques, positions, liens, justificatio
 });
 test('la page est explicitement en simulation, contrat sérialisé sans injection HTML',()=>{
  const r=references(x=>{x.pathway.fields.entity.suggestions[0].label='</script><img src=x onerror=alert(1)>';});
- const html=renderMessagingPage(r);assert.match(html,/simulation uniquement/);assert.match(html,/messaging-client.mjs/);assert.doesNotMatch(html,/<img src=x/);assert.match(html,/\\u003c\/script/);
+ const html=renderMessagingPage(r);assert.match(html,/"mode":"simulation"/);assert.match(html,/messaging-client.mjs/);assert.doesNotMatch(html,/<img src=x/);assert.match(html,/\\u003c\/script/);
  assert.throws(()=>renderMessagingPage(r,{timeoutMs:0}));
 });
 

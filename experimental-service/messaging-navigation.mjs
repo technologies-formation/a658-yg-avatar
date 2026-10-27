@@ -3,7 +3,7 @@ export function initMessagingNavigation(document){
  const $=id=>document.getElementById(id),app=$('assistant-app'),sidebar=$('sidebar'),workspace=$('workspace'),toggle=$('menu-toggle');
  const zone=$('composer-zone');
  if(!$('pilot-details')){
-  const details=document.createElement('details');details.id='pilot-details';details.className='pilot-details';
+  const details=document.createElement('details');details.id='pilot-details';details.className='pilot-details';details.hidden=true;
   const summary=document.createElement('summary');summary.textContent='Détails du test';
   const content=document.createElement('div');content.id='pilot-details-content';content.className='pilot-details-content';
   details.append(summary,content);zone.append(details);content.append($('refresh-references'));

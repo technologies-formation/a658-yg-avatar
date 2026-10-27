@@ -21,13 +21,12 @@ export function initDeviceMemory({document,meta,request,getRevision,isBusy,onBus
  function render(){
   if(!host)return
   host.replaceChildren()
-  const title=make('h3','Retrouver ma demande'),label=make('label'),toggle=make('input')
-  title.style.cssText='font-size:17px;margin:0 0 12px'
+  const label=make('label'),toggle=make('input')
   toggle.type='checkbox';toggle.id='remember-device';toggle.checked=enabled;toggle.disabled=!store||dead||saving||isBusy();toggle.style.cssText='width:22px;min-width:22px;height:22px;min-height:22px;margin:0;flex-shrink:0';label.htmlFor=toggle.id;label.style.cssText='display:flex;align-items:center;gap:10px;line-height:1.5';label.append(toggle,make('span','Conserver ma demande sur cet appareil pendant 30 jours'))
   toggle.addEventListener('change',()=>toggle.checked?enable():forget())
   const help=make('p','Une copie des critères confirmés et des recherches, sans le texte de la discussion. À éviter sur un ordinateur partagé. La copie expire après 30 jours ; elle est supprimée à la prochaine ouverture.');help.style.cssText='font-size:13px;line-height:1.6'
   const line=make('p',message);line.id='device-memory-status';line.setAttribute('role','status');line.style.cssText='font-size:13px;line-height:1.6'
-  host.append(title,label,help,line)
+  host.append(label,help,line)
   if(enabled){
    const button=make('button','Oublier ma demande sur cet appareil');button.type='button';button.id='forget-device';button.disabled=dead||isBusy();button.addEventListener('click',forget);host.append(button)
    const note=make('p','Cette action efface la copie locale. Elle ne supprime pas les recherches conservées par votre accès privé au pilote.');note.style.cssText='font-size:12px;line-height:1.5';host.append(note)
@@ -76,7 +75,7 @@ export function initDeviceMemory({document,meta,request,getRevision,isBusy,onBus
  }
  document.defaultView.addEventListener('storage',event=>{if(!store||event.key!==store.key&&event.key!==null)return;generation++;clearTimeout(timer);try{record=store.read();enabled=Boolean(record);pending=enabled&&record.stateToken!==latest;if(!enabled){notice?.remove();notice=null;message='La mémorisation a été désactivée dans un autre onglet.'}}catch{enabled=false}render()})
  return {
-  mount(parent){host=document.getElementById('device-memory-settings');if(!host){host=make('section');host.id='device-memory-settings';host.style.cssText='border-top:1px solid #b8cdb4;margin-top:24px;padding-top:18px';parent.append(host)}checkExpiry();render()},
+  mount(parent){host=document.getElementById('device-memory-settings');if(!host){host=make('section');host.id='device-memory-settings';host.setAttribute('aria-label','Mémorisation sur cet appareil');host.style.cssText='border-top:1px solid #b8cdb4;margin-top:24px;padding-top:18px';parent.append(host)}checkExpiry();render()},
   observe(value){const next=value.deviceMemory;if(!next)return;if(next.scope!==scope){generation++;dead=true;enabled=false;clearTimeout(timer);message='Accès privé changé. Rechargez la page.';notice?.remove();render();return}if(next.stateToken!==latest){latest=next.stateToken;changed=true;schedule()}},
   offer,
   flush(){if(enabled&&changed)schedule()},

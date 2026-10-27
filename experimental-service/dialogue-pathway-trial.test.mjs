@@ -41,7 +41,7 @@ async function fixture(t,{failure=false,resume=false,saveFailure=false}={}){
 }
 test('parcours réel : mode explicite, profil accepté exact, une tentative globale, rapport sans profil et budget dialogue conservé',async t=>{
  const f=await fixture(t)
- const page=await f.request('/private/');assert.match(page.text,/"mode":"real"/);assert.match(page.text,/un parcours réel maximum/);assert.doesNotMatch(page.text,/FAKE_KEY_ONLY/)
+ const page=await f.request('/private/');assert.match(page.text,/"mode":"real"/);assert.match(page.text,/"dialogue":"real-trial"/);assert.doesNotMatch(page.text,/FAKE_KEY_ONLY/)
  assert.equal(f.calls.filter(x=>x.method==='POST').length,0)
  const state=(await f.request('/private/dialogue')).value;assert.equal(state.pathwayMode,'real');assert.equal(state.budget.attempts,0);assert.equal(state.pathwayQuota.total,0);assert.equal(state.pathwayQuota.maxTotalRequests,1)
  await f.edit();const ticket=await f.ticket()

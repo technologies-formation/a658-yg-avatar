@@ -1,3 +1,4 @@
+import {readCatalogueVersion} from './catalogue-version.mjs'
 // Contrat de résultat partagé entre le transport serveur et l’affichage. Aucun accès réseau.
 export class PathwayAdapterError extends Error {
   constructor(code, message, status) {
@@ -27,6 +28,7 @@ export function validatePathwayResult(data) {
       (!Array.isArray(data.recommendedSteps) && !Array.isArray(data.steps))) {
     fail('invalid_response', 'Reponse parcours non conforme')
   }
+  if(data.catalogue!==undefined&&!readCatalogueVersion(data.catalogue))fail('invalid_response','Version du catalogue invalide')
   let count = 0
   for (const category of ['recommendedSteps', 'steps', 'optionalSteps', 'informationalCourses']) {
     if (data[category] === undefined) continue

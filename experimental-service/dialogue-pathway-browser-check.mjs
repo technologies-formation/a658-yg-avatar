@@ -14,7 +14,7 @@ const { chromium } = await import(process.env.AVATAR_PLAYWRIGHT_MODULE || 'playw
 const origin='https://dialogue-test.invalid',password='FAKE_BROWSER_TEST_PASSWORD_ONLY'
 const dir=mkdtempSync(join(tmpdir(),'avatar-dialogue-browser-'))
 const users=await Promise.all(['desktop'].map(name=>createPilotCredential({id:'browser-'+name,username:'browser-'+name,password})))
-const budgetDirectory=join(dir,'budget');mkdirSync(budgetDirectory,{mode:0o700});let apiCalls=0,engineCalls=0;const engineRequests=[];const engineResult=data();engineResult.recommendedSteps[0].course.sessionAvailability={hasOpenSession:true,hasScheduledSession:false,observedOn:'2026-10-23',source:'official-session-icons'};engineResult.optionalSteps[0].course.sessionAvailability={hasOpenSession:true,hasScheduledSession:true,observedOn:'2026-10-23',source:'official-session-icons'};engineResult.optionalSteps[0].course.sessionAvailability.scheduledOpeningDates=['2998-11-03'];engineResult.optionalSteps[0].course.deliveryMode={value:'in_person',sourceField:'titleRaw',evidence:engineResult.optionalSteps[0].course.title};engineResult.informationalCourses[0].course.deliveryMode={value:'online',sourceField:'titleRaw',evidence:engineResult.informationalCourses[0].course.title};engineResult.durationSummary={budgetHours:16,recommendedHours:16,excessHours:0,withinBudget:true}
+const budgetDirectory=join(dir,'budget');mkdirSync(budgetDirectory,{mode:0o700});let apiCalls=0,engineCalls=0;const engineRequests=[];const engineResult=data();engineResult.catalogue={snapshotDate:'2026-10-26',snapshotHash:'a'.repeat(64)};engineResult.recommendedSteps[0].course.sessionAvailability={hasOpenSession:true,hasScheduledSession:false,observedOn:'2026-10-23',source:'official-session-icons'};engineResult.optionalSteps[0].course.sessionAvailability={hasOpenSession:true,hasScheduledSession:true,observedOn:'2026-10-23',source:'official-session-icons'};engineResult.optionalSteps[0].course.sessionAvailability.scheduledOpeningDates=['2998-11-03'];engineResult.optionalSteps[0].course.deliveryMode={value:'in_person',sourceField:'titleRaw',evidence:engineResult.optionalSteps[0].course.title};engineResult.informationalCourses[0].course.deliveryMode={value:'online',sourceField:'titleRaw',evidence:engineResult.informationalCourses[0].course.title};engineResult.durationSummary={budgetHours:16,recommendedHours:16,excessHours:0,withinBudget:true}
 const emails=[],mail=createResearchEmailService({directory:join(dir,'mail'),from:'sender@example.invalid',transport:{async sendMail(message){emails.push(message);return {accepted:[message.to.address],rejected:[]}}}})
 const service=createRealDialogueTrialInterface({mail,enabled:true,paidTrialAuthorized:true,apiKey:'FAKE_BROWSER_KEY_ONLY',budgetDirectory,fetchImpl:async(url,init)=>{
  apiCalls++;if(url.endsWith('/input_tokens'))return new Response(JSON.stringify({object:'response.input_tokens',input_tokens:1000}),{headers:{'Content-Type':'application/json'}});
@@ -74,6 +74,7 @@ try{
   assert.match(discussionResult,/Modalité du cours : non renseignée/);assert.match(discussionResult,/Compatibilité avec votre préférence : non établie/);assert.match(discussionResult,/Écart avec votre préférence/);assert.match(discussionResult,/Modalité conforme à votre préférence/)
   const researchHeading=await page.locator('#thread .plan-status strong').last().textContent();assert.match(researchHeading,/^Progresser sur Word/);assert.equal(await page.locator('#view-caption').textContent(),'Votre échange avec l’assistant');assert.equal(await page.locator('#open-profile').count(),1)
   assert.equal(await page.locator('#thread .session-badge').count(),3);assert.match(discussionResult,/Inscriptions ouvertes lors du relevé/);assert.match(discussionResult,/Ouverture des inscriptions prévue le 3 novembre 2998/);assert.match(discussionResult,/Indicateurs relevés le 23\/10\/2026/);
+  assert.match(discussionResult,/Résultats basés sur le catalogue du 26.10.2026/);
   const cards=await page.locator('#thread .pathway-course').allTextContents()
   await clickNavigation(page,'#tab-courses');assert.equal(await page.locator('#courses-content h1').count(),1);assert.deepEqual(await page.locator('#courses-content .pathway-course').allTextContents(),cards)
   assert.equal(await page.locator('#courses-content .pathway-result').innerText(),discussionResult)
@@ -135,9 +136,8 @@ try{
   assert.equal(await page.locator('#assistant-working').count(),0)
   assert.match(await page.locator('#dialogue-budget').textContent(),new RegExp((name==='desktop'?'2':'4')+'/10 tentatives'))
   assert.equal((await page.locator('body').textContent()).includes('DO_NOT_EXPOSE_TEST_SECRET_OR_BODY'),false)
-  await page.locator('#pilot-details summary').click()
   const refreshed=page.waitForResponse(response=>response.url()===origin+'/private/dialogue'&&response.request().method()==='GET')
-  await page.getByRole('button',{name:'Actualiser les choix du catalogue',exact:true}).click()
+  await page.evaluate(()=>document.getElementById('refresh-references').click())
   await (await refreshed).finished()
   await page.locator('#status').filter({hasText:/api_unavailable.*API HTTP 429/}).waitFor()
   assert.equal(pathways,1)
