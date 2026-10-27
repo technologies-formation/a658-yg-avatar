@@ -80,7 +80,7 @@ export function renderPathwayResult(document, data, { replay = false, preferredM
       const known = mode && mode.value !== 'unknown'
       add(delivery, 'p', known ? 'Modalité indiquée dans l’intitulé : ' + modeLabels[mode.value] + '.'
         : 'Modalité du cours : non renseignée dans les données transmises.')
-      if (preferredModality) add(delivery, 'p', 'Votre préférence : ' + preferredModality + '.')
+      if (preferredModality) add(delivery, 'p', 'Votre préférence : ' + (preferredModality === 'Indifférent' ? 'Sans préférence de modalité' : preferredModality) + '.')
       if (preferredModality && preferredModality !== 'Indifférent') {
         const preferred = preferredModality === 'En ligne' ? 'online' : 'in_person'
         add(delivery, 'p', !known ? 'Compatibilité avec votre préférence : non établie. Vérifiez la modalité sur la fiche officielle.'

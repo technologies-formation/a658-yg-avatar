@@ -50,8 +50,8 @@ export function renderPathwayPdf(model,{jsPDF,fonts,logo}={}){
   }
   const ensure=h=>{if(y+h>bottom){if(doc.getNumberOfPages()>=100)throw Error('Recherche trop longue pour cet export.');doc.addPage();header()}}
   const linesFor=(text,size=9.5,style='normal',w=width)=>{font(size,style);return String(text??'').split('\n').flatMap(part=>part?doc.splitTextToSize(part,w):[''])}
-  const write=(text,{size=9.5,style='normal',color=ink,after=2}={})=>{
-    const height=size*.352778*1.42
+  const write=(text,{size=9.5,style='normal',color=ink,after=2,leading=1.42}={})=>{
+    const height=size*.352778*leading
     for(const content of linesFor(text,size,style)){
       ensure(height);font(size,style,color);doc.text(content,x,y);y+=height
     }
@@ -100,7 +100,7 @@ export function renderPathwayPdf(model,{jsPDF,fonts,logo}={}){
       ]
       const cardWidth=right-left-12
       const linkLines=course.sourceUrl?linesFor(course.sourceUrl,7.5,'normal',cardWidth):[]
-      const height=parts.reduce((h,p)=>h+linesFor(p.text,p.size,p.style||'normal',cardWidth).length*p.size*.352778*1.42+(p.badge?6:1.5),0)+(course.sourceUrl?linkLines.length*3.8+9:3)+7
+      const height=parts.reduce((h,p)=>h+linesFor(p.text,p.size,p.style||'normal',cardWidth).length*p.size*.352778*1.25+(p.badge?5:1.5),0)+(course.sourceUrl?linkLines.length*3.8+4.5:0)+8
       const boxed=height<bottom-50
       if(first){ensure(boxed?height+14:49);heading(label);first=false}
       ensure(Math.min(height,35))
@@ -114,16 +114,16 @@ export function renderPathwayPdf(model,{jsPDF,fonts,logo}={}){
       for(const part of parts){
         if(part.badge){
           const lines=linesFor(part.text,part.size,'bold',cardWidth-6)
-          const h=lines.length*part.size*.352778*1.42+3
+          const h=lines.length*part.size*.352778*1.25+3
           ensure(h+2)
           const color=part.badge==='open'?'#edf7ef':part.badge==='scheduled'?'#eff3f8':'#f2f5f5'
           const border=part.badge==='open'?'#8db39a':'#a7b7c4'
           const w=Math.min(cardWidth,Math.max(...lines.map(line=>doc.getTextWidth(line)))+8)
           doc.setFillColor(color);doc.setDrawColor(border);doc.roundedRect(x,y-3,w,h,1,1,'FD')
           const previousX=x,previousWidth=width;x+=3;width=cardWidth-6
-          write(part.text,{size:part.size,style:'bold',color:part.badge==='open'?'#246244':ink,after:5})
+          write(part.text,{size:part.size,style:'bold',color:part.badge==='open'?'#246244':ink,after:5,leading:1.25})
           x=previousX;width=previousWidth
-        }else write(part.text,{after:1.5,...part})
+        }else write(part.text,{after:1.5,leading:1.25,...part})
       }
       if(course.sourceUrl){
         ensure(8+linkLines.length*3.8)
