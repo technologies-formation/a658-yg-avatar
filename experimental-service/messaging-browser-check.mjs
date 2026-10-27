@@ -15,6 +15,12 @@ try{for(const [name,width,height]of [['desktop',1280,900],['mobile',390,844]]){
   if(path==='/private/pathway'&&request.method()==='POST'){const body=request.postDataJSON();assert.equal(body.confirmed,true);assert.equal(body.referenceRevision,r.revision);payloads.push(body);posts++;return route.fulfill({json:{mode:'simulation',preview:result,quota:{total:posts,maxTotalRequests:5}}});}
   unexpected.push(path);return route.abort();
  });const page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));await page.goto(origin);
+ const catalogueLink=page.locator('#open-catalogue');
+ assert.equal(await catalogueLink.getAttribute('href'),'https://api.a658yg-catalogue.ch/');
+ assert.equal(await catalogueLink.getAttribute('target'),'_blank');
+ assert.equal(await catalogueLink.getAttribute('rel'),'noopener noreferrer');
+ await openNavigation(page);await catalogueLink.focus();assert.equal(await catalogueLink.evaluate(e=>e===document.activeElement),true);
+ if(width<761){await page.keyboard.press('Escape');assert.equal(await page.locator('#menu-toggle').getAttribute('aria-expanded'),'false');}
  const send=async text=>{await page.locator('#message').fill(text);await page.getByRole('button',{name:'Envoyer',exact:true}).click();};
  await page.getByRole('button',{name:'Groupe de test A',exact:true}).click();await send('Service libre');await page.getByRole('button',{name:'Situation de test',exact:true}).click();await send('Assistant de test');await send('Organiser mes tâches de test');
  await page.getByRole('button',{name:'Quelques bases',exact:true}).click();await page.getByRole('button',{name:'1 à 2 jours',exact:true}).click();

@@ -28,7 +28,7 @@ export function initMessagingNavigation(document){
   if(!opened||!media.matches)return;
   if(event.key==='Escape'){event.preventDefault();close(true);return}
   if(event.key!=='Tab')return;
-  const list=[...sidebar.querySelectorAll('button:not([disabled]),input:not([disabled]),[tabindex]')].filter(e=>e.tabIndex>=0&&e.getClientRects().length);
+  const list=[...sidebar.querySelectorAll('a[href],button:not([disabled]),input:not([disabled]),[tabindex]')].filter(e=>e.tabIndex>=0&&e.getClientRects().length);
   const first=list[0],last=list.at(-1);if(!first)return;
   if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus()}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus()}
  });
