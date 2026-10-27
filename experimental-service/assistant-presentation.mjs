@@ -84,7 +84,8 @@ export function createResearchCriteria(document, snapshot, appendProfile, open =
   const summary = document.createElement('summary')
   const title = document.createElement('span'); title.className = 'criteria-title'; title.textContent = 'Les critères de ma recherche'
   const hint = document.createElement('span'); hint.className = 'criteria-hint'
-  hint.textContent = [snapshot.profile.timeAvailable, snapshot.modality].filter(Boolean).join(' · ') || 'Critères confirmés'
+  const modality = snapshot.modality === 'Indifférent' ? 'Sans préférence de modalité' : snapshot.modality
+  hint.textContent = [snapshot.profile.timeAvailable, modality].filter(Boolean).join(' · ') || 'Critères confirmés'
   summary.append(title, hint)
   const content = document.createElement('div'); content.className = 'criteria-content'
   appendProfile(snapshot.profile, content)
