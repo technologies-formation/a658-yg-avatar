@@ -15,7 +15,7 @@ export function createPdfModel(snapshot,{references,now=new Date()}={}){
     const option=references?.revision===saved.referenceRevision?references.pathway?.fields?.[key]?.options?.find(x=>x.value===value):null
     return [label,option?.label||value||'Non renseigné']
   })
-  criteria.push(['Modalité souhaitée',saved.modality||'Non renseignée'])
+  criteria.push(['Modalité souhaitée',saved.modality==='Indifférent'?'Sans préférence de modalité':saved.modality||'Non renseignée'])
   let constraints=saved.profile.constraints??''
   const prefix=composeConstraints(saved.modality)
   if(prefix&&(constraints===prefix||constraints.startsWith(prefix+'\n')))constraints=constraints.slice(prefix.length).trim()
