@@ -43,9 +43,9 @@ function createSession(options, realTrial) {
     rejectProposal() { fail('disabled') }, getProposal() { fail('disabled') }, editProfile() { fail('disabled') }, restart() { fail('disabled') }, getDraft() { fail('disabled') },
     getPathwayProfile() { fail('disabled') }, getUsage() { fail('disabled') },
   })
-  const { provider, references, initialProfile = {}, initialModality = '', maxTurns, timeoutMs, maxHistoryCharacters = 12000 } = options
+  const { provider, references, initialProfile = {}, initialModality = '', maxTurns, timeoutMs, maxHistoryCharacters = 12000, unlimited = false } = options
   const mode = realTrial ? 'real' : 'simulation', usageRecords = []
-  if (provider?.mode !== mode || typeof provider.respond !== 'function' ||
+  if (typeof unlimited !== 'boolean' || (unlimited && !realTrial) || provider?.mode !== mode || typeof provider.respond !== 'function' ||
       !Number.isSafeInteger(maxTurns) || maxTurns < 1 || maxTurns > 20 ||
       !Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 30000 ||
       !Number.isSafeInteger(maxHistoryCharacters) || maxHistoryCharacters < 1500 || maxHistoryCharacters > 32000) fail('configuration')
@@ -93,7 +93,7 @@ function createSession(options, realTrial) {
     return { kind: value.kind, reply: value.reply.trim(), changes }
   }
   return Object.freeze({
-    status: () => ({ enabled: !stopped, mode, busy: active !== null, attemptedTurns, maxTurns }),
+    status: () => ({ enabled: !stopped, mode, busy: active !== null, attemptedTurns, maxTurns: unlimited ? null : maxTurns, ...(unlimited ? { unlimited: true } : {}) }),
     getDraft() { available(); return snapshot() },
     getUsage() { available(); return copy(usageRecords) },
     getProposal() { available(); return copy(pending) },
@@ -150,7 +150,9 @@ function createSession(options, realTrial) {
       if (signal !== undefined && !(signal instanceof AbortSignal)) fail('invalid_request')
       if (signal?.aborted) fail('cancelled')
       if (attemptedIds.has(requestId)) fail('duplicate_request')
-      if (attemptedTurns >= maxTurns) fail('quota_exceeded')
+      if (!unlimited && attemptedTurns >= maxTurns) fail('quota_exceeded')
+      // Le profil accepté reste entier ; seul le contexte ancien envoyé au modèle est borné.
+      if (unlimited) while (history.length && (history.length >= 38 || history.reduce((sum,x)=>sum+x.text.length,0)+message.length+4000 > maxHistoryCharacters)) history.shift()
       if (history.reduce((sum, x) => sum + x.text.length, 0) + message.length + 4000 > maxHistoryCharacters) fail('history_limit')
       const controller = new AbortController(); active = controller; pending = null
       attemptedTurns++; attemptedIds.add(requestId)

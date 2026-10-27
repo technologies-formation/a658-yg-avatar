@@ -95,12 +95,13 @@ export function prepareHostedPathwayValidation(configFile,siteDirectory){
 export function createHostedDialogueTrial(options = {}) {
   // Ne pas consulter la clé avant les trois autorisations du lancement concret.
   if (options.enabled !== true || options.paidTrialAuthorized !== true || options.billingReviewed !== true) throw Error('Essai désactivé ou facturation non vérifiée')
+  if (options.unlimited !== undefined && typeof options.unlimited !== 'boolean') throw Error('Mode de pilote invalide')
   const pathway = options.pathwayTrial?.enabled ? options.pathwayTrial : null
   if (pathway && pathway.paidTrialAuthorized !== true) throw Error('Essai de parcours non activé explicitement')
   if(pathway?.series&&options.validationAuthorized!==true)throw Error('Validation distincte non autorisée au lancement')
   const reporter=options.dailyReport?createDailyReporter({config:options.dailyReport,mail:options.mail,consumption:options.consumption,fetchImpl:options.reportFetchImpl}):null
   const hosted=createHostedTransport({...options,responseTimeoutMs:pathway?210000:35000,socketTimeoutMs:pathway?215000:40000,
-    createGateway:({isSecureRequest})=>createRealDialogueTrialInterface({enabled:true,paidTrialAuthorized:true,
+    createGateway:({isSecureRequest})=>createRealDialogueTrialInterface({enabled:true,paidTrialAuthorized:true,unlimited:options.unlimited??false,
       publicOrigin:options.publicOrigin,users:options.users,isSecureRequest,stateFile:options.stateFile,
       loadProfileReferences:options.loadProfileReferences,preview:options.preview,loadCatalogueStatus:()=>fetchCatalogueStatus({fetchImpl:options.catalogueStatusFetchImpl??options.fetchImpl??globalThis.fetch}),mail:options.mail,consumption:options.consumption,budgetDirectory:options.budgetDirectory,
       apiKey:options.apiKey,fetchImpl:options.fetchImpl,timeoutMs:30000,resumeDirectory:join(options.privateDirectory,'resume'),deviceMemoryEnabled:options.deviceMemoryEnabled??false,

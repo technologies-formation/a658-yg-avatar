@@ -11,12 +11,13 @@ import { createPilotCredential } from './pilot-auth.mjs'
 import { references } from './reference-test-fixtures.mjs'
 import { data } from './result-test-fixtures.mjs'
 const { chromium } = await import(process.env.AVATAR_PLAYWRIGHT_MODULE || 'playwright')
+const unlimitedBrowser=process.env.AVATAR_BROWSER_UNLIMITED==='true'
 const origin='https://dialogue-test.invalid',password='FAKE_BROWSER_TEST_PASSWORD_ONLY'
 const dir=mkdtempSync(join(tmpdir(),'avatar-dialogue-browser-'))
 const users=await Promise.all(['desktop'].map(name=>createPilotCredential({id:'browser-'+name,username:'browser-'+name,password})))
 const budgetDirectory=join(dir,'budget');mkdirSync(budgetDirectory,{mode:0o700});let apiCalls=0,engineCalls=0;const engineRequests=[];const engineResult=data();engineResult.catalogue={snapshotDate:'2026-10-26',snapshotHash:'a'.repeat(64)};engineResult.recommendedSteps[0].course.sessionAvailability={hasOpenSession:true,hasScheduledSession:false,observedOn:'2026-10-23',source:'official-session-icons'};engineResult.optionalSteps[0].course.sessionAvailability={hasOpenSession:true,hasScheduledSession:true,observedOn:'2026-10-23',source:'official-session-icons'};engineResult.optionalSteps[0].course.sessionAvailability.scheduledOpeningDates=['2998-11-03'];engineResult.optionalSteps[0].course.deliveryMode={value:'in_person',sourceField:'titleRaw',evidence:engineResult.optionalSteps[0].course.title};engineResult.informationalCourses[0].course.deliveryMode={value:'online',sourceField:'titleRaw',evidence:engineResult.informationalCourses[0].course.title};engineResult.durationSummary={budgetHours:16,recommendedHours:16,excessHours:0,withinBudget:true}
 const emails=[],mail=createResearchEmailService({directory:join(dir,'mail'),from:'sender@example.invalid',transport:{async sendMail(message){emails.push(message);return {accepted:[message.to.address],rejected:[]}}}})
-const service=createRealDialogueTrialInterface({mail,enabled:true,paidTrialAuthorized:true,apiKey:'FAKE_BROWSER_KEY_ONLY',budgetDirectory,fetchImpl:async(url,init)=>{
+const service=createRealDialogueTrialInterface({mail,unlimited:unlimitedBrowser,enabled:true,paidTrialAuthorized:true,apiKey:'FAKE_BROWSER_KEY_ONLY',budgetDirectory,fetchImpl:async(url,init)=>{
  apiCalls++;if(url.endsWith('/input_tokens'))return new Response(JSON.stringify({object:'response.input_tokens',input_tokens:1000}),{headers:{'Content-Type':'application/json'}});
  const last=JSON.parse(JSON.parse(init.body).input[0].content).messages.at(-1);if(last.text==='TEST erreur transport')return new Response('DO_NOT_EXPOSE_TEST_SECRET_OR_BODY',{status:429,headers:{'Content-Type':'application/json'}});return new Response(JSON.stringify({status:'completed',model:'gpt-6-luna',usage:{input_tokens:1000,output_tokens:100},output:[{type:'message',role:'assistant',content:[{type:'output_text',text:JSON.stringify({kind:'ask',reply:'Quels documents rédigez-vous au quotidien ?',changes:[{field:'objective',value:'Progresser sur Word pour mes rapports',evidence:[{messageId:last.id,quote:last.text}]}]})}]}]}),{headers:{'Content-Type':'application/json'}});
  },pathwayTrial:{enabled:true,paidTrialAuthorized:true,stateFile:join(dir,'engine-quotas.json'),reportFile:join(dir,'engine-report.json'),fetchImpl:async(url,init)=>{if(url.endsWith('/api/profile-references'))return new Response(JSON.stringify(references()),{headers:{'Content-Type':'application/json',ETag:'"'+references().revision+'"'}});engineCalls++;engineRequests.push(JSON.parse(init.body));return new Response(JSON.stringify(engineResult),{headers:{'Content-Type':'application/json'}})}},resumeDirectory:join(dir,'resume'),publicOrigin:origin,users,stateFile:join(dir,'quotas.json'),
@@ -42,6 +43,42 @@ try{
    });await route.fulfill(result)
   })
   await page.goto(origin+'/private/');await page.locator('#dialogue-budget').waitFor({state:'attached',timeout:5000}).catch(async error=>{console.log(JSON.stringify({name,errors,status:await page.locator('#status').count()?await page.locator('#status').textContent():'no status element'}));await page.screenshot({path:'visual-check/dialogue-pathway-'+name+'-startup-error.png',fullPage:true});throw error})
+  if(unlimitedBrowser){
+   await page.locator('#thread .bubble').first().waitFor();
+   assert.equal(apiCalls,0);assert.equal(engineCalls,0);
+   assert.match(await page.locator('#messaging-config').textContent(),/"unlimited":true/);
+   let count=0;
+   for(const [screen,size]of [['desktop',{width:1280,height:900}],['mobile',{width:390,height:844}]]){
+    await page.setViewportSize(size);await page.waitForFunction(()=>document.getElementById('sidebar').inert===(innerWidth<=760));
+    for(let n=1;n<=3;n++){
+     await clickNavigation(page,'#open-profile');
+     await page.locator('[name=objective]').fill('Objectif fictif Word '+screen+' '+n);
+     await page.locator('[name=role]').fill('Assistant administratif');
+     await page.locator('[name=personnelCategory]').selectOption('TEST-A');
+     await page.locator('[name=existingSkills]').fill('Je débute');
+     await page.locator('[name=timeAvailable]').fill('1 à 2 jours');
+     await page.locator('[name=modality]').selectOption('Indifférent');
+     await page.getByRole('button',{name:'Enregistrer ma demande',exact:true}).click();
+     const confirm=page.getByRole('button',{name:'Confirmer ma demande et générer — essai payant',exact:true});
+     await confirm.waitFor();assert.equal(engineCalls,count);
+     assert.doesNotMatch(await page.locator('#thread .bubble').last().innerText(),/Une seule tentative/);
+     await confirm.click();count++;
+     await page.locator('#status').filter({hasText:'Parcours réel reçu. Recherches effectuées : '+count+'.'}).waitFor({state:'attached'});
+     assert.equal(engineCalls,count);assert.equal(apiCalls,0);
+    }
+    await page.reload();await page.locator('#thread .pathway-course').first().waitFor();
+    await page.getByRole('button',{name:'Confirmer ma demande et générer — essai payant',exact:true}).waitFor();
+    assert.equal(engineCalls,count);assert.match(await page.locator('#pathway-quota').textContent(),/sans plafond d’essais/);
+    await clickNavigation(page,'#tab-courses');
+    await page.screenshot({path:'visual-check/unlimited-courses-'+screen+'.png',fullPage:true,animations:'disabled'});
+    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+    await clickNavigation(page,'#tab-discussion');
+   }
+   assert.equal(engineCalls,6);assert.equal(pathways,6);assert.equal(apiCalls,0);assert.equal(emails.length,0);
+   assert.deepEqual(errors,[]);assert.deepEqual(external,[]);
+   results.push({name,unlimited:true,pathways,confirmationRequired:true,noExternalRequests:true,transport:'fake'});
+   await context.close();continue;
+  }
   await page.waitForFunction(()=>document.querySelector('link[data-assistant-icon]')?.href.startsWith('data:image/png;base64,'))
   const iconUrl=await page.locator('link[data-assistant-icon]').getAttribute('href');writeFileSync('visual-check/assistant-tab-icon.png',Buffer.from(iconUrl.split(',')[1],'base64'))
   assert.equal(await page.locator('#status').textContent(),'Dialogue IA : chaque message envoyé peut être payant. Aucun appel OpenAI à l’ouverture.')

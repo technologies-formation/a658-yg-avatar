@@ -22,6 +22,7 @@ export function createPathwaySession({
   isEnabled = () => true,
   fetchImpl = globalThis.fetch,
   beforeReserve = null,
+  unlimited = false,
 } = {}) {
   if (typeof enabled !== 'boolean') fail('configuration', 'Activation booleenne explicite requise')
   if (!enabled) return {
@@ -39,7 +40,7 @@ export function createPathwaySession({
       typeof stateFile !== 'string' || !isAbsolute(stateFile) ||
       !Number.isInteger(pathwayTimeoutMs) || pathwayTimeoutMs < 1 || pathwayTimeoutMs > 210000 ||
       !Number.isSafeInteger(maxDailyRequests) || maxDailyRequests < 1 ||
-      !Number.isSafeInteger(maxTotalRequests) || maxTotalRequests < 1 || typeof isEnabled !== 'function' || (beforeReserve !== null && typeof beforeReserve !== 'function')) {
+      !Number.isSafeInteger(maxTotalRequests) || maxTotalRequests < 1 || typeof unlimited !== 'boolean' || typeof isEnabled !== 'function' || (beforeReserve !== null && typeof beforeReserve !== 'function')) {
     fail('configuration', 'Origine, instance unique, fichier prive, delai et quotas explicites requis')
   }
   const referencesClient = createProfileReferencesClient({
@@ -60,7 +61,7 @@ export function createPathwaySession({
     try { return isEnabled() === true } catch { return false }
   }
   const guard = createGuard({
-    token, stateFile, maxDailyRequests, maxTotalRequests, enabled: allowed,
+    token, stateFile, maxDailyRequests, maxTotalRequests, unlimited, enabled: allowed,
     getProfileReferences: () => currentReferences,
   })
   function checkEnabled() {

@@ -64,6 +64,11 @@ jobs:
         env:
           AVATAR_PLAYWRIGHT_MODULE: ${{ runner.temp }}/avatar-browser/node_modules/playwright/index.mjs
         run: node experimental-service/dialogue-pathway-browser-check.mjs
+      - name: Verify the opt-in private unlimited pilot with fake transports
+        env:
+          AVATAR_PLAYWRIGHT_MODULE: ${{ runner.temp }}/avatar-browser/node_modules/playwright/index.mjs
+          AVATAR_BROWSER_UNLIMITED: 'true'
+        run: node experimental-service/dialogue-pathway-browser-check.mjs
       - name: Verify three fixed validation cases without paid calls
         env:
           AVATAR_PLAYWRIGHT_MODULE: ${{ runner.temp }}/avatar-browser/node_modules/playwright/index.mjs

@@ -34,10 +34,10 @@ export function safeEqual(a, b) {
   return x.length === y.length && timingSafeEqual(x, y)
 }
 
-export function createGuard({ token, maxDailyRequests = 5, maxTotalRequests = 20, now = Date.now, stateFile = '', enabled = () => true, profileReferences = null, getProfileReferences = null } = {}) {
+export function createGuard({ token, maxDailyRequests = 5, maxTotalRequests = 20, now = Date.now, stateFile = '', enabled = () => true, profileReferences = null, getProfileReferences = null, unlimited = false } = {}) {
   const references = profileReferences === null ? null : validateProfileReferences(profileReferences)
   if (typeof token !== 'string' || token.length < 32) throw new Error('AVATAR_TEST_TOKEN doit contenir au moins 32 caracteres')
-  if (!Number.isInteger(maxDailyRequests) || maxDailyRequests < 1 || !Number.isInteger(maxTotalRequests) || maxTotalRequests < 1) throw new Error('Quotas invalides')
+  if (typeof unlimited !== 'boolean' || !Number.isInteger(maxDailyRequests) || maxDailyRequests < 1 || !Number.isInteger(maxTotalRequests) || maxTotalRequests < 1) throw new Error('Quotas invalides')
   let state = { day: Math.floor(now() / DAY_MS), daily: 0, total: 0, stopped: false }
   if (stateFile) {
     try {
@@ -65,7 +65,7 @@ export function createGuard({ token, maxDailyRequests = 5, maxTotalRequests = 20
   }
   return {
     stop() { persist({ ...state, stopped: true }) },
-    status() { return { stopped: state.stopped, daily: state.daily, total: state.total, maxDailyRequests, maxTotalRequests } },
+    status() { return { stopped: state.stopped, daily: state.daily, total: state.total, maxDailyRequests: unlimited ? null : maxDailyRequests, maxTotalRequests: unlimited ? null : maxTotalRequests, ...(unlimited ? { unlimited: true } : {}) } },
     check(auth, body) {
       if (state.stopped || !enabled()) return { status: 503, error: 'Service desactive' }
       if (!safeEqual(auth, token)) return { status: 401, error: 'Acces refuse' }
@@ -75,7 +75,7 @@ export function createGuard({ token, maxDailyRequests = 5, maxTotalRequests = 20
       const issue = validateRequest(body, { profileReferences: current })
       if (issue) return { status: 400, error: issue }
       const day = Math.floor(now() / DAY_MS)
-      if ((day === state.day ? state.daily : 0) >= maxDailyRequests || state.total >= maxTotalRequests) return { status: 429, error: 'Quota atteint' }
+      if (!unlimited && ((day === state.day ? state.daily : 0) >= maxDailyRequests || state.total >= maxTotalRequests)) return { status: 429, error: 'Quota atteint' }
       try { persist({ ...state, day, daily: (day === state.day ? state.daily : 0) + 1, total: state.total + 1 }) }
       catch { return { status: 503, error: 'Stockage des quotas indisponible' } }
       return { status: 200, ok: true, mode: 'simulation', message: 'Requete validee sans appel API', quota: this.status() }

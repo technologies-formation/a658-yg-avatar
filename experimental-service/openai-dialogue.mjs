@@ -15,11 +15,12 @@ export function createOpenAIDialogueProvider(options = {}) {
   const { enabled = false } = options
   if (typeof enabled !== 'boolean') fail('configuration')
   if (!enabled) return Object.freeze({ mode: 'disabled', async respond() { fail('disabled') } })
-  const { apiKey, budget, paidTrialAuthorized, fetchImpl = globalThis.fetch, timeoutMs = 30000 } = options
-  if (paidTrialAuthorized !== true || typeof apiKey !== 'string' || !apiKey.trim() || /\s/.test(apiKey) ||
+  const { apiKey, budget, paidTrialAuthorized, fetchImpl = globalThis.fetch, timeoutMs = 30000, unlimited = false } = options
+  if (typeof unlimited !== 'boolean' || paidTrialAuthorized !== true || typeof apiKey !== 'string' || !apiKey.trim() || /\s/.test(apiKey) ||
       typeof fetchImpl !== 'function' || typeof budget?.reserve !== 'function' || typeof budget?.stop !== 'function' ||
-      budget.status().model !== TRIAL_POLICY.model || budget.status().maxAttempts !== 10 ||
-      budget.status().maxReservedMicroUsd !== 100000 || !Number.isInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 30000) fail('configuration')
+      budget.status().model !== TRIAL_POLICY.model ||
+      (unlimited ? budget.status().unlimited !== true || budget.status().maxAttempts !== null || budget.status().maxReservedMicroUsd !== null
+        : budget.status().unlimited === true || budget.status().maxAttempts !== 10 || budget.status().maxReservedMicroUsd !== 100000) || !Number.isInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 30000) fail('configuration')
   let busy = false
   async function post(path, body, signal) {
     const response = await fetchImpl('https://api.openai.com/v1/responses' + path, { method: 'POST', redirect: 'error', credentials: 'omit',

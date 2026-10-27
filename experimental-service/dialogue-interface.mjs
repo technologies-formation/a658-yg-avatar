@@ -43,13 +43,13 @@ export function renderDialogueSimulationPage(references, options = {}) {
 export function renderDialogueTrialPage(references, options = {}) {
   return renderDialoguePage(references, options, true)
 }
-function renderDialoguePage(references, { timeoutMs = 10000, pathwayMode = 'simulation', validationSeries = false, emailEnabled = false, deviceMemoryEnabled = false, catalogueStatusEnabled = false } = {}, realTrial) {
+function renderDialoguePage(references, { timeoutMs = 10000, pathwayMode = 'simulation', validationSeries = false, emailEnabled = false, deviceMemoryEnabled = false, catalogueStatusEnabled = false, unlimited = false } = {}, realTrial) {
   const contract = validateProfileReferences(references)
   if (!Number.isInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 30000) fail('configuration')
-  return template.replace('/*MESSAGING_CONFIG*/', JSON.stringify({ references: contract, timeoutMs, mode: pathwayMode, validationSeries, emailEnabled, deviceMemoryEnabled, catalogueStatusEnabled, pathwayTimeoutMs: pathwayMode === 'real' ? 210000 : timeoutMs, dialogue: realTrial ? 'real-trial' : 'fictitious' }).replace(/</g, '\\u003c'))
+  return template.replace('/*MESSAGING_CONFIG*/', JSON.stringify({ references: contract, timeoutMs, mode: pathwayMode, validationSeries, emailEnabled, deviceMemoryEnabled, catalogueStatusEnabled, unlimited: realTrial && unlimited, pathwayTimeoutMs: pathwayMode === 'real' ? 210000 : timeoutMs, dialogue: realTrial ? 'real-trial' : 'fictitious' }).replace(/</g, '\\u003c'))
     .replace('/private/messaging-client.mjs', '/private/dialogue-client.mjs')
     .replace('Simulation : aucun appel au moteur ni à OpenAI.', realTrial ? 'Dialogue IA : chaque message envoyé peut être payant. Aucun appel OpenAI à l’ouverture.' : 'Simulation : aucun appel au moteur ni à OpenAI.')
-    .replace('Pilote privé · simulation uniquement', realTrial ? (pathwayMode === 'real' ? (validationSeries?'Validation privée · trois scénarios, une tentative chacun':'Essai privé · dialogue IA · un parcours réel maximum') : 'Essai dialogue IA · parcours simulés · 10 tentatives maximum') : 'Dialogue fictif · aucun appel OpenAI')
+    .replace('Pilote privé · simulation uniquement', realTrial ? (unlimited ? 'Pilote privé · dialogue IA et recherches sans plafond d’essais' : pathwayMode === 'real' ? (validationSeries?'Validation privée · trois scénarios, une tentative chacun':'Essai privé · dialogue IA · un parcours réel maximum') : 'Essai dialogue IA · parcours simulés · 10 tentatives maximum') : 'Dialogue fictif · aucun appel OpenAI')
 }
 export function createDialogueSimulationInterface(options = {}) {
   return createDialogueInterface(options)
@@ -91,7 +91,7 @@ export function createDialogueInterface(options = {}, trial = null) {
   }
   const validationState=value=>trial?.validation?{validationCases:trial.validation.cases(),validationCaseId:trial.validation.identify(value.session.getDraft().profile,value.session.getDraft().modality)}:{}
   const emailHandler=createResearchEmailHandler({mail:options.mail,entry,publicOrigin})
-  const resources = createPrivateResources(simulation, trial ? (refs, settings) => renderDialogueTrialPage(refs, { ...settings, pathwayMode,validationSeries:Boolean(trial.validation),emailEnabled:Boolean(options.mail?.enabled),deviceMemoryEnabled:Boolean(memory),catalogueStatusEnabled:typeof options.loadCatalogueStatus==='function' }) : (refs,settings)=>renderDialogueSimulationPage(refs,{...settings,emailEnabled:Boolean(options.mail?.enabled),deviceMemoryEnabled:Boolean(memory),catalogueStatusEnabled:typeof options.loadCatalogueStatus==='function'}), timeoutMs)
+  const resources = createPrivateResources(simulation, trial ? (refs, settings) => renderDialogueTrialPage(refs, { ...settings, pathwayMode,validationSeries:Boolean(trial.validation),emailEnabled:Boolean(options.mail?.enabled),deviceMemoryEnabled:Boolean(memory),catalogueStatusEnabled:typeof options.loadCatalogueStatus==='function',unlimited:options.unlimited===true }) : (refs,settings)=>renderDialogueSimulationPage(refs,{...settings,emailEnabled:Boolean(options.mail?.enabled),deviceMemoryEnabled:Boolean(memory),catalogueStatusEnabled:typeof options.loadCatalogueStatus==='function'}), timeoutMs)
   const send = (res, status, body) => {
     res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' })
     res.end(JSON.stringify(body))
