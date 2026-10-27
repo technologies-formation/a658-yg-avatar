@@ -48,6 +48,7 @@ try{
   // Régression : un objectif vide doit rester un brouillon explicite, sans appel IA ni parcours.
   for(const [screen,size]of [['desktop',{width:1280,height:900}],['mobile',{width:390,height:844}]]){
    await page.setViewportSize(size);await page.emulateMedia({colorScheme:screen==='mobile'?'dark':'light'});
+   await page.waitForFunction(()=>document.getElementById('sidebar').inert===(innerWidth<=760));
    await clickNavigation(page,'#open-profile');
    await page.locator('[name=objective]').fill('');
    await page.locator('[name=role]').fill('Assistant administratif');
@@ -73,6 +74,7 @@ try{
    assert.equal(apiCalls,0);assert.equal(engineCalls,0);assert.equal(pathways,0);
   }
   await page.setViewportSize({width:1280,height:900});await page.emulateMedia({colorScheme:'light'});
+  await page.waitForFunction(()=>!document.getElementById('sidebar').inert);
   await page.locator('#message').fill('Je voudrais progresser sur Word pour mes rapports.')
   await page.getByRole('button',{name:'Envoyer un message — essai payant',exact:true}).click()
   await page.getByRole('button',{name:'Appliquer ces corrections',exact:true}).waitFor()
