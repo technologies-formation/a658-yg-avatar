@@ -79,7 +79,7 @@ export function initAssistantPresentation(document) {
 export function createResearchCriteria(document, snapshot, appendProfile, open = false) {
   const details = document.createElement('details')
   details.className = 'need-summary research-criteria'
-  details.dataset.researchNumber = String(snapshot.number)
+  details.dataset.criteriaResearchNumber = String(snapshot.number)
   details.open = open
   const summary = document.createElement('summary')
   const title = document.createElement('span'); title.className = 'criteria-title'; title.textContent = 'Les critères de ma recherche'
