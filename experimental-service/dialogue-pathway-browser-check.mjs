@@ -74,7 +74,7 @@ try{
   assert.match(discussionResult,/Modalité du cours : non renseignée/);assert.match(discussionResult,/Compatibilité avec votre préférence : non établie/);assert.match(discussionResult,/Écart avec votre préférence/);assert.match(discussionResult,/Modalité conforme à votre préférence/)
   const researchHeading=await page.locator('#thread .plan-status strong').last().textContent();assert.match(researchHeading,/^Progresser sur Word/);assert.equal(await page.locator('#view-caption').textContent(),'Votre échange avec l’assistant');assert.equal(await page.locator('#open-profile').count(),1)
   assert.equal(await page.locator('#thread .session-badge').count(),3);assert.match(discussionResult,/Inscriptions ouvertes lors du relevé/);assert.match(discussionResult,/Ouverture des inscriptions prévue le 3 novembre 2998/);assert.match(discussionResult,/Indicateurs relevés le 23\/10\/2026/);
-  assert.match(discussionResult,/Résultats basés sur le catalogue du 26.10.2026/);
+  assert.match(await page.locator('#thread .plan-status').first().innerText(),/Résultats basés sur le catalogue du 26.10.2026/);
   const cards=await page.locator('#thread .pathway-course').allTextContents()
   await clickNavigation(page,'#tab-courses');assert.equal(await page.locator('#courses-content h1').count(),1);assert.deepEqual(await page.locator('#courses-content .pathway-course').allTextContents(),cards)
   assert.equal(await page.locator('#courses-content .pathway-result').innerText(),discussionResult)
