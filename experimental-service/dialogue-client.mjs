@@ -103,11 +103,33 @@ function sync(){updateResearchTabs();const panel=$('courses-content'),y=$('cours
  document.querySelectorAll('[data-snapshot-notice]').forEach(e=>{const snapshot=history.find(x=>x.number===Number(e.dataset.snapshotNotice));if(snapshot)e.replaceChildren(stateNotice(snapshot,e.dataset.researchSummary==='true'));});
 }
 function switchView(view,start=false){const old=active==='discussion'?$('conversation'):$('courses-view');scrolls[active]=old.scrollTop;active=view;updateResearchTabs();$('conversation').hidden=view!=='discussion';$('courses-view').hidden=view!=='courses';$('composer-zone').hidden=view!=='discussion';for(const b of document.querySelectorAll('[data-view]')){b.setAttribute('aria-selected',String(b.dataset.view===view));b.tabIndex=b.dataset.view===view?0:-1;}$('view-caption').textContent=view==='discussion'?'Votre échange avec l’assistant':'Vos cours et les repères de votre demande';requestAnimationFrame(()=>{const panel=view==='discussion'?$('conversation'):$('courses-view');panel.scrollTop=start?0:scrolls[view];});}
-function openProfile(){const form=$('profile-form');form.replaceChildren();const content=node('div',undefined,'profile-fields-grid');form.append(content);for(const name of ['personnelCategory','managerStatus','entity','role','objective','existingSkills','timeAvailable','modality','other']){const key=name==='other'?'constraints':name,f=references.pathway.fields[key],group=node('div',undefined,'field'+(['entity','role','objective','existingSkills','other'].includes(name)?' field-wide':'')),label=node('label',name==='modality'?'Modalité souhaitée':labels[key]);label.htmlFor='edit-'+name;let input;
+function requiredProfileFields(){return [...new Set(['objective','role','personnelCategory','existingSkills','timeAvailable','modality',...fields.filter(key=>references.pathway.fields[key].requiredInForm)])];}
+function profileIssues(){
+ const required=requiredProfileFields(),issues=[];
+ for(const name of [...required,...fields.filter(key=>!required.includes(key))]){
+  const value=String((name==='modality'?modality:profile[name])??'').trim();
+  if(!value&&required.includes(name)){issues.push({name,missing:true,message:'À compléter pour obtenir des propositions.'});continue;}
+  if(value)try{validateField(name,value);}catch(error){issues.push({name,message:error.message});}
+ }
+ return issues;
+}
+function showIncompleteProfile(saved=false){
+ const issues=profileIssues(),first=issues[0]?.name;
+ let message=issues.length===1&&first==='objective'&&issues[0].missing?'Complétez votre objectif pour obtenir des propositions.':issues.length?'Complétez ou vérifiez les critères suivants pour obtenir des propositions : '+issues.map(issue=>labels[issue.name]).join(', ')+'.':'Vérifiez les critères de votre demande pour obtenir des propositions.';
+ if(saved)message='Demande enregistrée. '+message;
+ clearChoices();const el=say(message),row=node('div',undefined,'action-row question-actions');
+ action('Compléter ma demande',()=>openProfile(first),row,true);el.querySelector('.bubble').append(row);status(message);focusStart(el);
+}
+function openProfile(focusField){const form=$('profile-form');form.replaceChildren();const content=node('div',undefined,'profile-fields-grid');form.append(content);const issues=profileIssues(),required=requiredProfileFields();if(issues.length)content.append(node('p','Vous pouvez enregistrer une demande incomplète. Les critères signalés sont nécessaires pour obtenir des propositions.','profile-completion-note'));for(const name of ['personnelCategory','managerStatus','entity','role','objective','existingSkills','timeAvailable','modality','other']){const key=name==='other'?'constraints':name,f=references.pathway.fields[key],group=node('div',undefined,'field'+(['entity','role','objective','existingSkills','other'].includes(name)?' field-wide':'')),label=node('label',name==='modality'?'Modalité souhaitée':labels[key]);label.htmlFor='edit-'+name;let input;
  if(f?.formControl==='select'||name==='modality'){input=node('select');input.append(new Option('Non renseigné',''));for(const [text,value]of choices(name))input.append(new Option(text,value));}
  else{input=node(f.formControl==='textarea'?'textarea':'input');input.maxLength=f.maxLength;if(name==='entity'){const list=node('datalist');list.id='entity-options';for(const x of f.suggestions){const o=node('option');o.value=x.value;o.label=x.label;list.append(o);}content.append(list);input.setAttribute('list',list.id);}}
- input.id='edit-'+name;input.name=name;input.value=name==='modality'?modality:name==='other'?other:profile[name]||'';input.required=false;group.append(label,input);content.append(group);}
- const error=node('p','', 'status-line error');error.id='profile-error';error.setAttribute('role','alert');const footer=node('div',undefined,'profile-actions');footer.append(error);const submit=node('button','Enregistrer ma demande','primary');submit.type='submit';submit.disabled=busy;deviceMemory?.mount(content);footer.append(submit);form.append(footer);$('profile-dialog').showModal();}
+ input.id='edit-'+name;input.name=name;input.value=name==='modality'?modality:name==='other'?other:profile[name]||'';input.required=false;
+ const hint=node('p','', 'field-completion-hint');hint.id=input.id+'-hint';group.dataset.profileField=name;
+ const markIssue=issue=>{hint.textContent=issue?.message||'';hint.hidden=!issue;group.classList.toggle('field-incomplete',Boolean(issue));if(issue){input.setAttribute('aria-invalid','true');input.setAttribute('aria-describedby',hint.id);}else{input.removeAttribute('aria-invalid');input.removeAttribute('aria-describedby');}};
+ markIssue(issues.find(issue=>issue.name===(name==='other'?'constraints':name)));
+ const refresh=()=>{const value=input.value.trim();let issue;if(!value&&required.includes(name==='other'?'constraints':name))issue={message:'À compléter pour obtenir des propositions.'};else if(value)try{validateField(name==='other'?'constraints':name,value);}catch(error){issue={message:error.message};}markIssue(issue);};
+ input.addEventListener('input',refresh);input.addEventListener('change',refresh);group.append(label,input,hint);content.append(group);}
+ const error=node('p','', 'status-line error');error.id='profile-error';error.setAttribute('role','alert');const footer=node('div',undefined,'profile-actions');footer.append(error);const submit=node('button','Enregistrer ma demande','primary');submit.type='submit';submit.disabled=busy;deviceMemory?.mount(content);footer.append(submit);form.append(footer);$('profile-dialog').showModal();if(typeof focusField==='string')requestAnimationFrame(()=>{const input=$('edit-'+focusField);if(input){input.focus({preventScroll:true});input.scrollIntoView({block:'center'});}});}
 
 function applyDraft(draft){
  if(!draft||!Number.isSafeInteger(draft.revision)||draft.referenceRevision!==references.revision||!draft.profile||typeof draft.modality!=='string')throw Error('Brouillon de dialogue invalide');
@@ -160,7 +182,7 @@ async function dialogueRequest(body){
 }
 function offerNext(){
  clearChoices();$('composer').hidden=realValidation;
- if(realTrial){if(ready()||pathwayBlocked())confirmProfile();return;}
+ if(realTrial){if(ready()||pathwayBlocked())confirmProfile();else if(modality||Object.values(profile).some(value=>String(value??'').trim()))showIncompleteProfile();return;}
  const key=nextField();if(!key){if(ready()){confirmProfile();return;}const row=say('Certains repères doivent être corrigés dans Ma demande avant la simulation.');action('Corriger ma demande',openProfile,row.querySelector('.bubble'));focusStart(row);return;}
  const prompts={objective:'Qu’aimeriez-vous mieux faire ou apprendre ?',role:'Quel est votre métier ou votre fonction ?',personnelCategory:'À quel groupe de personnel appartenez-vous ?',existingSkills:'Quelle expérience avez-vous sur ce sujet ?',timeAvailable:'Combien de temps pouvez-vous consacrer à cette formation ?',modality:'Quelle modalité préférez-vous ?'};
  const el=say(prompts[key]||'Complétez ce repère : '+labels[key]),row=node('div',undefined,'action-row question-actions');
@@ -174,7 +196,7 @@ function confirmProfile(){
  clearChoices();$('composer').hidden=realValidation;
  if(proposal){status('Acceptez ou refusez d’abord la proposition en attente.',true);return;}
  if(pathwayBlocked()){const el=say(pathwayNotice());if(ready())profileList(profile,el.querySelector('.bubble'));focusStart(el);return;}
- if(!ready()){offerNext();return;}
+ if(!ready()){showIncompleteProfile();return;}
  const el=say(realPathway?'Voici les repères de votre demande. Confirmer enverra ces informations au moteur A658-YG qui utilise OpenAI. '+(realValidation?'Une seule tentative payante est autorisée pour ce scénario, dans la limite de trois scénarios.':'Une seule tentative payante de parcours est autorisée, sans relance automatique.')+'':'Voici les repères de votre demande. Souhaitez-vous simuler un parcours avec ces informations ?');profileList(profile,el.querySelector('.bubble'));
  const row=node('div',undefined,'action-row question-actions');const b=action(realPathway?'Confirmer ma demande et générer — essai payant':'Confirmer ma demande et simuler',simulate,row,true);b.dataset.confirm='true';action('Modifier ma demande',openProfile,row);$('thread').append(row);focusStart(el);
 }
@@ -205,7 +227,7 @@ async function send(text){
 $('profile-form').addEventListener('submit',async event=>{
  event.preventDefault();if(busy)return;const values=Object.fromEntries(new FormData(event.target)),next={};
  try{for(const k of fields)if(k!=='constraints'){if(values[k]?.trim())validateField(k,values[k]);next[k]=values[k]||'';}if(values.modality)validateField('modality',values.modality);const constraints=composeConstraints(values.modality,values.other);if(constraints)validateField('constraints',constraints);next.constraints=values.other;
-  const value=await dialogueRequest({action:'edit',profile:next,modality:values.modality,expectedRevision:draftRevision});proposal=null;applyDraft(value.draft);$('profile-dialog').close();clearChoices();switchView('discussion');status('Demande enregistrée ; le parcours précédent reste conservé.');confirmProfile();
+  const value=await dialogueRequest({action:'edit',profile:next,modality:values.modality,expectedRevision:draftRevision});proposal=null;applyDraft(value.draft);$('profile-dialog').close();clearChoices();switchView('discussion');if(!ready()){showIncompleteProfile(true);return;}status('Demande enregistrée ; le parcours précédent reste conservé.');confirmProfile();
  }catch(error){$('profile-error').textContent=error.message;}
 });
 $('composer').addEventListener('submit',event=>{event.preventDefault();send($('message').value);});

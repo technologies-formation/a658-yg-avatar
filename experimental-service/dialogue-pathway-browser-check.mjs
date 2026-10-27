@@ -45,6 +45,34 @@ try{
   await page.waitForFunction(()=>document.querySelector('link[data-assistant-icon]')?.href.startsWith('data:image/png;base64,'))
   const iconUrl=await page.locator('link[data-assistant-icon]').getAttribute('href');writeFileSync('visual-check/assistant-tab-icon.png',Buffer.from(iconUrl.split(',')[1],'base64'))
   assert.equal(await page.locator('#status').textContent(),'Dialogue IA : chaque message envoyé peut être payant. Aucun appel OpenAI à l’ouverture.')
+  // Régression : un objectif vide doit rester un brouillon explicite, sans appel IA ni parcours.
+  for(const [screen,size]of [['desktop',{width:1280,height:900}],['mobile',{width:390,height:844}]]){
+   await page.setViewportSize(size);await page.emulateMedia({colorScheme:screen==='mobile'?'dark':'light'});
+   await clickNavigation(page,'#open-profile');
+   await page.locator('[name=objective]').fill('');
+   await page.locator('[name=role]').fill('Assistant administratif');
+   await page.locator('[name=personnelCategory]').selectOption('TEST-A');
+   await page.locator('[name=existingSkills]').fill('Je débute');
+   await page.locator('[name=timeAvailable]').fill('1 à 2 jours');
+   await page.locator('[name=modality]').selectOption('Indifférent');
+   await page.getByRole('button',{name:'Enregistrer ma demande',exact:true}).click();
+   await page.locator('#thread .bubble').filter({hasText:'Demande enregistrée. Complétez votre objectif pour obtenir des propositions.'}).last().waitFor();
+   assert.equal(await page.locator('[data-confirm]').count(),0);assert.equal(apiCalls,0);assert.equal(engineCalls,0);assert.equal(pathways,0);
+   await page.screenshot({path:'visual-check/incomplete-feedback-'+screen+'.png',fullPage:true,animations:'disabled'});
+   await page.reload();await page.getByRole('button',{name:'Compléter ma demande',exact:true}).last().waitFor();
+   await page.getByRole('button',{name:'Compléter ma demande',exact:true}).last().click();
+   await page.waitForFunction(()=>document.activeElement?.id==='edit-objective');
+   assert.equal(await page.locator('[name=objective]').inputValue(),'');
+   assert.equal(await page.locator('[name=role]').inputValue(),'Assistant administratif');
+   assert.equal(await page.locator('[name=objective]').getAttribute('aria-invalid'),'true');
+   assert.match(await page.locator('#edit-objective-hint').innerText(),/À compléter/);
+   assert.equal(await page.locator('[name=objective]').getAttribute('required'),null);
+   await page.screenshot({path:'visual-check/incomplete-request-'+screen+'.png',fullPage:true,animations:'disabled'});
+   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+   await page.getByRole('button',{name:'Fermer',exact:true}).click();
+   assert.equal(apiCalls,0);assert.equal(engineCalls,0);assert.equal(pathways,0);
+  }
+  await page.setViewportSize({width:1280,height:900});await page.emulateMedia({colorScheme:'light'});
   await page.locator('#message').fill('Je voudrais progresser sur Word pour mes rapports.')
   await page.getByRole('button',{name:'Envoyer un message — essai payant',exact:true}).click()
   await page.getByRole('button',{name:'Appliquer ces corrections',exact:true}).waitFor()
