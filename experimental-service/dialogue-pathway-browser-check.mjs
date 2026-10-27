@@ -234,7 +234,7 @@ try{
   await fresh.close()
   await context.close()
  }
- assert.equal(apiCalls,4);assert.equal(engineCalls,1)
+ assert.equal(apiCalls,unlimitedBrowser?0:4);assert.equal(engineCalls,unlimitedBrowser?6:1)
  writeFileSync('visual-check/dialogue-pathway-check.json',JSON.stringify(results,null,2))
 }finally{
  service.close();await browser?.close();server.closeAllConnections();await new Promise(resolve=>server.close(resolve));rmSync(dir,{recursive:true,force:true})
