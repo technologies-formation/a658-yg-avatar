@@ -76,6 +76,7 @@ test('aperçu local explicitement configuré : uniquement après validation parc
   assert.equal((await (await post({ ...body, confirmed: false })).json()).preview, undefined)
   assert.equal((await fetch(origin + '/local/pathway-result-view.mjs')).status, 200)
   assert.equal((await fetch(origin + '/local/pathway-result.mjs')).status, 200)
+  assert.equal((await fetch(origin + '/local/catalogue-version.mjs')).status, 200)
   assert.match(await (await fetch(origin)).text(), /renderPathwayResult/)
 })
 
