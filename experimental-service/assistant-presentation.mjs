@@ -74,3 +74,20 @@ export function initAssistantPresentation(document) {
     },
   }
 }
+
+// Tous les critères restent dans la page ; seul leur volet est replié au départ.
+export function createResearchCriteria(document, snapshot, appendProfile, open = false) {
+  const details = document.createElement('details')
+  details.className = 'need-summary research-criteria'
+  details.dataset.researchNumber = String(snapshot.number)
+  details.open = open
+  const summary = document.createElement('summary')
+  const title = document.createElement('span'); title.className = 'criteria-title'; title.textContent = 'Les critères de ma recherche'
+  const hint = document.createElement('span'); hint.className = 'criteria-hint'
+  hint.textContent = [snapshot.profile.timeAvailable, snapshot.modality].filter(Boolean).join(' · ') || 'Critères confirmés'
+  summary.append(title, hint)
+  const content = document.createElement('div'); content.className = 'criteria-content'
+  appendProfile(snapshot.profile, content)
+  details.append(summary, content)
+  return details
+}

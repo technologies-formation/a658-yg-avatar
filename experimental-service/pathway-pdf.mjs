@@ -1,5 +1,5 @@
 import {catalogueVersionLabel} from './catalogue-version.mjs'
-import {scheduledOpeningLabel} from './pathway-result.mjs'
+import {courseDisplayDetails} from './pathway-result.mjs'
 import {createMessagingSnapshot,researchLabel,composeConstraints} from './messaging-state.mjs'
 
 export const AI_GUIDANCE='L’assistant IA peut faire des erreurs. Vérifiez les informations et les conditions d’accès sur les fiches officielles. En cas de doute, rapprochez-vous de votre service RH ou de votre hiérarchie.'
@@ -26,7 +26,7 @@ export function createPdfModel(snapshot,{references,now=new Date()}={}){
   if(!Number.isFinite(date.getTime()))throw Error('Date d’export invalide.')
   const slug=saved.profile.objective?.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,60)||'formation'
   return {title:researchLabel(saved),catalogueLabel:catalogueVersionLabel(result.catalogue,{results:true,simulation}),criteria,groups,summary:result.summary,interpretedGoal:result.interpretedGoal||'',gaps:result.gaps??[],duration:result.durationSummary??null,
-    simulation,noPathway,guidance:AI_GUIDANCE,date,filename:'a658yg-recherche-'+slug+'.pdf'}
+    simulation,noPathway,objective:saved.profile.objective||'',preferredModality:saved.modality||'',guidance:AI_GUIDANCE,date,filename:'a658yg-recherche-'+slug+'.pdf'}
 }
 
 export function renderPathwayPdf(model,{jsPDF,fonts,logo}={}){
@@ -77,18 +77,6 @@ export function renderPathwayPdf(model,{jsPDF,fonts,logo}={}){
     }
     y+=height
   }
-  heading('Temps de formation')
-  const duration=model.duration
-  if(model.simulation)write('Les durées de cet exemple fictif ne sont pas comparées à votre disponibilité. Le temps que vous avez indiqué figure dans les critères ci-dessus.')
-  else{
-    if(duration?.budgetHours!=null)write('Votre disponibilité : '+duration.budgetHours+' h',{style:'bold'})
-    if(model.noPathway)write('Aucun parcours proposé : durée non calculée.')
-    else if(duration){
-      write('Durée du parcours recommandé : '+(duration.recommendedHours==null?'non renseignée':duration.recommendedHours+' h'),{style:'bold'})
-      if(duration.excessHours>0)write('Dépassement : '+duration.excessHours+' h. Le parcours dépasse le temps disponible.',{color:'#795015'})
-      if(duration.durationsKnown===false||duration.verified===false||duration.budgetVerified===false)write('La vérification des durées est incomplète.',{color:muted})
-    }else write('Durée totale non renseignée dans ce résultat.')
-  }
   heading(model.noPathway?'Résultat de votre recherche':'Votre parcours de formation')
   write(model.summary)
   if(model.interpretedGoal)write('Objectif interprété : '+model.interpretedGoal,{size:9,color:muted})
@@ -98,31 +86,81 @@ export function renderPathwayPdf(model,{jsPDF,fonts,logo}={}){
     let first=true
     for(const item of items){
       const course=item.course
-      const mode={online:'en ligne',in_person:'en présentiel',hybrid:'hybride'}[course.deliveryMode?.value]||'à vérifier sur la fiche officielle'
-      const durationText=course.duration|| (course.durationHours==null?'non renseignée':course.durationHours+' h')
-      const parts=[{text:item.position+'. '+course.code+' - '+course.title,size:10,style:'bold'},
-        {text:'Durée : '+durationText+' | Public : '+(course.public||'non renseigné'),size:8.5,color:muted},
-        {text:'Modalité : '+mode,size:8.5,color:muted},{text:item.rationale,size:9.5}]
-      const available=course.sessionAvailability
-      const known=!model.simulation&&available?.source==='official-session-icons'&&available.observedOn<=model.date.toISOString().slice(0,10)
-      const statuses=[]
-      if(known&&available.hasOpenSession)statuses.push('Inscriptions ouvertes lors du relevé')
-      if(known&&available.hasScheduledSession)statuses.push(scheduledOpeningLabel(available,model.date))
-      parts.push({text:statuses.length?statuses.join(' ; ')+' - relevé du '+available.observedOn.split('-').reverse().join('/')+'. Situation actuelle à vérifier.':'Sessions : à vérifier sur la fiche officielle.',size:8.5,color:muted})
-      const cardWidth=right-left-8
-      const height=parts.reduce((h,p)=>h+linesFor(p.text,p.size,p.style||'normal',cardWidth).length*p.size*.352778*1.42+1,0)+(course.sourceUrl?8:2)+3
+      const presentation=courseDisplayDetails(course,{replay:model.simulation,now:model.date,objective:model.objective})
+      const primary=label==='Votre parcours recommandé'
+      const parts=[
+        {text:(primary?'ÉTAPE '+item.position+' - ':'')+course.code+' - '+course.title,size:10,style:'bold'},
+        ...(!primary?[{text:label.startsWith('Pour information')?'Pour information - accès à vérifier':'Piste facultative',size:8.5,color:muted}]:[]),
+        {text:'Durée : '+presentation.duration+' | Public : '+(course.public||'non renseigné')+' | '+presentation.modality,size:8.5,color:muted},
+        ...presentation.statuses.map(status=>({text:status.label,size:8.5,style:'bold',badge:status.kind})),
+        {text:'Pourquoi ce cours ?',size:8.5,style:'bold'},
+        {text:item.rationale,size:9.5},
+        ...(presentation.versionNote?[{text:presentation.versionNote,size:8.5,color:'#795015'}]:[]),
+        {text:presentation.sessionNote,size:8,color:muted},
+      ]
+      const cardWidth=right-left-12
+      const linkLines=course.sourceUrl?linesFor(course.sourceUrl,7.5,'normal',cardWidth):[]
+      const height=parts.reduce((h,p)=>h+linesFor(p.text,p.size,p.style||'normal',cardWidth).length*p.size*.352778*1.42+(p.badge?6:1.5),0)+(course.sourceUrl?linkLines.length*3.8+9:3)+7
       const boxed=height<bottom-50
       if(first){ensure(boxed?height+14:49);heading(label);first=false}
       ensure(Math.min(height,35))
-      if(boxed){ensure(height);doc.setFillColor(pale);doc.setDrawColor(line);doc.roundedRect(left,y-4,right-left,height,2,2,'FD')}
-      x=left+4;width=cardWidth
-      for(const part of parts)write(part.text,{after:1,...part})
-      if(course.sourceUrl){
-        ensure(6);font(8.5,'normal','#21644f');doc.text('Consulter la fiche officielle',x,y)
-        doc.link(x,y-3,52,5,{url:course.sourceUrl});y+=6
+      if(boxed)ensure(height)
+      const cardStart=y
+      if(boxed){
+        doc.setFillColor('#ffffff');doc.setDrawColor(line);doc.roundedRect(left,y-4,right-left,height,2,2,'FD')
+        if(primary){doc.setFillColor('#e6f2ea');doc.rect(left,y-4,2,height,'F')}
       }
-      y+=3;x=left;width=right-left
+      x=left+6;width=cardWidth
+      for(const part of parts){
+        if(part.badge){
+          const lines=linesFor(part.text,part.size,'bold',cardWidth-6)
+          const h=lines.length*part.size*.352778*1.42+3
+          ensure(h+2)
+          const color=part.badge==='open'?'#edf7ef':part.badge==='scheduled'?'#eff3f8':'#f2f5f5'
+          const border=part.badge==='open'?'#8db39a':'#a7b7c4'
+          const w=Math.min(cardWidth,Math.max(...lines.map(line=>doc.getTextWidth(line)))+8)
+          doc.setFillColor(color);doc.setDrawColor(border);doc.roundedRect(x,y-3,w,h,1,1,'FD')
+          const previousX=x,previousWidth=width;x+=3;width=cardWidth-6
+          write(part.text,{size:part.size,style:'bold',color:part.badge==='open'?'#246244':ink,after:5})
+          x=previousX;width=previousWidth
+        }else write(part.text,{after:1.5,...part})
+      }
+      if(course.sourceUrl){
+        ensure(8+linkLines.length*3.8)
+        font(8.5,'bold','#21644f');doc.text('Fiche officielle - '+course.code,x,y)
+        doc.link(x,y-3,Math.min(cardWidth,doc.getTextWidth('Fiche officielle - '+course.code)),5,{url:course.sourceUrl});y+=4.5
+        for(const line of linkLines){font(7.5,'normal','#21644f');doc.text(line,x,y);doc.link(x,y-2.5,Math.min(cardWidth,doc.getTextWidth(line)),4,{url:course.sourceUrl});y+=3.8}
+      }
+      y=Math.max(y+7,boxed?cardStart-4+height+6:0);x=left;width=right-left
+
     }
+  }
+  heading('Temps de formation')
+  const duration=model.duration
+  if(model.simulation)write('Les durées de cet exemple fictif ne sont pas comparées à votre disponibilité. Le temps que vous avez indiqué figure dans les critères ci-dessus.')
+  else{
+    const metrics=[]
+    if(duration?.budgetHours!=null)metrics.push(['Temps disponible',duration.budgetHours+' h'])
+    if(!model.noPathway&&duration){
+      metrics.push(['Parcours recommandé',duration.recommendedHours==null?'Non renseigné':duration.recommendedHours+' h'])
+      if(duration.excessHours>0)metrics.push(['Dépassement','+ '+duration.excessHours+' h'])
+      else if(duration.withinBudget===true&&duration.durationsKnown===true&&duration.verified===true&&duration.budgetVerified===true)metrics.push(['Dépassement','Aucun'])
+    }
+    if(metrics.length){
+      ensure(22);const metricWidth=(right-left-(metrics.length-1)*4)/metrics.length
+      for(const [index,[label,value]]of metrics.entries()){
+        const metricX=left+index*(metricWidth+4)
+        doc.setFillColor(pale);doc.setDrawColor(line);doc.roundedRect(metricX,y-3,metricWidth,18,2,2,'FD')
+        font(8,'normal',muted);doc.text(label,metricX+3,y+2)
+        font(13,'bold');doc.text(value,metricX+3,y+9)
+      }
+      y+=21
+    }
+    if(model.noPathway)write('Aucun parcours proposé : durée non calculée.')
+    else if(duration){
+      if(duration.excessHours>0)write('Dépassement : '+duration.excessHours+' h. Le parcours dépasse le temps disponible.',{color:'#795015'})
+      if(duration.durationsKnown===false||duration.verified===false||duration.budgetVerified===false)write('La vérification des durées est incomplète.',{color:muted})
+    }else write('Durée totale non renseignée dans ce résultat.')
   }
   if(model.gaps.length){heading('Limites des fiches examinées');for(const gap of model.gaps)write('- '+gap)}
   y+=4

@@ -129,3 +129,36 @@ export function scheduledOpeningLabel(availability, now = new Date()) {
   const date = new Intl.DateTimeFormat('fr-CH', { timeZone: 'UTC', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(next + 'T12:00:00Z'))
   return 'Ouverture des inscriptions prévue le ' + date
 }
+
+// Présentation partagée écran/PDF, sans ajout ni classement de formations.
+export function courseDisplayDetails(course, { replay = false, now = new Date(), objective = '' } = {}) {
+  const modes = { online: 'En ligne', in_person: 'Présentiel', hybrid: 'Hybride' }
+  const availability = course.sessionAvailability
+  const known = !replay && availability?.source === 'official-session-icons' && availability.observedOn <= now.toISOString().slice(0, 10)
+  const statuses = []
+  if (known && availability.hasOpenSession) statuses.push({ kind: 'open', label: 'Inscriptions ouvertes' })
+  if (known && availability.hasScheduledSession) {
+    const full = scheduledOpeningLabel(availability, now)
+    statuses.push({ kind: 'scheduled', label: full === 'Ouverture programmée signalée' ? 'Ouverture programmée' : full })
+  }
+  if (!statuses.length) statuses.push({ kind: 'unknown', label: 'Disponibilité à vérifier' })
+  const sessionNote = known
+    ? 'Indicateurs relevés le ' + availability.observedOn.split('-').reverse().join('/') + '. Vérifiez la situation actuelle et les conditions sur la fiche officielle.'
+    : 'Disponibilité des sessions : à vérifier sur la fiche officielle.'
+  let versionNote = ''
+  const products = ['Word', 'Excel', 'PowerPoint', 'Outlook', 'Access']
+  for (const product of products) {
+    const expression = new RegExp('\\b' + product + '(?:\\s+version)?\\s+(2010|2013|2016|2019|2021|2024|365)\\b', 'ig')
+    const requested = [...String(objective).matchAll(expression)].map(match => match[1])
+    const offered = [...course.title.matchAll(expression)].map(match => match[1])
+    if (new Set(requested).size === 1 && new Set(offered).size === 1 && requested[0] !== offered[0]) {
+      versionNote = 'Version différente : ' + product + ' ' + offered[0] + '. Votre demande mentionne ' + product + ' ' + requested[0] + '. Vérifiez les écarts sur la fiche officielle.'
+      break
+    }
+  }
+  return {
+    duration: course.duration || (course.durationHours == null ? 'Non renseignée' : course.durationHours + ' h'),
+    modality: modes[course.deliveryMode?.value] || 'Modalité à vérifier',
+    statuses, sessionNote, versionNote,
+  }
+}

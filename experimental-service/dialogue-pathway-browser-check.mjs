@@ -69,11 +69,11 @@ try{
   assert.equal(engineCalls,1);assert.equal(engineRequests[0].timeAvailable,'1 à 2 jours');assert.equal(engineRequests[0].constraints,'Modalité souhaitée : en ligne')
   const discussionResult=await page.locator('#thread .pathway-result').innerText()
   assert.equal(await page.locator('#thread .pathway-result h3 svg[aria-hidden=true]').count(),await page.locator('#thread .pathway-result h3').count())
-  assert.match(discussionResult,/Votre disponibilité\s+16 h/);assert.match(discussionResult,/Durée du parcours\s+16 h/);assert.doesNotMatch(discussionResult,/Dépassement/)
+  assert.match(discussionResult,/Votre disponibilité\s+16 h/);assert.match(discussionResult,/Durée du parcours\s+16 h/);assert.doesNotMatch(discussionResult,/Le parcours dépasse|Dépassement\s+\+/)
   assert.doesNotMatch(discussionResult,/Exemple fictif|Aperçu hors ligne/)
   assert.match(discussionResult,/Modalité du cours : non renseignée/);assert.match(discussionResult,/Compatibilité avec votre préférence : non établie/);assert.match(discussionResult,/Écart avec votre préférence/);assert.match(discussionResult,/Modalité conforme à votre préférence/)
   const researchHeading=await page.locator('#thread .plan-status strong').last().textContent();assert.match(researchHeading,/^Progresser sur Word/);assert.equal(await page.locator('#view-caption').textContent(),'Votre échange avec l’assistant');assert.equal(await page.locator('#open-profile').count(),1)
-  assert.equal(await page.locator('#thread .session-badge').count(),3);assert.match(discussionResult,/Inscriptions ouvertes lors du relevé/);assert.match(discussionResult,/Ouverture des inscriptions prévue le 3 novembre 2998/);assert.match(discussionResult,/Indicateurs relevés le 23\/10\/2026/);
+  assert.equal(await page.locator('#thread .session-badge:not(.unknown)').count(),3);assert.match(discussionResult,/Inscriptions ouvertes/);assert.match(discussionResult,/Ouverture des inscriptions prévue le 3 novembre 2998/);assert.match(discussionResult,/Indicateurs relevés le 23\/10\/2026/);
   assert.match(await page.locator('#thread .plan-status').first().innerText(),/Résultats basés sur le catalogue du 26.10.2026/);
   const cards=await page.locator('#thread .pathway-course').allTextContents()
   await clickNavigation(page,'#tab-courses');assert.equal(await page.locator('#courses-content h1').count(),1);assert.deepEqual(await page.locator('#courses-content .pathway-course').allTextContents(),cards)
@@ -81,6 +81,11 @@ try{
   assert.equal(await page.locator('#courses-content .plan-status h1').textContent(),researchHeading)
   assert.equal(await page.locator('#courses-content').evaluate(e=>e.querySelector('[data-research-summary]').compareDocumentPosition(e.querySelector('.need-summary'))&Node.DOCUMENT_POSITION_FOLLOWING),4)
   assert.match(await page.locator('#courses-content').innerText(),/1 à 2 jours/)
+  assert.equal(await page.locator('#courses-content details.research-criteria').getAttribute('open'),null)
+  await page.locator('#courses-content .research-criteria > summary').click()
+  await page.locator('#courses-content .criteria-content').waitFor()
+  assert.match(await page.locator('#courses-content .criteria-content').innerText(),/Word/)
+  await page.locator('#courses-content .research-criteria > summary').click()
   await page.locator('[data-email-export]').click();await page.locator('#research-email-dialog').waitFor()
   assert.equal(emails.length,0)
   await page.locator('#research-email-dialog').getByRole('button',{name:'Annuler',exact:true}).click()

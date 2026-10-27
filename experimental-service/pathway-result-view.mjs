@@ -1,7 +1,7 @@
 // Affichage seul : aucune requête, aucun stockage, aucun HTML issu du résultat.
-import { validatePathwayResult, scheduledOpeningLabel } from './pathway-result.mjs'
+import { validatePathwayResult, courseDisplayDetails } from './pathway-result.mjs'
 
-export function renderPathwayResult(document, data, { replay = false, preferredModality = '' } = {}) {
+export function renderPathwayResult(document, data, { replay = false, preferredModality = '', objective = '' } = {}) {
   const { empty } = validatePathwayResult(data)
   if (!['','Présentiel','En ligne','Indifférent'].includes(preferredModality)) throw Error('Modalité souhaitée invalide')
   const root = document.createElement('section')
@@ -49,55 +49,54 @@ export function renderPathwayResult(document, data, { replay = false, preferredM
       const card = document.createElement('article')
       card.className = 'pathway-course'
       root.append(card)
-      add(card, 'h4', item.position + '. ' + item.course.code + ' — ' + item.course.title)
-      add(card, 'p', item.rationale)
-      add(card, 'p', item.course.duration ? 'Durée : ' + item.course.duration : item.course.durationHours == null ? 'Durée non renseignée' : 'Durée : ' + item.course.durationHours + ' h')
-      if (item.course.public) add(card, 'p', 'Public : ' + item.course.public)
+      const presentation = courseDisplayDetails(item.course, { replay, objective })
+      card.setAttribute('data-course-code', item.course.code)
+      if (label === 'Étapes recommandées') add(card, 'span', 'ÉTAPE ' + item.position).className = 'step-marker'
+      const body = add(card, 'div', ''); body.className = 'course-body'
+      const header = add(body, 'div', ''); header.className = 'course-header'
+      if (typeof document.createElementNS === 'function') {
+        const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+        icon.setAttribute('viewBox', '0 0 24 24'); icon.setAttribute('aria-hidden', 'true'); icon.setAttribute('class', 'course-document-icon')
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path'); path.setAttribute('d', 'M6 3h8l4 4v14H6z M14 3v5h4 M9 12h6 M9 15h6 M9 18h4')
+        icon.append(path); header.append(icon)
+      }
+      const identity = add(header, 'div', ''); identity.className = 'course-identity'
+      add(identity, 'span', item.course.code).className = 'course-code'
+      add(identity, 'h4', item.course.title)
+      if (label !== 'Étapes recommandées') add(identity, 'span', label === 'Pour information' ? 'Pour information · accès à vérifier' : 'Piste facultative').className = 'course-category'
+      const metadata = add(body, 'div', ''); metadata.className = 'course-metadata'
+      add(metadata, 'span', presentation.duration === 'Non renseignée' ? 'Durée non renseignée' : 'Durée : ' + presentation.duration)
+      if (item.course.public) add(metadata, 'span', 'Public : ' + item.course.public)
+      add(metadata, 'span', presentation.modality)
+      const footer = add(body, 'div', ''); footer.className = 'course-footer'
+      const rationale = add(footer, 'div', ''); rationale.className = 'course-rationale'
+      add(rationale, 'strong', 'Pourquoi ce cours ?')
+      add(rationale, 'p', item.rationale)
+      const actions = add(footer, 'div', ''); actions.className = 'course-actions'
+      if (presentation.versionNote) add(body, 'p', presentation.versionNote).className = 'course-version-note'
+      const delivery = add(body, 'div', ''); delivery.className = 'course-delivery-notes'
       const mode = item.course.deliveryMode
       const modeLabels = {online:'en ligne',in_person:'en présentiel',hybrid:'hybride'}
       const known = mode && mode.value !== 'unknown'
-      add(card, 'p', known ? 'Modalité indiquée dans l’intitulé : ' + modeLabels[mode.value] + '.'
+      add(delivery, 'p', known ? 'Modalité indiquée dans l’intitulé : ' + modeLabels[mode.value] + '.'
         : 'Modalité du cours : non renseignée dans les données transmises.')
-      if (preferredModality) add(card, 'p', 'Votre préférence : ' + preferredModality + '.')
+      if (preferredModality) add(delivery, 'p', 'Votre préférence : ' + preferredModality + '.')
       if (preferredModality && preferredModality !== 'Indifférent') {
         const preferred = preferredModality === 'En ligne' ? 'online' : 'in_person'
-        add(card, 'p', !known ? 'Compatibilité avec votre préférence : non établie. Vérifiez la modalité sur la fiche officielle.'
+        add(delivery, 'p', !known ? 'Compatibilité avec votre préférence : non établie. Vérifiez la modalité sur la fiche officielle.'
           : mode.value === 'hybrid' ? 'Compatibilité à vérifier : une formation hybride peut comporter des séances en ligne et en présentiel.'
           : mode.value === preferred ? 'Modalité conforme à votre préférence selon l’intitulé ; vérifiez les conditions sur la fiche officielle.'
           : 'Écart avec votre préférence : la modalité indiquée pour ce cours est différente. Cette piste reste à comparer.')
       }
-      const availability = item.course.sessionAvailability
-      const knownAvailability = !replay && availability?.source === 'official-session-icons' &&
-        availability.observedOn <= new Date().toISOString().slice(0, 10)
-      const sessions = add(card, 'div', '')
-      sessions.className = 'session-availability'
-      const sessionBadge = (label, scheduled) => {
-        const badge = add(sessions, 'p', label)
-        badge.className = 'session-badge ' + (scheduled ? 'scheduled' : 'open')
-        if (badge.style) badge.style.cssText = 'display:inline-flex;align-items:center;gap:6px;margin:8px 8px 0 0;padding:5px 9px;border-radius:7px;font-size:12px;line-height:1.5;background:' + (scheduled ? '#faf1df;color:#78551e' : '#eaf3e7;color:#365f3a')
-        if (typeof document.createElementNS === 'function') {
-          const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
-          svg.setAttribute('viewBox', '0 0 24 24'); svg.setAttribute('aria-hidden', 'true'); svg.setAttribute('focusable', 'false')
-          svg.setAttribute('fill', 'none'); svg.setAttribute('stroke', 'currentColor'); svg.setAttribute('stroke-width', '1.6')
-          svg.style.width = '15px'; svg.style.height = '15px'; svg.style.flexShrink = '0'
-          const path = document.createElementNS('http://www.w3.org/2000/svg', 'path')
-          path.setAttribute('d', scheduled ? 'M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0 M12 7v5l3 2' : 'M4 5h16v16H4z M8 3v4 M16 3v4 M4 10h16 M8 15l3 3 5-5')
-          svg.append(path); badge.prepend(svg)
-        }
+      const sessions = add(header, 'div', ''); sessions.className = 'session-availability'
+      for (const status of presentation.statuses) {
+        const badge = add(sessions, 'span', status.label)
+        badge.className = 'session-badge ' + status.kind
+        badge.setAttribute('data-session-kind', status.kind)
       }
-      if (knownAvailability && availability.hasOpenSession) sessionBadge('Inscriptions ouvertes lors du relevé', false)
-      if (knownAvailability && availability.hasScheduledSession) sessionBadge(scheduledOpeningLabel(availability), true)
-      if (!knownAvailability || (!availability.hasOpenSession && !availability.hasScheduledSession)) {
-        add(sessions, 'p', 'Disponibilité des sessions : à vérifier sur la fiche officielle.')
-      }
-      if (knownAvailability) {
-        const date = availability.observedOn.split('-').reverse().join('/')
-        const note = add(sessions, 'p', 'Indicateurs relevés le ' + date + '. Vérifiez la situation actuelle et les conditions sur la fiche officielle.')
-        note.className = 'session-observed-on'
-        if (note.style) note.style.cssText = 'font-size:12px;line-height:1.6;color:#62755b;margin:8px 0 12px'
-      }
+      add(body, 'p', presentation.sessionNote).className = 'session-observed-on'
       if (item.course.sourceUrl) {
-        const link = add(card, 'a', 'Consulter la fiche officielle')
+        const link = add(actions, 'a', 'Voir la fiche'); link.className = 'course-official-link'
         link.href = item.course.sourceUrl
         link.target = '_blank'
         link.rel = 'noopener noreferrer'
@@ -134,6 +133,7 @@ export function renderPathwayResult(document, data, { replay = false, preferredM
           const warning = add(root, 'p', 'Le parcours dépasse le temps disponible.')
           warning.className = 'duration-notice warning'
         } else if (duration.withinBudget === true && duration.durationsKnown === true && duration.verified === true && duration.budgetVerified === true) {
+          metric('Dépassement', 'Aucun', 'success')
           const notice = add(root, 'p', 'Le parcours respecte votre temps disponible.')
           notice.className = 'duration-notice success'
         }
@@ -145,11 +145,13 @@ export function renderPathwayResult(document, data, { replay = false, preferredM
   }
   const usage = data.usage?.total
   if (usage) {
-    add(root, 'h3', replay ? 'Consommation figurant dans les données de test' : 'Consommation renvoyée par le moteur')
-    if (usage.input !== undefined) add(root, 'p', 'Tokens d’entrée : ' + usage.input)
-    if (usage.output !== undefined) add(root, 'p', 'Tokens de sortie : ' + usage.output)
-    if (usage.cost !== undefined) add(root, 'p', 'Coût calculé par le backend : ' + usage.cost + ' USD')
-    else add(root, 'p', 'Coût non disponible.')
+    const diagnostics = add(root, 'details', ''); diagnostics.className = 'result-diagnostics'; diagnostics.hidden = true
+    add(diagnostics, 'summary', 'Détails techniques du résultat')
+    add(diagnostics, 'h3', replay ? 'Consommation figurant dans les données de test' : 'Consommation renvoyée par le moteur')
+    if (usage.input !== undefined) add(diagnostics, 'p', 'Tokens d’entrée : ' + usage.input)
+    if (usage.output !== undefined) add(diagnostics, 'p', 'Tokens de sortie : ' + usage.output)
+    if (usage.cost !== undefined) add(diagnostics, 'p', 'Coût calculé par le backend : ' + usage.cost + ' USD')
+    else add(diagnostics, 'p', 'Coût non disponible.')
   }
   add(root, 'p', 'Vérifie les conditions d’accès et les prérequis sur la fiche officielle. La pertinence d’une formation ne garantit pas son accessibilité.')
   return root
