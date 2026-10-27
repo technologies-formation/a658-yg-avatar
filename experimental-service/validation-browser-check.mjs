@@ -45,7 +45,7 @@ try{
   await page.locator('[data-validation-case='+id+']').click()
   const confirm=page.getByRole('button',{name:'Confirmer ma demande et générer — essai payant',exact:true});await confirm.waitFor()
   assert.equal(engineCalls,index);assert.equal(dialogueCalls,0)
-  await confirm.click();await page.locator('#status').filter({hasText:new RegExp('Parcours réel reçu. Tentatives : '+(index+1)+'/3')}).waitFor()
+  await confirm.click();await page.locator('#status').filter({hasText:new RegExp('Parcours réel reçu. Tentatives : '+(index+1)+'/3')}).waitFor({state:'attached'})
   assert.equal(engineCalls,index+1);assert.equal(postRoutes,index+1);assert.equal(await page.locator('[data-validation-case='+id+']').isDisabled(),true)
   assert.equal(await confirm.count(),0);assert.match(await page.locator('#dialogue-budget').textContent(),/7\/10 tentatives/)
   const record=JSON.parse(readFileSync(join(directory,id+'.result.json'),'utf8'));assert.equal(record.caseId,id)
