@@ -277,7 +277,7 @@ if(config.catalogueStatusEnabled){
 function welcome(){
  const el=say('Comment puis-je vous aider ? Vous cherchez des formations, ou souhaitez-vous construire un parcours adapté à votre situation ?'),row=node('div',undefined,'action-row question-actions');
  action('Rechercher des formations',()=>chooseMode('search'),row,true);action('Construire mon parcours',()=>chooseMode('pathway'),row);el.querySelector('.bubble').append(row);if(realTrial)el.querySelector('.bubble').append(node('p','Pour ce pilote privé, utilisez uniquement des données fictives. Les messages et recherches envoyés à l’IA peuvent être payants.','source-note'));
- if(requestMode||modality||Object.values(profile).some(x=>String(x??'').trim())){const resume=node('div',undefined,'action-row');action('Reprendre ma demande existante',()=>chooseMode(requestMode||'pathway',undefined,true),resume);el.querySelector('.bubble').append(resume);}
+ if(requestMode||modality||Object.values(profile).some(x=>String(x??'').trim())){const resume=node('div',undefined,'action-row question-actions');action('Reprendre ma demande existante',()=>chooseMode(requestMode||'pathway',undefined,true),resume);el.querySelector('.bubble').append(resume);}
  focusStart(el);
 }
 async function chooseMode(mode,fromResearch,resume=false){
@@ -323,7 +323,7 @@ async function openProfile(focusField,preserveEdits=false){
  if(!guidedDraft){renderProfile(focusField);return;}
  if(busy||profileOpening)return;
  if(resumeChoicePending&&!preserveEdits){
-  switchView('discussion');const el=say('Une demande existe déjà. Souhaitez-vous la reprendre avec ses critères enregistrés, ou commencer une demande vide ?'),row=node('div',undefined,'action-row');
+  clearChoices();switchView('discussion');const el=say('Une demande existe déjà. Souhaitez-vous la reprendre avec ses critères enregistrés, ou commencer une demande vide ?'),row=node('div',undefined,'action-row');
   action('Commencer une demande vide',async()=>{await chooseMode('pathway');if(!resumeChoicePending)openProfile(focusField);},row,true);
   action('Reprendre ma demande existante',async()=>{await chooseMode(requestMode||'pathway',undefined,true);if(!resumeChoicePending)openProfile(focusField);},row);el.querySelector('.bubble').append(row);focusStart(el);return;
  }
