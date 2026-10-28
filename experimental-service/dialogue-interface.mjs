@@ -197,6 +197,7 @@ export function createDialogueInterface(options = {}, trial = null) {
         const code = error instanceof DialogueError || error.code==='resume_unavailable' ? error.code : 'service_unavailable'
         const status = ['stale_profile', 'stale_proposal', 'proposal_pending', 'references_changed', 'busy', 'duplicate_request'].includes(code) ? 409 : ['quota_exceeded', 'budget_stopped'].includes(code) ? 429 : code === 'timeout' ? 504 : ['disabled','resume_unavailable'].includes(code) ? 503 : 400
         const diagnostic = { code, status,
+          ...(code==='invalid_response'&&['format','change','modality','field','evidence'].includes(error.validation)?{validation:error.validation}:{}),
           ...(Number.isInteger(error.httpStatus) && error.httpStatus >= 100 && error.httpStatus <= 599 && ['count','generation'].includes(error.stage)
             ? { httpStatus: error.httpStatus, stage: error.stage } : {}) }
         if (currentEntry) currentEntry.lastError = diagnostic

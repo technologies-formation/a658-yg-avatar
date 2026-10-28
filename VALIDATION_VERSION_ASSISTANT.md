@@ -36,3 +36,18 @@ Régression dédiée : emplacement unique dans l’en-tête, cible d’au moins4
 État local :239tests réussis avec transports fictifs. Contrôle CI et inspection des captures à consigner dans le bilan opérateur avant installation.
 
 Points indépendants encore ouverts : validation réelle des dernières consignes moteur (acquis, temps indicatif et modalités), échec ponctuel invalid_response dans le dialogue, duplication de la proposition de reprise, libellés Personnel administratif/Personnel enseignant, bouton répétitif pendant les questions, présentation Sans restriction pour les filtres vides et nuance de modalité dans le résumé. Leur correction n’est pas revendiquée par le déplacement d’Apparence.
+
+
+## Fiabilisation avant préparation du public — 28 octobre 2026
+
+L'alerte GitHub affichée par l'opérateur concernait le commit0e25a48d4bc286a2a11585bc2c235bffc8d489ee, échec navigateur40672718216. Le test recherchait l'intégralité d'une bulle avec correspondance textuelle exacte alors qu'elle contenait aussi des boutons. Le correctif48e280b adapte le sélecteur et suit l'ouverture réelle du formulaire. La versionaf4d520 installée a les contrôles navigateur40709391465 et sécurité40709391523 réussis. Les notifications anciennes restent l'historique de ces essais, pas un état courant du service.
+
+Correctif suivant : une seule invitation de reprise, réutilisée et focalisée lors de clics répétés ; retrait de cette invitation après choix effectivement appliqué. Annulation ou erreur conserve la demande et les autres recherches.
+
+Le dialogue guidé précise les trois valeurs canoniques de modalité et sépare la préférence souple dans constraints. Les espaces de bord sont normalisés, comme les autres critères. L'effacement d'une contrainte est possible avec demande explicite et citation vérifiée ; une citation inventée, une modalité composée ou un changement non conforme restent refusés sans mutation partielle du brouillon. Le coût vérifié et la tentative sont conservés, sans relance automatique.
+
+Pour les réponses refusées, le diagnostic authentifié utilise seulement une catégorie bornée(format, change, modality, field, evidence), sans recopier le contenu reçu. L'interface fournit une explication compréhensible et un accès à Ma demande. La cause exacte du cas réel de préférence souple n'a pas été établie : ces tests ne la reconstituent pas et ne garantissent pas l'absence future de réponse non conforme.
+
+Les essais navigateur rejouent trois ouvertures, une annulation puis une reprise, et une réponse malformée volontaire après un tour valide. Ils vérifient message unique, données identiques, absence de nouvel appel automatique, récupération manuelle, historique et compteurs.
+
+L'ouverture publique est en attente. Le mode courant reste authentifié. Avant un public anonyme, préparer séparément l'isolation des visiteurs, les limites durables, la limitation de cadence et les tests associés ; aucun de ces mécanismes n'est prétendu activé par ce correctif. Les dernières consignes de recommandation et le traitement du dialogue restent à valider avec l'opérateur.

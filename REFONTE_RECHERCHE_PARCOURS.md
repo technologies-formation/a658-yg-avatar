@@ -69,3 +69,10 @@ Validation locale : 239 tests Assistant et 386 tests Catalogue réussis, transpo
 Déplacement validé par l’opérateur : interrupteur compact dans l’en-tête, à droite de l’identité de l’assistant, suppression du titre APPARENCE et du bloc en bas. Le libellé accessible Mode nuit reste associé à l’état du commutateur ; une infobulle indique l’action Mode jour/Mode nuit. La préférence sur cet appareil est conservée. Aucun moteur, état métier ou compteur ne change.
 
 VALIDATION_VERSION_ASSISTANT.md distingue les contrôles techniques avant installation, les essais métier de l’opérateur, les anomalies ouvertes et le bilan de chaque version. Ne pas assimiler un contrôle de ce bouton ou une suite simulée réussie à la validation générale de l’assistant.
+
+
+## Reprise et réponse de dialogue refusée
+
+Une invitation de reprise identifiée est réutilisée au lieu d'empiler des messages. Après reprise réussie elle est retirée ; après annulation elle reste utilisable, sans effacer critères ou recherches.
+
+Le contrat des réponses est conservé : citations exactes et valeurs du référentiel obligatoires, application atomique. Préférence souple : modalité canonique et phrase séparée pour les exceptions ; pas de difficulté métier classée comme contrainte. Une erreur de format n'entraîne ni nouvelle requête IA ni perte des critères ; son explication donne accès au formulaire. Un diagnostic borné facilite l'enquête privée sans enregistrer de réponse brute. Le pilote reste privé pendant la validation des anomalies connues et la préparation d'un éventuel mode public distinct.

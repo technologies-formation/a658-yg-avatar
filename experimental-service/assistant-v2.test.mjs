@@ -67,3 +67,33 @@ test('nouveau besoin : uniquement l’objectif explicite, aucun ancien critère 
  const next=session.startRequestMode('pathway',{expectedRevision:draft.revision,confirmed:true});assert.deepEqual(next.profile,{});assert.equal(next.modality,'')
  session.editProfile(old,{expectedRevision:next.revision,modality:'Présentiel'});const before=session.getDraft();session.setRequestMode('pathway',{expectedRevision:before.revision});assert.deepEqual(session.getDraft().profile,old);assert.equal(session.getDraft().modality,'Présentiel')
 })
+
+
+test('préférence souple : modalité canonique séparée de la souplesse, preuves exactes et espace final toléré',async()=>{
+ const contract=refs(),message='Je préfère une formation en ligne, mais je reste ouvert au présentiel si elle répond mieux à mon besoin.'
+ const session=createDialogueSession({enabled:true,guidedDraft:true,references:contract,maxTurns:10,timeoutMs:1000,provider:{mode:'simulation',async respond(p){
+  assert.match(p.rules.join(' '),/valeurs exactes Présentiel, En ligne ou Indifférent/)
+  assert.match(p.rules.join(' '),/Une difficulté métier ou technique appartient à objective ou existingSkills/)
+  const m=p.messages.at(-1),evidence=[{messageId:m.id,quote:m.text}]
+  return {kind:'ask',reply:'Avez-vous d’autres contraintes ?',changes:[{field:'modality',value:'En ligne ',evidence},{field:'constraints',value:'Présentiel accepté si plus adapté.',evidence}]}
+ }}})
+ const result=await session.turn({message,requestId:'soft-preference-00001',expectedRevision:0,referenceRevision:contract.revision})
+ assert.equal(result.draft.modality,'En ligne');assert.equal(result.draft.profile.constraints,'Présentiel accepté si plus adapté.');assert.equal(result.draft.profile.existingSkills,undefined)
+})
+
+test('modalité composée invalide : diagnostic borné sans texte utilisateur, brouillon entier conservé',async()=>{
+ const contract=refs(),initialProfile={objective:'Structurer mes rapports Word',constraints:'Le lundi'},message='Je préfère en ligne, présentiel accepté.'
+ const session=createDialogueSession({enabled:true,guidedDraft:true,references:contract,initialProfile,initialModality:'Présentiel',maxTurns:10,timeoutMs:1000,provider:{mode:'simulation',async respond(p){const m=p.messages.at(-1),evidence=[{messageId:m.id,quote:m.text}];return {kind:'ask',reply:'Suite',changes:[{field:'objective',value:'Objectif changé',evidence},{field:'modality',value:'En ligne ou présentiel',evidence}]}}}})
+ const before=session.getDraft()
+ await assert.rejects(session.turn({message,requestId:'bad-preference-00001',expectedRevision:0,referenceRevision:contract.revision}),e=>e.code==='invalid_response'&&e.validation==='modality'&&!e.message.includes(message))
+ assert.deepEqual(session.getDraft(),before);assert.equal(session.status().attemptedTurns,1)
+})
+
+test('effacement d’une contrainte uniquement avec demande explicite et preuve exacte',async()=>{
+ for(const [message,allowed] of [['Je n’ai aucune autre contrainte.',true],['Je préfère en ligne.',false]]){
+  const contract=refs(),session=createDialogueSession({enabled:true,guidedDraft:true,references:contract,initialProfile:{constraints:'Le lundi'},maxTurns:10,timeoutMs:1000,provider:{mode:'simulation',async respond(p){const m=p.messages.at(-1);return {kind:'ask',reply:'Suite',changes:[{field:'constraints',value:'',evidence:[{messageId:m.id,quote:m.text}]}]}}}})
+  const operation=session.turn({message,requestId:'clear-constraints-001',expectedRevision:0,referenceRevision:contract.revision})
+  if(allowed)assert.equal((await operation).draft.profile.constraints,undefined)
+  else{await assert.rejects(operation,e=>e.code==='invalid_response'&&e.validation==='change');assert.equal(session.getDraft().profile.constraints,'Le lundi')}
+ }
+})

@@ -70,7 +70,7 @@ test('sortie du connecteur validée, usage conservé, correction explicitement a
  assert.equal(p.status,200);assert.equal(p.value.mode,'simulation');assert.equal(f.calls,2)
 })
 test('preuve invalide refusée sans perte du coût vérifié ni remboursement de tentative',async t=>{
- const f=await fixture(t,{invalid:true});assert.equal((await f.request('/private/dialogue',{body:turn()})).value.code,'invalid_response')
+ const f=await fixture(t,{invalid:true}),failure=(await f.request('/private/dialogue',{body:turn()})).value;assert.equal(failure.code,'invalid_response');assert.equal(failure.validation,'evidence');assert.doesNotMatch(JSON.stringify(failure),/Preuve inventée|FAKE_KEY_ONLY/)
  const state=(await f.request('/private/dialogue')).value
  assert.deepEqual(state.draft.profile,{});assert.equal(state.proposal,null);assert.equal(state.usageRecords.length,1);assert.equal(state.budget.attempts,1)
  assert.equal((await f.request('/private/dialogue',{body:turn()})).value.code,'duplicate_request');assert.equal(f.calls,2)

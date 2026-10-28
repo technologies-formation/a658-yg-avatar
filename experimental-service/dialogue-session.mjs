@@ -33,6 +33,9 @@ export const GUIDED_DIALOGUE_RULES = Object.freeze([
   'Les changements étayés alimentent un brouillon modifiable, pas une recherche. Ne demandez pas de cliquer pour accepter chaque champ. Une confirmation globale précède toute génération de parcours.',
   'Distinguez impérativement environnement professionnel et groupe de personnel : une personne PAT peut travailler à la police, en détention, au DIP ou au Pouvoir judiciaire. Ne déduisez JAMAIS le groupe de son lieu de travail.',
   'Ne déduisez ni compétence, ni niveau, ni modalité à partir du métier ou d’un autre sujet. Temps total et horizon se renseignent ensemble. La modalité est une question distincte.',
+  'Pour modality, utilisez exclusivement les valeurs exactes Présentiel, En ligne ou Indifférent. Une préférence en ligne avec présentiel accepté correspond à modality En ligne et à une phrase séparée dans constraints, chacune étayée par une citation exacte. Ne concaténez jamais les deux modalités dans modality.',
+  'constraints décrit seulement les contraintes et préférences de formation. Une difficulté métier ou technique appartient à objective ou existingSkills, jamais à constraints. Sans information nouvelle, ne proposez aucun changement de ce champ.',
+  'Chaque citation doit être copiée exactement depuis un message utilisateur conservé, avec son identifiant. Omettez les champs inconnus de changes ; n’ajoutez pas de valeurs vides sauf pour effacer explicitement une contrainte ou retirer un filtre demandé par la personne.',
   'Champs du formulaire : professionalEnvironment, personnelCategory, role, managerStatus, objective, existingSkills, timeAvailable, modality, constraints, trainingOffers, trainingOrganizers. Le champ historique entity reste inchangé et ne doit plus être demandé.',
   'Utilisez uniquement les choix exacts des références pour environnement, personnel et responsabilité. Les offres et entités organisatrices sont distinctes : plusieurs valeurs séparées par une nouvelle ligne, ou vide pour sans restriction. Si la personne ne sait pas, proposez de laisser sans restriction. Ne choisissez pas ces filtres sur le seul environnement professionnel.',
   'Ordre proposé si les informations manquent : environnement professionnel, groupe de personnel, fonction, responsabilité, objectif et difficulté concrète, acquis, temps, modalité, autres contraintes et périmètre. Adaptez cet ordre aux informations déjà données.',
@@ -92,29 +95,34 @@ function createSession(options, realTrial) {
   const available = () => { if (stopped) fail('disabled') }
   const snapshot = () => copy({ profile, modality, revision, referenceRevision: contract.revision, ...(guidedDraft?{requestMode}:{}) })
   function proposalValue(value) {
+    const invalid=reason=>{const error=new DialogueError('invalid_response');error.validation=reason;throw error}
     if (!object(value) || Object.keys(value).sort().join(',') !== 'changes,kind,reply' ||
         !['ask', 'clarify', 'recap', 'out_of_scope'].includes(value.kind) ||
         typeof value.reply !== 'string' || !value.reply.trim() || value.reply.length > 4000 ||
-        !Array.isArray(value.changes) || value.changes.length > PROFILE_FIELDS.length + 1) fail('invalid_response')
+        !Array.isArray(value.changes) || value.changes.length > PROFILE_FIELDS.length + 1) invalid('format')
     const seen = new Set(), changes = []
     for (const item of value.changes) {
       if (!object(item) || Object.keys(item).sort().join(',') !== 'evidence,field,value' ||
           ![...PROFILE_FIELDS, 'modality'].includes(item.field) || seen.has(item.field) ||
-          typeof item.value !== 'string' || (!item.value.trim()&&!(guidedDraft&&['trainingOffers','trainingOrganizers'].includes(item.field))) || !Array.isArray(item.evidence) ||
-          !item.evidence.length || item.evidence.length > 4) fail('invalid_response')
-      if(guidedDraft&&item.field==='personnelCategory'){
-        const proof=item.evidence.map(x=>x.quote??'').join(' ').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase()
-        const explicit={PAT:/\bpat\b|personnel administratif/,PE:/\bpe\b|enseignant/, 'PU Police':/\bpu\b.*police|uniforme.*police|policier|policiere/, 'PU Prison':/\bpu\b.*prison|uniforme.*(?:prison|detention)|agent.*detention|penitentiaire/,PJ:/\bpj\b|personnel.*pouvoir judiciaire|magistrat/}[item.value]
-        if(explicit&&!explicit.test(proof))continue
-      }
+          typeof item.value !== 'string' || (!item.value.trim()&&!(guidedDraft&&['constraints','trainingOffers','trainingOrganizers'].includes(item.field))) || !Array.isArray(item.evidence) ||
+          !item.evidence.length || item.evidence.length > 4) invalid('change')
       seen.add(item.field)
-      if (item.field === 'modality') { if (!modalities.slice(1).includes(item.value)) fail('invalid_response') }
-      else { try { profileValue({ [item.field]: item.value }) } catch { fail('invalid_response') } }
       for (const evidence of item.evidence) {
         if (!object(evidence) || Object.keys(evidence).sort().join(',') !== 'messageId,quote' ||
             typeof evidence.quote !== 'string' || !evidence.quote.trim() || evidence.quote.length > 1500 ||
-            !history.some(message => message.role === 'user' && message.id === evidence.messageId && message.text.includes(evidence.quote))) fail('invalid_response')
+            !history.some(message => message.role === 'user' && message.id === evidence.messageId && message.text.includes(evidence.quote))) invalid('evidence')
       }
+      if(guidedDraft&&item.field==='constraints'&&!item.value.trim()){
+        const proof=item.evidence.map(x=>x?.quote??'').join(' ').toLowerCase()
+        if(!/(?:aucune?|sans)\s+(?:autre\s+)?contraintes?|pas\s+d['’](?:autres?\s+)?contraintes?|(?:effac|retir|supprim)\w*[^.!?]{0,40}contraintes?/.test(proof))invalid('change')
+      }
+      if(guidedDraft&&item.field==='personnelCategory'){
+        const proof=item.evidence.map(x=>x?.quote??'').join(' ').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase()
+        const explicit={PAT:/\bpat\b|personnel administratif/,PE:/\bpe\b|enseignant/, 'PU Police':/\bpu\b.*police|uniforme.*police|policier|policiere/, 'PU Prison':/\bpu\b.*prison|uniforme.*(?:prison|detention)|agent.*detention|penitentiaire/,PJ:/\bpj\b|personnel.*pouvoir judiciaire|magistrat/}[item.value]
+        if(explicit&&!explicit.test(proof))continue
+      }
+      if (item.field === 'modality') { if (!modalities.slice(1).includes(item.value.trim())) invalid('modality') }
+      else { try { profileValue({ [item.field]: item.value }) } catch { invalid('field') } }
       changes.push({ field: item.field, value: item.value.trim(), evidence: structuredClone(item.evidence) })
     }
     return { kind: value.kind, reply: value.reply.trim(), changes }

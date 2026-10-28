@@ -184,7 +184,7 @@ function updatePathwayQuota(quota){
  if(pathwayBlocked())document.querySelectorAll('[data-confirm]').forEach(button=>button.closest('.question-actions')?.remove());
 }
 function updateDialogueBudget(value){if(realTrial&&value.budget){$('dialogue-budget').textContent=value.budget.unlimited?'Dialogue IA : '+value.budget.attempts+' tentatives · sans plafond d’essais.':'Dialogue IA : '+value.budget.attempts+'/10 tentatives · '+(value.budget.reservedMicroUsd/1000000).toFixed(2)+' USD réservés (plafond de réservations : 0,10 USD).';const records=value.usageRecords||[];if(records.length){const total=records.reduce((a,u)=>({input:a.input+u.inputTokens,output:a.output+u.outputTokens,cost:a.cost+u.calculatedUpperCostUsd}),{input:0,output:0,cost:0});$('dialogue-budget').append(node('span',' Usage vérifié de cet échange : '+total.input+' tokens entrants, '+total.output+' sortants ; majoration calculée '+total.cost.toFixed(6)+' USD (hors comptage, taxes et tentatives sans usage vérifiable).'));}}}
-function failureMessage(value,statusCode){const code=typeof value.code==='string'&&/^[a-z_]{1,60}$/.test(value.code)?value.code:'unknown';const upstream=Number.isInteger(value.httpStatus)?' · API HTTP '+value.httpStatus+' · '+(value.stage==='count'?'comptage':'génération'):'';return 'Dialogue non abouti — '+code+' · HTTP '+statusCode+upstream+'. Demande conservée ; aucune relance automatique.';}
+function failureMessage(value,statusCode){if(value.code==='invalid_response')return 'Je n’ai pas pu mettre à jour votre demande à partir de cette réponse. Vos critères enregistrés sont conservés. Vous pouvez les vérifier dans « Ma demande ». Aucune relance automatique.';const code=typeof value.code==='string'&&/^[a-z_]{1,60}$/.test(value.code)?value.code:'unknown';const upstream=Number.isInteger(value.httpStatus)?' · API HTTP '+value.httpStatus+' · '+(value.stage==='count'?'comptage':'génération'):'';return 'Dialogue non abouti — '+code+' · HTTP '+statusCode+upstream+'. Demande conservée ; aucune relance automatique.';}
 async function dialogueRequest(body){
  if(busy)throw Error('Une demande est déjà en cours.');
  invalidate();const attempt=epoch,abort=new AbortController();controller=abort;setBusy(true,body?.action==='turn'?'Réflexion en cours…':'');const timer=setTimeout(()=>abort.abort(),config.timeoutMs);
@@ -240,7 +240,7 @@ async function send(text){
   applyDraft(value.draft);proposal=value.proposal;
   if(proposal)showPending(value.reply);
   else{const el=say(value.reply);status(realTrial?'Réponse IA reçue. Aucun parcours réel lancé.':'Réponse d’un fournisseur fictif. Aucun appel OpenAI.');offerNext();focusStart(el);}
- }catch(error){if(realTrial&&!error.budgetRefreshed){try{await dialogueRequest();}catch{}}status(error.name==='AbortError'?'Dialogue interrompu. Demande et résultats conservés ; aucune relance automatique.':error.message,true);}
+ }catch(error){if(realTrial&&!error.budgetRefreshed){try{await dialogueRequest();}catch{}}if(error.code==='invalid_response'){const el=say(error.message);action('Vérifier ma demande',openProfile,el.querySelector('.bubble'));focusStart(el);}status(error.name==='AbortError'?'Dialogue interrompu. Demande et résultats conservés ; aucune relance automatique.':error.message,true);}
 }
 $('profile-form').addEventListener('submit',async event=>{
  event.preventDefault();if(busy)return;const values=Object.fromEntries(new FormData(event.target)),next={};
@@ -285,7 +285,7 @@ async function chooseMode(mode,fromResearch,resume=false){
  const hasDraft=modality||Object.values(profile).some(x=>String(x??'').trim())||$('message').value.trim()||document.querySelector('#thread .message.user');
  if(!resume&&hasDraft&&!await confirmNewRequest(document))return;
  if(busy)return;
- try{const value=await dialogueRequest({action:'request-mode',requestMode:mode,intent:resume?'resume':'start',confirmed:!resume,expectedRevision:draftRevision,...(fromResearch!==undefined?{fromResearch}:{})});proposal=null;resumeChoicePending=false;if(!resume){$('thread').replaceChildren();$('message').value='';}applyDraft(value.draft);clearChoices();switchView('discussion');if(resume)say('Votre demande existante a été reprise avec ses critères enregistrés. Vérifiez-les avant de poursuivre.');
+ try{const value=await dialogueRequest({action:'request-mode',requestMode:mode,intent:resume?'resume':'start',confirmed:!resume,expectedRevision:draftRevision,...(fromResearch!==undefined?{fromResearch}:{})});proposal=null;resumeChoicePending=false;document.querySelectorAll('[data-resume-choice]').forEach(el=>el.remove());if(!resume){$('thread').replaceChildren();$('message').value='';}applyDraft(value.draft);clearChoices();switchView('discussion');if(resume)say('Votre demande existante a été reprise avec ses critères enregistrés. Vérifiez-les avant de poursuivre.');
  const text=mode==='search'?'Quelle formation recherchez-vous ? Donnez-moi un titre, un code, quelques mots-clés ou décrivez ce que vous souhaitez apprendre. La recherche utilise l’IA du catalogue et peut être payante. Aucun formulaire complet à remplir.':'Je vais vous aider à préciser votre besoin. Nous compléterons progressivement le formulaire « Ma demande », que vous pourrez modifier avant de lancer la recherche. Chaque message envoyé peut consommer un appel IA payant.';
  const el=say(text);$('message').placeholder=mode==='search'?'Un titre, un code ou ce que vous souhaitez apprendre…':'Décrivez votre besoin…';$('message').maxLength=mode==='search'?1000:1500;$('send-message').setAttribute('aria-label',mode==='search'?'Rechercher des formations — IA payante':'Envoyer un message — IA payante');
  if(mode==='pathway')guidedNext();focusStart(el);$('message').focus({preventScroll:true});
@@ -323,7 +323,9 @@ async function openProfile(focusField,preserveEdits=false){
  if(!guidedDraft){renderProfile(focusField);return;}
  if(busy||profileOpening)return;
  if(resumeChoicePending&&!preserveEdits){
+  const existing=document.querySelector('[data-resume-choice]');if(existing){switchView('discussion');focusStart(existing);existing.querySelector('button')?.focus({preventScroll:true});return;}
   clearChoices();switchView('discussion');const el=say('Une demande existe déjà. Souhaitez-vous la reprendre avec ses critères enregistrés, ou commencer une demande vide ?'),row=node('div',undefined,'action-row');
+  el.dataset.resumeChoice='true';
   action('Commencer une demande vide',async()=>{await chooseMode('pathway');if(!resumeChoicePending)openProfile(focusField);},row,true);
   action('Reprendre ma demande existante',async()=>{await chooseMode(requestMode||'pathway',undefined,true);if(!resumeChoicePending)openProfile(focusField);},row);el.querySelector('.bubble').append(row);focusStart(el);return;
  }
