@@ -22,7 +22,7 @@ try{
    })
    await page.goto(origin+'/public/');await page.getByRole('button',{name:'Rechercher des formations',exact:true}).waitFor()
    assert.match(await page.locator('#messaging-config').textContent(),/"publicPilot":true/);assert.equal(f.calls.length,0)
-   assert.match(await page.locator('#dialogue-budget').textContent(),/0\/10 messages/)
+   assert.match(await page.locator('#dialogue-budget').textContent(),/0\/10 messages/);assert.equal(await page.locator('#dialogue-budget').isVisible(),true)
    await page.screenshot({path:'visual-check/public-welcome-'+name+'.png',animations:'disabled'})
    await page.getByRole('button',{name:'Rechercher des formations',exact:true}).click();await page.locator('#message').fill('Word');await page.locator('#send-message').click()
    await page.getByText('J’ai trouvé 1 formation',{exact:false}).waitFor();assert.equal(f.calls.length,1)
