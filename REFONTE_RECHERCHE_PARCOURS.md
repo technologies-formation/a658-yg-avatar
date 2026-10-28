@@ -35,3 +35,22 @@ Un nouveau parcours démarre avec des champs vides. Depuis une recherche de cour
 Si les références changent pendant la saisie, les saisies restent affichées. L’actualisation proposée conserve ces saisies et signale les choix retirés, qui restent cochés jusqu’à une correction explicite. Une valeur retirée ne peut pas être envoyée au moteur.
 
 Après la recherche directe, un message distinct de l’assistant annonce le nombre de formations et propose la consultation ou la construction d’un parcours. Les cartes de recherche ne portent plus le badge de piste facultative et n’affichent pas une justification générique sous le titre « Pourquoi ce cours ? ». Les justifications propres à un cours restent conservées.
+
+
+## Ajustements de pertinence et modalités — 28 octobre 2026
+
+Décisions issues de la validation opérateur : le temps disponible est un repère à reconsidérer, pas un plafond qui justifierait de supprimer une étape nécessaire. L'écart arithmétique reste affiché. Le conseil partagé écran/PDF est au conditionnel : « Ce parcours pourrait nécessiter plus de temps que vous ne l’aviez envisagé. » L'étalement et la discussion avec la hiérarchie sont des possibilités, jamais des décisions déjà prises.
+
+La préférence de modalité départage des réponses de pertinence comparable ; une préférence souple ne doit pas favoriser le cumul d'un e-learning généraliste avec des modules ciblés redondants. Le moteur peut toujours recommander un e-learning si son contenu/niveau répond le mieux au besoin ou si la modalité est une exigence exclusive.
+
+Règle métier transitoire expressément validée : rechercher une modalité explicite dans le titre et le descriptif. En son absence, considérer le cours en présentiel, avec provenance `catalogue-default` et affichage « Présentiel présumé ». Ce n'est pas un indicateur SIRH : ne pas inventer un flag ni certifier la correspondance avec une préférence. Une mention contradictoire ou une simple référence au sujet e-learning reste « à vérifier ». Les anciens résultats ne sont ni régénérés ni requalifiés.
+
+L'Assistant accepte les preuves `titleRaw`, `generalInformation`, `content`, `objectives`, `additionalInformation` ainsi que l'hypothèse `catalogue-default` réservée au présentiel sans preuve textuelle. Le PDF et la pièce jointe de courriel utilisent le même rendu. Le titre PDF reprend désormais l'objectif complet ; les libellés abrégés de navigation sont conservés.
+
+Déploiement : installer d'abord l'Assistant compatible avec les nouvelles provenances, puis le seul module `server/pathwayEngine.mjs` du Catalogue. Pas de migration ni remise à zéro des états. Une marche arrière du moteur d'abord reste compatible avec les états existants ; ne pas réinstaller un ancien Assistant incapable de lire les résultats déjà reçus avec les nouvelles provenances.
+
+Retours conservés pour un lot suivant : libellés Personnel administratif / Personnel enseignant ; retrait du bouton répétitif Compléter ou modifier pendant les questions ; afficher Sans restriction pour les filtres vides ; mieux classer les difficultés dans objectif/acquis plutôt que contraintes ; conserver la nuance de préférence souple dans le résumé des critères. L'échec ponctuel invalid_response sur une réponse de préférence souple n'a pas une cause établie : ne pas le déclarer corrigé par ces règles du moteur. Tout réinitialiser reste différé.
+
+Disposition Apparence : chevauchement avec les recherches signalé par opérateur. Proposition à valider avant développement : interrupteur compact soleil/lune en haut à droite de l'identité de l'assistant. Aucun déplacement inclus dans ce lot.
+
+Validation locale : 239 tests Assistant et 386 tests Catalogue réussis, transports simulés exclusivement. Ces contrôles prouvent les contrats, la conservation des résultats et les règles envoyées au modèle ; ils ne remplacent pas une future évaluation des recommandations réelles. Aucun appel IA payant ou courriel lancé par l'agent.

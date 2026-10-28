@@ -1,5 +1,5 @@
 import {catalogueVersionLabel} from './catalogue-version.mjs'
-import {courseDisplayDetails,SEARCH_RESULT_NOTE} from './pathway-result.mjs'
+import {courseDisplayDetails,SEARCH_RESULT_NOTE,TIME_PLANNING_NOTICE,TIME_EXCESS_NOTICE} from './pathway-result.mjs'
 import {createMessagingSnapshot,researchLabel,composeConstraints} from './messaging-state.mjs'
 
 export const AI_GUIDANCE='L’assistant IA peut faire des erreurs. Vérifiez les informations et les conditions d’accès sur les fiches officielles. En cas de doute, rapprochez-vous de votre service RH ou de votre hiérarchie.'
@@ -28,7 +28,7 @@ export function createPdfModel(snapshot,{references,now=new Date()}={}){
   const date=new Date(now)
   if(!Number.isFinite(date.getTime()))throw Error('Date d’export invalide.')
   const slug=saved.profile.objective?.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,60)||'formation'
-  return {title:researchLabel(saved),catalogueLabel:catalogueVersionLabel(result.catalogue,{results:true,simulation}),criteria,groups,summary:result.summary,interpretedGoal:result.interpretedGoal||'',gaps:result.gaps??[],duration:result.durationSummary??null,
+  return {title:(result.searchQuery||saved.profile.objective||researchLabel(saved)).trim(),catalogueLabel:catalogueVersionLabel(result.catalogue,{results:true,simulation}),criteria,groups,summary:result.summary,interpretedGoal:result.interpretedGoal||'',gaps:result.gaps??[],duration:result.durationSummary??null,
     simulation,noPathway,searchOnly:Boolean(result.searchQuery),objective:saved.profile.objective||'',preferredModality:saved.modality||'',guidance:AI_GUIDANCE,date,filename:'a658yg-recherche-'+slug+'.pdf'}
 }
 
@@ -97,6 +97,7 @@ export function renderPathwayPdf(model,{jsPDF,fonts,logo}={}){
         {text:'Durée : '+presentation.duration+' | Public : '+(course.public||'non renseigné')+' | '+presentation.modality,size:8.5,color:muted},
         ...presentation.statuses.map(status=>({text:status.label,size:8.5,style:'bold',badge:status.kind})),
         ...(!model.searchOnly||item.rationale!==SEARCH_RESULT_NOTE?[{text:'Pourquoi ce cours ?',size:8.5,style:'bold'},{text:item.rationale,size:9.5}]:[]),
+        ...(presentation.modalityNote?[{text:presentation.modalityNote,size:8,color:muted}]:[]),
         ...(presentation.versionNote?[{text:presentation.versionNote,size:8.5,color:'#795015'}]:[]),
         {text:presentation.sessionNote,size:8,color:muted},
       ]
@@ -161,7 +162,7 @@ export function renderPathwayPdf(model,{jsPDF,fonts,logo}={}){
     }
     if(model.noPathway)write('Aucun parcours proposé : durée non calculée.')
     else if(duration){
-      if(duration.excessHours>0)write('Dépassement : '+duration.excessHours+' h. Le parcours dépasse le temps disponible.',{color:'#795015'})
+      if(duration.excessHours>0)write('Dépassement : '+duration.excessHours+' h. '+TIME_EXCESS_NOTICE+' '+TIME_PLANNING_NOTICE,{color:'#795015'})
       if(duration.durationsKnown===false||duration.verified===false||duration.budgetVerified===false)write('La vérification des durées est incomplète.',{color:muted})
     }else write('Durée totale non renseignée dans ce résultat.')
   }

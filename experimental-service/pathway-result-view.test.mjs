@@ -30,7 +30,7 @@ test('affichage : rubriques distinctes, ordre, durées, public et mesures sans m
   const real = text(renderPathwayResult(document, value))
   assert.match(real, /Votre disponibilité\n8 h/)
   assert.match(real, /Dépassement\n\+ 8 h/)
-  assert.match(real, /Le parcours dépasse le temps disponible/)
+  assert.match(real, /Ce parcours pourrait nécessiter plus de temps/)
   assert.match(content, /Tokens d’entrée : 100/)
   assert.match(content, /0.00123 USD/)
   assert.match(content, /ne garantit pas son accessibilité/)
@@ -163,4 +163,29 @@ test('versions : écart explicite du même logiciel, sans équivalence ni exclus
   assert.doesNotMatch(notice,/équivalent|incompatible|exclu/)
   for(const objective of ['Structurer mes rapports','Excel 2016','Word 365','Word 2016 ou Word 365'])assert.equal(courseDisplayDetails(course,{objective}).versionNote,'')
   assert.deepEqual(course,before)
+})
+
+
+test('le présentiel présumé est distinct de la preuve et ne confirme pas la préférence',()=>{
+  const value=data(),before=structuredClone(value)
+  value.recommendedSteps[0].course.deliveryMode={value:'in_person',sourceField:'catalogue-default',evidence:null}
+  const content=text(renderPathwayResult(document,value,{preferredModality:'Présentiel'}))
+  assert.match(content,/Présentiel présumé/)
+  assert.match(content,/en l’absence de mention de modalité dans le titre ou le descriptif/)
+  assert.doesNotMatch(content,/Modalité conforme|indiquée dans l’intitulé/)
+  assert.deepEqual(value.recommendedSteps[0].course.code,before.recommendedSteps[0].course.code)
+  const bad=data();bad.recommendedSteps[0].course.deliveryMode={value:'online',sourceField:'catalogue-default',evidence:null}
+  assert.throws(()=>renderPathwayResult(document,bad),error=>error.code==='invalid_response')
+})
+
+test('modalité explicitée dans le descriptif et temps de planification : aucun cours retiré',()=>{
+  const value=data()
+  value.recommendedSteps[0].course.deliveryMode={value:'online',sourceField:'generalInformation',evidence:'Cette formation est en ligne'}
+  const before=structuredClone(value)
+  const content=text(renderPathwayResult(document,value,{preferredModality:'En ligne'}))
+  assert.match(content,/Modalité indiquée dans le descriptif : en ligne/)
+  assert.match(content,/repère de planification/)
+  assert.match(content,/étaler le parcours/)
+  assert.match(content,/votre hiérarchie/)
+  assert.deepEqual(value,before)
 })

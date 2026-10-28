@@ -1,5 +1,5 @@
 // Affichage seul : aucune requête, aucun stockage, aucun HTML issu du résultat.
-import { validatePathwayResult, courseDisplayDetails, SEARCH_RESULT_NOTE } from './pathway-result.mjs'
+import { validatePathwayResult, courseDisplayDetails, SEARCH_RESULT_NOTE, TIME_PLANNING_NOTICE, TIME_EXCESS_NOTICE } from './pathway-result.mjs'
 
 export function renderPathwayResult(document, data, { replay = false, preferredModality = '', objective = '' } = {}) {
   const { empty } = validatePathwayResult(data)
@@ -79,15 +79,15 @@ export function renderPathwayResult(document, data, { replay = false, preferredM
       const delivery = add(body, 'div', ''); delivery.className = 'course-delivery-notes'
       const mode = item.course.deliveryMode
       const modeLabels = {online:'en ligne',in_person:'en présentiel',hybrid:'hybride'}
-      const known = mode && mode.value !== 'unknown'
-      add(delivery, 'p', known ? 'Modalité indiquée dans l’intitulé : ' + modeLabels[mode.value] + '.'
-        : 'Modalité du cours : non renseignée dans les données transmises.')
+      const known = mode && mode.value !== 'unknown' && mode.sourceField !== 'catalogue-default'
+      add(delivery, 'p', presentation.modalityNote || (known ? 'Modalité indiquée dans ' + (mode.sourceField === 'titleRaw' ? 'l’intitulé' : 'le descriptif') + ' : ' + modeLabels[mode.value] + '.'
+        : 'Modalité du cours : non renseignée dans les données transmises.'))
       if (preferredModality) add(delivery, 'p', 'Votre préférence : ' + (preferredModality === 'Indifférent' ? 'Sans préférence de modalité' : preferredModality) + '.')
       if (preferredModality && preferredModality !== 'Indifférent') {
         const preferred = preferredModality === 'En ligne' ? 'online' : 'in_person'
         add(delivery, 'p', !known ? 'Compatibilité avec votre préférence : non établie. Vérifiez la modalité sur la fiche officielle.'
           : mode.value === 'hybrid' ? 'Compatibilité à vérifier : une formation hybride peut comporter des séances en ligne et en présentiel.'
-          : mode.value === preferred ? 'Modalité conforme à votre préférence selon l’intitulé ; vérifiez les conditions sur la fiche officielle.'
+          : mode.value === preferred ? 'Modalité conforme à votre préférence selon ' + (mode.sourceField === 'titleRaw' ? 'l’intitulé' : 'le descriptif') + ' ; vérifiez les conditions sur la fiche officielle.'
           : 'Écart avec votre préférence : la modalité indiquée pour ce cours est différente. Cette piste reste à comparer.')
       }
       const sessions = add(header, 'div', ''); sessions.className = 'session-availability'
@@ -132,7 +132,7 @@ export function renderPathwayResult(document, data, { replay = false, preferredM
         metric('Durée du parcours', duration.recommendedHours == null ? 'Non renseignée' : duration.recommendedHours + ' h')
         if (duration.excessHours > 0) {
           metric('Dépassement', '+ ' + duration.excessHours + ' h', 'warning')
-          const warning = add(root, 'p', 'Le parcours dépasse le temps disponible.')
+          const warning = add(root, 'p', TIME_EXCESS_NOTICE + ' ' + TIME_PLANNING_NOTICE)
           warning.className = 'duration-notice warning'
         } else if (duration.withinBudget === true && duration.durationsKnown === true && duration.verified === true && duration.budgetVerified === true) {
           metric('Dépassement', 'Aucun', 'success')
