@@ -54,3 +54,11 @@ Retours conservés pour un lot suivant : libellés Personnel administratif / Per
 Disposition Apparence : chevauchement avec les recherches signalé par opérateur. Proposition à valider avant développement : interrupteur compact soleil/lune en haut à droite de l'identité de l'assistant. Aucun déplacement inclus dans ce lot.
 
 Validation locale : 239 tests Assistant et 386 tests Catalogue réussis, transports simulés exclusivement. Ces contrôles prouvent les contrats, la conservation des résultats et les règles envoyées au modèle ; ils ne remplacent pas une future évaluation des recommandations réelles. Aucun appel IA payant ou courriel lancé par l'agent.
+
+
+## Suite de l'essai — acquis et rangée de temps
+
+- Les trois cartes disponibilité, durée et dépassement restent sur une seule rangée, avec des largeurs égales et des valeurs non coupées. Les libellés peuvent revenir à la ligne dans leur carte. Contrôles navigateur ajoutés sur ordinateur, mobile et largeur320px, sans changer le calcul ou l'ordre des cours.
+- Les premières générations réelles confirment le déplacement du e-learning en alternative mais révèlent encore un socle imposé pour vérifier des acquis, un objectif interprété transformant le repère de temps en plafond et des identifiants techniques dans le texte. Les consignes sont renforcées dès la première passe et distinguent les prérequis réellement manquants des maîtrises à confirmer. Les identifiants de provenance sont traduits dans les explications ; les preuves structurées restent inchangées.
+- « / Formation autonome en ligne » est reconnu comme déclaration explicite de modalité dans le titre. Une simple mention du sujet e-learning reste insuffisante.
+- Les recherches antérieures sont conservées, sans relance ni réécriture automatique. Le déplacement Apparence et les autres retours du dialogue restent dans le lot UX à valider.
