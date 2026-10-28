@@ -1,5 +1,5 @@
 // Affichage seul : aucune requête, aucun stockage, aucun HTML issu du résultat.
-import { validatePathwayResult, courseDisplayDetails } from './pathway-result.mjs'
+import { validatePathwayResult, courseDisplayDetails, SEARCH_RESULT_NOTE } from './pathway-result.mjs'
 
 export function renderPathwayResult(document, data, { replay = false, preferredModality = '', objective = '' } = {}) {
   const { empty } = validatePathwayResult(data)
@@ -63,15 +63,17 @@ export function renderPathwayResult(document, data, { replay = false, preferredM
       const identity = add(header, 'div', ''); identity.className = 'course-identity'
       add(identity, 'span', item.course.code).className = 'course-code'
       add(identity, 'h4', item.course.title)
-      if (label !== 'Étapes recommandées') add(identity, 'span', label === 'Pour information' ? 'Pour information · accès à vérifier' : 'Piste facultative').className = 'course-category'
+      if (!data.searchQuery && label !== 'Étapes recommandées') add(identity, 'span', label === 'Pour information' ? 'Pour information · accès à vérifier' : 'Piste facultative').className = 'course-category'
       const metadata = add(body, 'div', ''); metadata.className = 'course-metadata'
       add(metadata, 'span', presentation.duration === 'Non renseignée' ? 'Durée non renseignée' : 'Durée : ' + presentation.duration)
       if (item.course.public) add(metadata, 'span', 'Public : ' + item.course.public)
       add(metadata, 'span', presentation.modality)
       const footer = add(body, 'div', ''); footer.className = 'course-footer'
+      if(!data.searchQuery||item.rationale!==SEARCH_RESULT_NOTE){
       const rationale = add(footer, 'div', ''); rationale.className = 'course-rationale'
       add(rationale, 'strong', 'Pourquoi ce cours ?')
       add(rationale, 'p', item.rationale)
+      }
       const actions = add(footer, 'div', ''); actions.className = 'course-actions'
       if (presentation.versionNote) add(body, 'p', presentation.versionNote).className = 'course-version-note'
       const delivery = add(body, 'div', ''); delivery.className = 'course-delivery-notes'

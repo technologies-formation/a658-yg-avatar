@@ -1,5 +1,5 @@
 import {catalogueVersionLabel} from './catalogue-version.mjs'
-import {courseDisplayDetails} from './pathway-result.mjs'
+import {courseDisplayDetails,SEARCH_RESULT_NOTE} from './pathway-result.mjs'
 import {createMessagingSnapshot,researchLabel,composeConstraints} from './messaging-state.mjs'
 
 export const AI_GUIDANCE='L’assistant IA peut faire des erreurs. Vérifiez les informations et les conditions d’accès sur les fiches officielles. En cas de doute, rapprochez-vous de votre service RH ou de votre hiérarchie.'
@@ -96,8 +96,7 @@ export function renderPathwayPdf(model,{jsPDF,fonts,logo}={}){
         ...(!primary&&!model.searchOnly?[{text:label.startsWith('Pour information')?'Pour information - accès à vérifier':'Piste facultative',size:8.5,color:muted}]:[]),
         {text:'Durée : '+presentation.duration+' | Public : '+(course.public||'non renseigné')+' | '+presentation.modality,size:8.5,color:muted},
         ...presentation.statuses.map(status=>({text:status.label,size:8.5,style:'bold',badge:status.kind})),
-        {text:'Pourquoi ce cours ?',size:8.5,style:'bold'},
-        {text:item.rationale,size:9.5},
+        ...(!model.searchOnly||item.rationale!==SEARCH_RESULT_NOTE?[{text:'Pourquoi ce cours ?',size:8.5,style:'bold'},{text:item.rationale,size:9.5}]:[]),
         ...(presentation.versionNote?[{text:presentation.versionNote,size:8.5,color:'#795015'}]:[]),
         {text:presentation.sessionNote,size:8,color:muted},
       ]

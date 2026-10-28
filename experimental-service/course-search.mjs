@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { createHash } from 'node:crypto'
 import { protectedDirectory } from './consumption-ledger.mjs'
 import { readCatalogueVersion } from './catalogue-version.mjs'
-import { validatePathwayResult } from './pathway-result.mjs'
+import { validatePathwayResult, SEARCH_RESULT_NOTE } from './pathway-result.mjs'
 const origin='https://api.a658yg-catalogue.ch'
 const fail=code=>{throw Object.assign(Error(code),{code})}
 export async function readBoundedJson(response,limit=4*1024*1024){
@@ -38,7 +38,7 @@ export function createCourseSearch({directory,fetchImpl=globalThis.fetch,reporti
    const map=items=>{if(!Array.isArray(items)||items.length>100)fail('invalid_response');return items.map((item,index)=>{
     const c=byCode.get(item.code);if(!c||seen.has(c.code))fail('invalid_response');seen.add(c.code)
     const raw=c.officialData??{}
-    return {position:index+1,rationale:'Formation retenue par la recherche du catalogue. Consultez la fiche officielle pour vérifier son contenu et ses conditions d’accès.',course:{code:c.code,title:raw.titleRaw??c.title,sourceUrl:c.sourceUrl,duration:raw.durationRaw??c.duration??'',public:raw.publicRaw??c.public??'',...(typeof raw.hasOpenSession==='boolean'?{sessionAvailability:{source:'official-session-icons',observedOn:raw.sourceSnapshotDate??version.snapshotDate,hasOpenSession:raw.hasOpenSession,hasScheduledSession:raw.hasScheduledSession===true,...(raw.scheduledOpeningDates?.length?{scheduledOpeningDates:raw.scheduledOpeningDates}:{})}}:{})}}
+    return {position:index+1,rationale:SEARCH_RESULT_NOTE,course:{code:c.code,title:raw.titleRaw??c.title,sourceUrl:c.sourceUrl,duration:raw.durationRaw??c.duration??'',public:raw.publicRaw??c.public??'',...(typeof raw.hasOpenSession==='boolean'?{sessionAvailability:{source:'official-session-icons',observedOn:raw.sourceSnapshotDate??version.snapshotDate,hasOpenSession:raw.hasOpenSession,hasScheduledSession:raw.hasScheduledSession===true,...(raw.scheduledOpeningDates?.length?{scheduledOpeningDates:raw.scheduledOpeningDates}:{})}}:{})}}
    })}
    const result={ok:true,searchQuery:query.trim(),summary:typeof value.reason==='string'&&value.reason.trim()?value.reason:'Voici les formations trouvées pour votre recherche.',recommendedSteps:map(value.recommendedResults??value.results),optionalSteps:map(value.complementaryResults??[]),informationalCourses:map(value.relatedResults??[]),catalogue:version,abstain:value.abstain===true}
    validatePathwayResult(result)

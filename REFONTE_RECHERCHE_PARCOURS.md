@@ -25,3 +25,13 @@ Ne jamais publier les clés, les configurations privées, les recherches réelle
 ## Vérifications
 
 Tests de contrat et de recherche simulée : absence de profil obligatoire, preuves et brouillon progressif, mode conservé, valeurs de référentiel retirées, catégories et date, réservation durable et doublons, refus de relance après erreur, contrôle Police/PAT. Scénario navigateur dédié : les deux entrées, recherche, reprise, formulaire en quatre parties, passage vers le parcours, filtres transmis et conservation des résultats, ordinateur et mobile. Les anciens scénarios restent exécutés.
+
+## Correction des reprises et des choix actualisés
+
+Un nouveau parcours démarre avec des champs vides. Depuis une recherche de cours, seul le texte recherché devient l’objectif : le niveau, le métier, les contraintes et les filtres ne sont jamais repris d’une autre demande. L’action « Reprendre ma demande existante » conserve explicitement les critères. Une demande en cours n’est effacée qu’après confirmation, et les anciennes recherches restent conservées.
+
+À chaque ouverture de Ma demande, les choix sont revalidés par le service Catalogue et sa date de données est affichée, même lorsqu’elle est antérieure au jour courant. Offres et entités proviennent des cours. Les catégories de situation professionnelle restent des référentiels métier servis par le Catalogue, distincts des publics des fiches. Aucun nouveau rapprochement de ces catégories n’est inventé.
+
+Si les références changent pendant la saisie, les saisies restent affichées. L’actualisation proposée conserve ces saisies et signale les choix retirés, qui restent cochés jusqu’à une correction explicite. Une valeur retirée ne peut pas être envoyée au moteur.
+
+Après la recherche directe, un message distinct de l’assistant annonce le nombre de formations et propose la consultation ou la construction d’un parcours. Les cartes de recherche ne portent plus le badge de piste facultative et n’affichent pas une justification générique sous le titre « Pourquoi ce cours ? ». Les justifications propres à un cours restent conservées.

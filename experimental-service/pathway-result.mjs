@@ -1,3 +1,4 @@
+export const SEARCH_RESULT_NOTE='Formation retenue par la recherche du catalogue. Consultez la fiche officielle pour vérifier son contenu et ses conditions d’accès.'
 import {readCatalogueVersion} from './catalogue-version.mjs'
 // Contrat de résultat partagé entre le transport serveur et l’affichage. Aucun accès réseau.
 export class PathwayAdapterError extends Error {

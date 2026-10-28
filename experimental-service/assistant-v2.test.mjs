@@ -56,3 +56,14 @@ test('le seul environnement Police ne peut pas transformer un PAT en personnel e
  const value=await session.turn({message:'Police',requestId:'test-category-0000001',expectedRevision:0,referenceRevision:contract.revision})
  assert.equal(value.draft.profile.personnelCategory,'PAT');assert.equal(value.proposal,null)
 })
+
+test('nouveau besoin : uniquement l’objectif explicite, aucun ancien critère ou niveau, compteurs inchangés',async()=>{
+ const contract=refs(),old={professionalEnvironment:'Police',personnelCategory:'TEST-A',role:'Chef cockpit',managerStatus:'TEST-MANAGER',objective:'Ancien objectif cockpit',existingSkills:'Débutant cockpit',timeAvailable:'6 jours',constraints:'Le matin',trainingOffers:'Offre A',trainingOrganizers:'Centre A'}
+ const session=createDialogueSession({enabled:true,guidedDraft:true,references:contract,initialProfile:old,initialModality:'En ligne',initialRequestMode:'pathway',maxTurns:10,timeoutMs:1000,provider:{mode:'simulation',async respond(){throw Error('Aucun appel attendu')}}})
+ assert.throws(()=>session.startRequestMode('pathway',{expectedRevision:0}),e=>e.code==='unconfirmed');assert.deepEqual(session.getDraft().profile,old)
+ assert.throws(()=>session.startRequestMode('pathway',{expectedRevision:99,confirmed:true}),e=>e.code==='stale_profile');assert.deepEqual(session.getDraft().profile,old)
+ const status=session.status(),draft=session.startRequestMode('pathway',{expectedRevision:0,confirmed:true,objective:'Word : styles et table des matières'})
+ assert.deepEqual(draft.profile,{objective:'Word : styles et table des matières'});assert.equal(draft.modality,'');assert.equal(draft.requestMode,'pathway');assert.deepEqual(session.status(),status)
+ const next=session.startRequestMode('pathway',{expectedRevision:draft.revision,confirmed:true});assert.deepEqual(next.profile,{});assert.equal(next.modality,'')
+ session.editProfile(old,{expectedRevision:next.revision,modality:'Présentiel'});const before=session.getDraft();session.setRequestMode('pathway',{expectedRevision:before.revision});assert.deepEqual(session.getDraft().profile,old);assert.equal(session.getDraft().modality,'Présentiel')
+})

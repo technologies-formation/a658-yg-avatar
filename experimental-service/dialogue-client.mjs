@@ -31,7 +31,7 @@ function setBusy(value,activity=''){busy=value;presentation.activity(value?activ
 function invalidate(){epoch++;controller?.abort();controller=null;setBusy(false);}
 function display(name,value){const f=references.pathway.fields[name];return f?.options?.find(x=>x.value===value)?.label||value||'Non renseigné';}
 function validateField(name,value){if(name==='modality'){if(!['Présentiel','En ligne','Indifférent'].includes(value))throw Error('Choisissez une modalité proposée.');return;}
- const key=name==='other'?'constraints':name,f=references.pathway.fields[key];if(!f)throw Error('Les critères du catalogue sont à actualiser.');if(value.length>f.maxLength)throw Error('Réponse trop longue.');if(f.requiredInForm&&!value)throw Error('Merci de renseigner '+labels[key].toLowerCase()+'.');if(value&&f.formControl==='select'&&!f.options.some(x=>x.value===value))throw Error('Choisissez une valeur du référentiel.');
+ const key=name==='other'?'constraints':name,f=references.pathway.fields[key];if(!f)throw Error('Les critères du catalogue sont à actualiser.');if(value.length>f.maxLength)throw Error('Réponse trop longue.');if(f.requiredInForm&&!value)throw Error('Merci de renseigner '+labels[key].toLowerCase()+'.');if(value&&['trainingOffers','trainingOrganizers'].includes(key)&&value.split('\n').some(x=>!f.options.some(o=>o.value===x)))throw Error('Un choix du catalogue a été retiré. Vérifiez votre sélection.');if(value&&f.formControl==='select'&&!f.options.some(x=>x.value===value))throw Error('Choisissez une valeur du référentiel.');
 }
 function choices(name){const f=references.pathway.fields[name];if(f?.options)return f.options.map(x=>[x.label,x.value]);if(name==='existingSkills')return [['Je débute','Je débute'],['Quelques bases','Quelques bases'],['Expérience confirmée','Expérience confirmée']];if(name==='timeAvailable')return ['Moins d’une journée','1 à 2 jours','3 à 5 jours','À définir'].map(x=>[x,x]);if(name==='modality')return [['Présentiel','Présentiel'],['En ligne','En ligne'],['Sans préférence','Indifférent']];return [];}
 function clearChoices(){document.querySelectorAll('.question-actions').forEach(e=>e.remove());}
@@ -123,26 +123,28 @@ function showIncompleteProfile(saved=false){
  clearChoices();const el=say(message),row=node('div',undefined,'action-row question-actions');
  action('Compléter ma demande',()=>openProfile(first),row,true);el.querySelector('.bubble').append(row);status(message);focusStart(el);
 }
-function openProfile(focusField){const form=$('profile-form');form.replaceChildren();const content=node('div',undefined,'profile-fields-grid');form.append(content);const issues=profileIssues(),required=requiredProfileFields();if(issues.length)content.append(node('p','Vous pouvez enregistrer une demande incomplète. Les critères signalés sont nécessaires pour obtenir des propositions.','profile-completion-note'));for(const name of (guidedDraft?['professionalEnvironment','personnelCategory','role','managerStatus','objective','existingSkills','timeAvailable','modality','other','trainingOffers','trainingOrganizers']:['personnelCategory','managerStatus','entity','role','objective','existingSkills','timeAvailable','modality','other'])){const key=name==='other'?'constraints':name,f=references.pathway.fields[key],group=node('div',undefined,'field'+(['entity','role','objective','existingSkills','other'].includes(name)?' field-wide':'')),label=node('label',name==='modality'?'Modalité souhaitée':labels[key]);label.htmlFor='edit-'+name;let input;
+function renderProfile(focusField){const form=$('profile-form');form.replaceChildren();const content=node('div',undefined,'profile-fields-grid');form.append(content);const issues=profileIssues(),required=requiredProfileFields();if(guidedDraft){content.append(node('p',catalogueVersionLabel(catalogueStatus),'catalogue-freshness'));}if(issues.length)content.append(node('p','Vous pouvez enregistrer une demande incomplète. Les critères signalés sont nécessaires pour obtenir des propositions.','profile-completion-note'));for(const name of (guidedDraft?['professionalEnvironment','personnelCategory','role','managerStatus','objective','existingSkills','timeAvailable','modality','other','trainingOffers','trainingOrganizers']:['personnelCategory','managerStatus','entity','role','objective','existingSkills','timeAvailable','modality','other'])){const key=name==='other'?'constraints':name,f=references.pathway.fields[key],group=node('div',undefined,'field'+(['entity','role','objective','existingSkills','other'].includes(name)?' field-wide':'')),label=node('label',name==='modality'?'Modalité souhaitée':labels[key]);label.htmlFor='edit-'+name;let input;
  if(guidedDraft){const sections={professionalEnvironment:'Votre situation professionnelle',objective:'Votre besoin de formation',timeAvailable:'Vos disponibilités et préférences',trainingOffers:'Le périmètre de recherche'};if(sections[name])content.append(node('h3',sections[name],'request-section-title'));if(name==='trainingOffers')content.append(node('p','Ces choix limitent les cours explorés sans garantir leur accessibilité. Vérifiez les publics visés et les prérequis dans les résultats.','profile-completion-note'));}
  if(!f&&name!=='modality'){group.append(node('p','Les choix du catalogue sont indisponibles. Actualisez-les avant de renseigner ce critère.'));content.append(group);continue;}
 
  if(guidedDraft&&['trainingOffers','trainingOrganizers'].includes(name)){
-  const wrapper=node('fieldset');wrapper.className='scope-options';const legend=node('legend',labels[name]);wrapper.append(legend);const selected=(profile[name]||'').split('\n');
+  const wrapper=node('fieldset');wrapper.className='scope-options';wrapper.dataset.scopeField=name;const legend=node('legend',labels[name]);wrapper.append(legend);const selected=(profile[name]||'').split('\n');
   const unrestricted=node('p','Sans sélection : sans restriction.');wrapper.append(unrestricted);
   for(const opt of f.options){const row=node('label'),check=node('input');check.type='checkbox';check.name=name;check.value=opt.value;check.checked=selected.includes(opt.value);row.append(check,document.createTextNode(opt.label));wrapper.append(row);}
-  if(selected.some(x=>x&&!f.options.some(o=>o.value===x)))wrapper.append(node('p','Une ancienne sélection n’est plus disponible. Vérifiez ce périmètre avant de l’enregistrer.','error'));
+  for(const value of selected.filter(x=>x&&!f.options.some(o=>o.value===x))){const row=node('label'),check=node('input');check.type='checkbox';check.name=name;check.value=value;check.checked=true;row.append(check,document.createTextNode(value+' — choix retiré, à vérifier'));wrapper.append(row);}
+  if(selected.some(x=>x&&!f.options.some(o=>o.value===x)))wrapper.append(node('p','Une sélection n’est plus disponible. Choisissez une autre valeur ou décochez explicitement ce choix avant d’enregistrer.','error'));
   content.append(wrapper);continue;
  }
  if(f?.formControl==='select'||name==='modality'){input=node('select');input.append(new Option('Non renseigné',''));for(const [text,value]of choices(name))input.append(new Option(text,value));}
  else{input=node(f.formControl==='textarea'?'textarea':'input');input.maxLength=f.maxLength;if(name==='entity'){const list=node('datalist');list.id='entity-options';for(const x of f.suggestions){const o=node('option');o.value=x.value;o.label=x.label;list.append(o);}content.append(list);input.setAttribute('list',list.id);}}
+ if(guidedDraft&&f?.formControl==='select'&&profile[name]&&!f.options.some(o=>o.value===profile[name]))input.append(new Option(profile[name]+' — choix retiré, à vérifier',profile[name]));
  input.id='edit-'+name;input.name=name;input.value=name==='modality'?modality:name==='other'?other:profile[name]||'';input.required=false;if(guidedDraft&&name==='timeAvailable')input.placeholder='Par exemple : 5 heures sur les six prochains mois';
  const hint=node('p','', 'field-completion-hint');hint.id=input.id+'-hint';group.dataset.profileField=name;
  const markIssue=issue=>{hint.textContent=issue?.message||'';hint.hidden=!issue;group.classList.toggle('field-incomplete',Boolean(issue));if(issue){input.setAttribute('aria-invalid','true');input.setAttribute('aria-describedby',hint.id);}else{input.removeAttribute('aria-invalid');input.removeAttribute('aria-describedby');}};
  markIssue(issues.find(issue=>issue.name===(name==='other'?'constraints':name)));
  const refresh=()=>{const value=input.value.trim();let issue;if(!value&&required.includes(name==='other'?'constraints':name))issue={message:'À compléter pour obtenir des propositions.'};else if(value)try{validateField(name==='other'?'constraints':name,value);}catch(error){issue={message:error.message};}markIssue(issue);};
  input.addEventListener('input',refresh);input.addEventListener('change',refresh);group.append(label,input,hint);content.append(group);}
- const error=node('p','', 'status-line error');error.id='profile-error';error.setAttribute('role','alert');const footer=node('div',undefined,'profile-actions');footer.append(error);const submit=node('button','Enregistrer ma demande','primary');submit.type='submit';submit.disabled=busy;deviceMemory?.mount(content);footer.append(submit);form.append(footer);$('profile-dialog').showModal();if(typeof focusField==='string')requestAnimationFrame(()=>{const input=$('edit-'+focusField);if(input){input.focus({preventScroll:true});input.scrollIntoView({block:'center'});}});}
+ const error=node('p','', 'status-line error');error.id='profile-error';error.setAttribute('role','alert');const footer=node('div',undefined,'profile-actions');footer.append(error);const submit=node('button','Enregistrer ma demande','primary');submit.type='submit';submit.disabled=busy;deviceMemory?.mount(content);footer.append(submit);form.append(footer);if(!$('profile-dialog').open)$('profile-dialog').showModal();if(typeof focusField==='string')requestAnimationFrame(()=>{const input=$('edit-'+focusField);if(input){input.focus({preventScroll:true});input.scrollIntoView({block:'center'});}});}
 
 function applyDraft(draft){
  if(!draft||!Number.isSafeInteger(draft.revision)||draft.referenceRevision!==references.revision||!draft.profile||typeof draft.modality!=='string')throw Error('Brouillon de dialogue invalide');
@@ -189,7 +191,7 @@ async function dialogueRequest(body){
   const response=await fetch('/private/dialogue',{method:body?'POST':'GET',credentials:'same-origin',cache:'no-store',redirect:'error',signal:abort.signal,
    headers:{Accept:'application/json',...(body?{'Content-Type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{})});
   if(attempt!==epoch)throw Error('Réponse remplacée.');
-  const value=await response.json();if(value.references)references=value.references;showResumeNotice(value);showValidationCases(value);if(realPathway)updatePathwayQuota(value.pathwayQuota);if(!response.ok){if(realTrial&&value.mode==='real')updateDialogueBudget(value);const error=Error(failureMessage(value,response.status));error.budgetRefreshed=Boolean(realTrial&&value.mode==='real'&&value.budget);throw error;}
+  const value=await response.json();if(value.references)references=value.references;showResumeNotice(value);showValidationCases(value);if(realPathway)updatePathwayQuota(value.pathwayQuota);if(!response.ok){if(realTrial&&value.mode==='real')updateDialogueBudget(value);const error=Error(failureMessage(value,response.status));error.code=value.code;error.budgetRefreshed=Boolean(realTrial&&value.mode==='real'&&value.budget);throw error;}
   if(value.mode!==(realTrial?'real':'simulation')||value.pathwayMode!==config.mode)throw Error('Mode de dialogue ou parcours inattendu.');updateDialogueBudget(value);return value;
  }finally{clearTimeout(timer);if(attempt===epoch){controller=null;setBusy(false);}}
 }
@@ -241,9 +243,12 @@ async function send(text){
 }
 $('profile-form').addEventListener('submit',async event=>{
  event.preventDefault();if(busy)return;const values=Object.fromEntries(new FormData(event.target)),next={};
- try{for(const k of fields)if(k!=='constraints'){if(guidedDraft&&k==='entity'){next[k]='';continue;}if(guidedDraft&&['trainingOffers','trainingOrganizers'].includes(k)){next[k]=new FormData(event.target).getAll(k).join('\n');continue;}if(!references.pathway.fields[k])continue;if(values[k]?.trim())validateField(k,values[k]);next[k]=values[k]||'';}if(values.modality)validateField('modality',values.modality);const constraints=composeConstraints(values.modality,values.other);if(constraints)validateField('constraints',constraints);next.constraints=values.other;
+ try{for(const k of fields)if(k!=='constraints'){if(guidedDraft&&k==='entity'){next[k]='';continue;}if(guidedDraft&&['trainingOffers','trainingOrganizers'].includes(k)){next[k]=new FormData(event.target).getAll(k).join('\n');validateField(k,next[k]);continue;}if(!references.pathway.fields[k])continue;if(values[k]?.trim())validateField(k,values[k]);next[k]=values[k]||'';}if(values.modality)validateField('modality',values.modality);const constraints=composeConstraints(values.modality,values.other);if(constraints)validateField('constraints',constraints);next.constraints=values.other;
   const value=await dialogueRequest({action:'edit',profile:next,modality:values.modality,expectedRevision:draftRevision});proposal=null;applyDraft(value.draft);$('profile-dialog').close();clearChoices();switchView('discussion');if(guidedDraft){status('Demande enregistrée. Les recherches précédentes restent conservées.');if(requestMode==='pathway'&&ready())confirmProfile();else guidedNext();return;}if(!ready()){showIncompleteProfile(true);return;}status('Demande enregistrée ; le parcours précédent reste conservé.');confirmProfile();
- }catch(error){$('profile-error').textContent=error.message;}
+ }catch(error){$('profile-error').textContent=error.message;if(guidedDraft&&['stale_profile','references_changed'].includes(error.code)){
+ $('profile-error').textContent='Les choix ou votre demande ont changé. Vos saisies restent affichées. Actualisez les choix puis vérifiez-les avant d’enregistrer.';
+ if(!$('refresh-profile-options')){const b=action('Actualiser les choix en gardant mes saisies',()=>openProfile(undefined,true),$('profile-error').parentElement);b.id='refresh-profile-options';}
+ }}
 });
 $('composer').addEventListener('submit',event=>{event.preventDefault();send($('message').value);});
 $('message').maxLength=1500;$('message').placeholder='Décrivez votre besoin…';
@@ -271,12 +276,15 @@ if(config.catalogueStatusEnabled){
 function welcome(){
  const el=say('Comment puis-je vous aider ? Vous cherchez des formations, ou souhaitez-vous construire un parcours adapté à votre situation ?'),row=node('div',undefined,'action-row question-actions');
  action('Rechercher des formations',()=>chooseMode('search'),row,true);action('Construire mon parcours',()=>chooseMode('pathway'),row);el.querySelector('.bubble').append(row);if(realTrial)el.querySelector('.bubble').append(node('p','Pour ce pilote privé, utilisez uniquement des données fictives. Les messages et recherches envoyés à l’IA peuvent être payants.','source-note'));
- if(requestMode){const resume=node('div',undefined,'action-row');action(requestMode==='search'?'Continuer ma recherche de formations':'Continuer mon parcours',()=>chooseMode(requestMode),resume);el.querySelector('.bubble').append(resume);}
+ if(requestMode||modality||Object.values(profile).some(x=>String(x??'').trim())){const resume=node('div',undefined,'action-row');action('Reprendre ma demande existante',()=>chooseMode(requestMode||'pathway',undefined,true),resume);el.querySelector('.bubble').append(resume);}
  focusStart(el);
 }
-async function chooseMode(mode,fromResearch){
+async function chooseMode(mode,fromResearch,resume=false){
  if(busy)return;
- try{const value=await dialogueRequest({action:'request-mode',requestMode:mode,expectedRevision:draftRevision,...(fromResearch!==undefined?{fromResearch}:{})});proposal=null;applyDraft(value.draft);clearChoices();switchView('discussion');
+ const hasDraft=modality||Object.values(profile).some(x=>String(x??'').trim())||$('message').value.trim()||document.querySelector('#thread .message.user');
+ if(!resume&&hasDraft&&!await confirmNewRequest(document))return;
+ if(busy)return;
+ try{const value=await dialogueRequest({action:'request-mode',requestMode:mode,intent:resume?'resume':'start',confirmed:!resume,expectedRevision:draftRevision,...(fromResearch!==undefined?{fromResearch}:{})});proposal=null;if(!resume){$('thread').replaceChildren();$('message').value='';}applyDraft(value.draft);clearChoices();switchView('discussion');if(resume)say('Votre demande existante a été reprise avec ses critères enregistrés. Vérifiez-les avant de poursuivre.');
  const text=mode==='search'?'Quelle formation recherchez-vous ? Donnez-moi un titre, un code, quelques mots-clés ou décrivez ce que vous souhaitez apprendre. La recherche utilise l’IA du catalogue et peut être payante. Aucun formulaire complet à remplir.':'Je vais vous aider à préciser votre besoin. Nous compléterons progressivement le formulaire « Ma demande », que vous pourrez modifier avant de lancer la recherche. Chaque message envoyé peut consommer un appel IA payant.';
  const el=say(text);$('message').placeholder=mode==='search'?'Un titre, un code ou ce que vous souhaitez apprendre…':'Décrivez votre besoin…';$('message').maxLength=mode==='search'?1000:1500;$('send-message').setAttribute('aria-label',mode==='search'?'Rechercher des formations — IA payante':'Envoyer un message — IA payante');
  if(mode==='pathway')guidedNext();focusStart(el);$('message').focus({preventScroll:true});
@@ -284,14 +292,15 @@ async function chooseMode(mode,fromResearch){
 }
 function guidedNext(){
  clearChoices();if(!requestMode){return;}if(requestMode==='search')return;
- const row=node('div',undefined,'action-row question-actions');
- if(ready())action('Vérifier ma demande et préparer le parcours',confirmProfile,row,true);
- action('Compléter ou modifier Ma demande',openProfile,row);$('thread').append(row);
  // La première question situe l’environnement sans inférer le groupe de personnel.
  if(!profile.professionalEnvironment&&!document.querySelector('[data-environment-question]')){
  const el=say('Dans quel environnement professionnel travaillez-vous ?');el.dataset.environmentQuestion='true';const buttons=node('div',undefined,'action-row');
  for(const item of references.pathway.fields.professionalEnvironment?.options??[])action(item.label,()=>send(item.value),buttons);
  el.querySelector('.bubble').append(buttons);
+ }else{
+ const row=node('div',undefined,'action-row question-actions');
+ if(ready())action('Vérifier ma demande et préparer le parcours',confirmProfile,row,true);
+ action('Compléter ou modifier Ma demande',openProfile,row);$('thread').append(row);
  }
 }
 async function searchCourses(query){
@@ -299,7 +308,32 @@ async function searchCourses(query){
  clearChoices();$('message').value='';say(query,true);invalidate();const attempt=epoch;controller=new AbortController();const abort=controller;setBusy(true,'Recherche de formations en cours…');status('Recherche IA du catalogue en cours. Aucune relance automatique.');
  const timer=setTimeout(()=>abort.abort(),210000);
  try{const response=await fetch('/private/course-search',{method:'POST',credentials:'same-origin',cache:'no-store',redirect:'error',headers:{Accept:'application/json','Content-Type':'application/json'},signal:abort.signal,body:JSON.stringify({query,requestId:crypto.randomUUID(),confirmed:true,expectedRevision:draftRevision})});const value=await response.json();if(attempt!==epoch)return;if(!response.ok)throw Error('Recherche non aboutie. Vos recherches précédentes sont conservées. Aucune relance automatique.');
- showResumeNotice(value);history=value.savedPathways.map(readSavedPathway);current=history.find(x=>x.number===value.savedPathway.number);const found=current,el=say('');el.classList.add('result-message');el.querySelector('.bubble').append(renderSnapshot(current));const row=node('div',undefined,'action-row');action('Voir les cours proposés',()=>selectResearch(found.number),row,true);action('Construire un parcours à partir de ces pistes',()=>chooseMode('pathway',found.number),row);el.querySelector('.bubble').append(row);sync();focusStart(el);status('Recherche terminée. Vous pouvez préciser votre recherche dans un nouveau message.');
+ showResumeNotice(value);history=value.savedPathways.map(readSavedPathway);current=history.find(x=>x.number===value.savedPathway.number);const found=current,el=say('');el.classList.add('result-message');el.querySelector('.bubble').append(renderSnapshot(current));const total=(found.result.recommendedSteps??[]).length+(found.result.optionalSteps??[]).length+(found.result.informationalCourses??[]).length;const transition=say(total?'J’ai trouvé '+total+' formation'+(total>1?'s':'')+' correspondant à votre recherche. Vous pouvez les consulter dans « Cours proposés » et les retrouver dans « Mes recherches ». Souhaitez-vous les consulter ou construire un parcours à partir de ces pistes ?':'Je n’ai pas trouvé de formation correspondante. Vous pouvez préciser votre recherche ou construire un parcours pour affiner votre besoin.');const row=node('div',undefined,'action-row');action('Voir les cours proposés',()=>selectResearch(found.number),row,true);action('Construire un parcours à partir de ces pistes',()=>chooseMode('pathway',found.number),row);transition.querySelector('.bubble').append(row);sync();focusStart(el);status('Recherche terminée. Vous pouvez préciser votre recherche dans un nouveau message.');
  }catch(error){if(attempt===epoch)status(error.name==='AbortError'?'Recherche interrompue. Aucune relance automatique.':error.message,true);}
  finally{clearTimeout(timer);if(attempt===epoch){controller=null;setBusy(false);}}
+}
+
+let profileOpening=false;
+async function refreshCatalogueDate(){
+ if(!config.catalogueStatusEnabled)return;
+ try{const response=await fetch('/private/catalogue-status',{credentials:'same-origin',cache:'no-store',redirect:'error',headers:{Accept:'application/json'},signal:AbortSignal.timeout(6000)});if(!response.ok)throw Error();const value=await response.json();catalogueStatus=readCatalogueVersion(value.catalogue);}catch{catalogueStatus=null;}
+}
+async function openProfile(focusField,preserveEdits=false){
+ if(!guidedDraft){renderProfile(focusField);return;}
+ if(busy||profileOpening)return;profileOpening=true;
+ const saved=preserveEdits?new FormData($('profile-form')):null;
+ try{const value=await dialogueRequest();references=value.references;applyDraft(value.draft);await refreshCatalogueDate();renderProfile(focusField);
+  if(saved){
+   for(const name of ['professionalEnvironment','personnelCategory','role','managerStatus','objective','existingSkills','timeAvailable','modality','other']){
+    const input=$('edit-'+name);if(!input||!saved.has(name))continue;const value=String(saved.get(name));
+    if(input.tagName==='SELECT'&&value&&![...input.options].some(o=>o.value===value))input.append(new Option(value+' — choix retiré, à vérifier',value));input.value=value;input.dispatchEvent(new Event('input'));
+   }
+   for(const name of ['trainingOffers','trainingOrganizers']){
+    const selected=saved.getAll(name),wrapper=document.querySelector('[data-scope-field="'+name+'"]');if(!wrapper)continue;
+    for(const input of wrapper.querySelectorAll('input'))input.checked=selected.includes(input.value);
+    for(const value of selected)if(![...wrapper.querySelectorAll('input')].some(x=>x.value===value)){const row=node('label'),input=node('input');input.type='checkbox';input.name=name;input.value=value;input.checked=true;row.append(input,document.createTextNode(value+' — choix retiré, à vérifier'));wrapper.append(row);}
+   }
+   $('profile-error').textContent='Choix actualisés. Vos saisies sont conservées ; vérifiez les sélections avant d’enregistrer.';
+  }
+ }catch(error){status('Ma demande n’a pas été actualisée. Vos critères sont conservés. '+error.message,true);}finally{profileOpening=false;}
 }

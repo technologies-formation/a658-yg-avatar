@@ -174,8 +174,10 @@ export function createDialogueInterface(options = {}, trial = null) {
         else if(body.action==='request-mode'&&options.guidedDraft){
           let research
           if(body.fromResearch!==undefined){research=value.pathways.find(x=>x.number===body.fromResearch);if(body.requestMode!=='pathway'||!research?.result.searchQuery)fail('invalid_request')}
-          let draft=session.setRequestMode(body.requestMode,body)
-          if(research)draft=session.editProfile({...draft.profile,objective:research.result.searchQuery},{expectedRevision:draft.revision})
+          const intent=body.intent??'start'
+          if(!['start','resume'].includes(intent)||(research&&intent==='resume'))fail('invalid_request')
+          if(intent==='resume'&&session.getDraft().requestMode&&session.getDraft().requestMode!==body.requestMode)fail('invalid_request')
+          const draft=intent==='resume'?session.setRequestMode(body.requestMode,body):session.startRequestMode(body.requestMode,{...body,objective:research?.result.searchQuery??''})
           result={draft}
         }
         else if (body.action === 'new-request') { result = { draft: session.restart(body) }; value.lastError = null }

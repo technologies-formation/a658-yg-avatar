@@ -123,6 +123,15 @@ function createSession(options, realTrial) {
     status: () => ({ enabled: !stopped, mode, busy: active !== null, attemptedTurns, maxTurns: unlimited ? null : maxTurns, ...(unlimited ? { unlimited: true } : {}) }),
     getDraft() { available(); return snapshot() },
     setRequestMode(value,{expectedRevision}={}){available();if(active)fail('busy');if(expectedRevision!==revision)fail('stale_profile');if(!['search','pathway'].includes(value))fail('invalid_request');if(requestMode!==value)history.length=0;if(guidedDraft&&value==='pathway'){profile={...profile};delete profile.entity;}requestMode=value;pending=null;revision++;return snapshot()},
+    startRequestMode(value,{expectedRevision,confirmed=false,objective=''}={}){
+      available();if(active)fail('busy');if(!guidedDraft||confirmed!==true)fail('unconfirmed')
+      if(expectedRevision!==revision)fail('stale_profile')
+      if(!['search','pathway'].includes(value)||typeof objective!=='string'||(objective&&value!=='pathway'))fail('invalid_request')
+      const next=profileValue(objective?{objective}:{})
+      profile=next;modality='';requestMode=value;pending=null;history.length=0;revision++
+      // Les tentatives, usages et identifiants ne sont jamais remis à zéro.
+      return snapshot()
+    },
     refreshReferences(value){available();if(active)fail('busy');contract=validateProfileReferences(value);pending=null;revision++;return snapshot()},
     getUsage() { available(); return copy(usageRecords) },
     getProposal() { available(); return copy(pending) },
