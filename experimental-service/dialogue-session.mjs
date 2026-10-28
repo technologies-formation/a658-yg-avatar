@@ -122,7 +122,7 @@ function createSession(options, realTrial) {
   return Object.freeze({
     status: () => ({ enabled: !stopped, mode, busy: active !== null, attemptedTurns, maxTurns: unlimited ? null : maxTurns, ...(unlimited ? { unlimited: true } : {}) }),
     getDraft() { available(); return snapshot() },
-    setRequestMode(value,{expectedRevision}={}){available();if(active)fail('busy');if(expectedRevision!==revision)fail('stale_profile');if(!['search','pathway'].includes(value))fail('invalid_request');if(requestMode!==value)history.length=0;requestMode=value;pending=null;revision++;return snapshot()},
+    setRequestMode(value,{expectedRevision}={}){available();if(active)fail('busy');if(expectedRevision!==revision)fail('stale_profile');if(!['search','pathway'].includes(value))fail('invalid_request');if(requestMode!==value)history.length=0;if(guidedDraft&&value==='pathway'){profile={...profile};delete profile.entity;}requestMode=value;pending=null;revision++;return snapshot()},
     refreshReferences(value){available();if(active)fail('busy');contract=validateProfileReferences(value);pending=null;revision++;return snapshot()},
     getUsage() { available(); return copy(usageRecords) },
     getProposal() { available(); return copy(pending) },

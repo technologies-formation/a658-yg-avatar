@@ -269,7 +269,7 @@ if(config.catalogueStatusEnabled){
 
 function welcome(){
  const el=say('Comment puis-je vous aider ? Vous cherchez des formations, ou souhaitez-vous construire un parcours adapté à votre situation ?'),row=node('div',undefined,'action-row question-actions');
- action('Rechercher des formations',()=>chooseMode('search'),row,true);action('Construire mon parcours',()=>chooseMode('pathway'),row);el.querySelector('.bubble').append(row);
+ action('Rechercher des formations',()=>chooseMode('search'),row,true);action('Construire mon parcours',()=>chooseMode('pathway'),row);el.querySelector('.bubble').append(row);if(realTrial)el.querySelector('.bubble').append(node('p','Pour ce pilote privé, utilisez uniquement des données fictives. Les messages et recherches envoyés à l’IA peuvent être payants.','source-note'));
  if(requestMode){const resume=node('div',undefined,'action-row');action(requestMode==='search'?'Continuer ma recherche de formations':'Continuer mon parcours',()=>chooseMode(requestMode),resume);el.querySelector('.bubble').append(resume);}
  focusStart(el);
 }

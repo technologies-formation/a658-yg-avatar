@@ -18,9 +18,9 @@ const catalogue={catalogue:version,courses:[{code:'TEST-1',sourceUrl:'https://ou
 function directory(t){const d=mkdtempSync(join(tmpdir(),'assistant-v2-'));t.after(()=>rmSync(d,{recursive:true,force:true}));return d}
 test('brouillon guidé : preuves validées, champs ajoutés sans confirmation répétitive, mode et historique conservés',async()=>{
  const contract=refs();let calls=0
- const session=createDialogueSession({enabled:true,guidedDraft:true,references:contract,maxTurns:10,timeoutMs:1000,provider:{mode:'simulation',async respond(p){calls++;assert.match(p.rules.join('\n'),/une personne PAT peut travailler à la police/i);const m=p.messages.at(-1);return {kind:'ask',reply:'À quel groupe de personnel appartenez-vous ?',changes:[{field:'professionalEnvironment',value:'Police',evidence:[{messageId:m.id,quote:'Police'}]}]}}}})
+ const session=createDialogueSession({enabled:true,guidedDraft:true,references:contract,initialProfile:{entity:'Service historique'},maxTurns:10,timeoutMs:1000,provider:{mode:'simulation',async respond(p){calls++;assert.match(p.rules.join('\n'),/une personne PAT peut travailler à la police/i);const m=p.messages.at(-1);return {kind:'ask',reply:'À quel groupe de personnel appartenez-vous ?',changes:[{field:'professionalEnvironment',value:'Police',evidence:[{messageId:m.id,quote:'Police'}]}]}}}})
  assert.equal(session.getDraft().requestMode,'')
- session.setRequestMode('pathway',{expectedRevision:0})
+ session.setRequestMode('pathway',{expectedRevision:0});assert.equal(session.getDraft().profile.entity,undefined)
  const out=await session.turn({message:'Police',requestId:'test-request-0000001',expectedRevision:1,referenceRevision:contract.revision})
  assert.equal(out.proposal,null);assert.equal(out.draft.profile.professionalEnvironment,'Police');assert.equal(out.draft.profile.personnelCategory,undefined);assert.equal(calls,1)
  const revision=out.draft.revision;session.setRequestMode('search',{expectedRevision:revision});assert.equal(session.getDraft().profile.professionalEnvironment,'Police')
