@@ -11,16 +11,18 @@ export function createPdfModel(snapshot,{references,now=new Date()}={}){
   const saved=createMessagingSnapshot(snapshot.profile,snapshot.result,snapshot.referenceRevision,snapshot.number,snapshot.modality,snapshot.mode)
   const simulation=saved.mode!=='real',result=saved.result
   const criterionLabels={...labels,...(saved.profile.professionalEnvironment?{professionalEnvironment:'Environnement professionnel'}:{}),...(saved.profile.trainingOffers?{trainingOffers:'Offres de formation'}:{}),...(saved.profile.trainingOrganizers?{trainingOrganizers:'Entités de formation'}:{})};if(saved.profile.professionalEnvironment||result.searchQuery)delete criterionLabels.entity;
-  const criteria=Object.entries(criterionLabels).map(([key,label])=>{
+  const criteria=result.searchQuery?[['Recherche',result.searchQuery]]:Object.entries(criterionLabels).map(([key,label])=>{
     const value=saved.profile[key]??''
     const option=references?.revision===saved.referenceRevision?references.pathway?.fields?.[key]?.options?.find(x=>x.value===value):null
     return [label,option?.label||value||'Non renseigné']
   })
+  if(!result.searchQuery){
   criteria.push(['Modalité souhaitée',saved.modality==='Indifférent'?'Sans préférence de modalité':saved.modality||'Non renseignée'])
   let constraints=saved.profile.constraints??''
   const prefix=composeConstraints(saved.modality)
   if(prefix&&(constraints===prefix||constraints.startsWith(prefix+'\n')))constraints=constraints.slice(prefix.length).trim()
   criteria.push(['Autres contraintes',constraints||'Non renseignées'])
+  }
   const groups=[[(result.searchQuery?'Formations proposées':'Votre parcours recommandé'),result.recommendedSteps??result.steps??[]],[(result.searchQuery?'Formations complémentaires':'Compléments et alternatives - facultatifs'),result.optionalSteps??[]],[(result.searchQuery?'Autres pistes - accès à vérifier':'Pour information - accès à vérifier'),result.informationalCourses??[]]]
   const noPathway=Boolean(result.abstain||!groups[0][1].length)
   const date=new Date(now)

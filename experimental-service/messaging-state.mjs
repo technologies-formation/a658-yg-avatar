@@ -1,14 +1,15 @@
 // État navigateur sans réseau ; le résultat reçu n'est jamais reclassé ni complété.
 import { validatePathwayResult } from './pathway-result.mjs'
-export const fields=['personnelCategory','entity','managerStatus','role','objective','existingSkills','timeAvailable','constraints','professionalEnvironment','trainingOffers','trainingOrganizers'];
-const fingerprint=p=>JSON.stringify(fields.map(k=>String(p[k]??'').trim()));
+export const fields=['personnelCategory','entity','managerStatus','role','objective','existingSkills','timeAvailable','constraints'];
+export const extendedFields=[...fields,'professionalEnvironment','trainingOffers','trainingOrganizers'];
+const fingerprint=p=>JSON.stringify(extendedFields.map(k=>String(p[k]??'').trim()));
 function freeze(x){if(x&&typeof x==='object'){Object.values(x).forEach(freeze);Object.freeze(x);}return x;}
 export function composeConstraints(modality,other=''){
  if(!['','Présentiel','En ligne','Indifférent'].includes(modality))throw Error('Modalité inconnue');
  return [modality==='En ligne'?'Modalité souhaitée : en ligne':modality==='Présentiel'?'Modalité souhaitée : présentiel':modality==='Indifférent'?'Aucune préférence de modalité':'',other.trim()].filter(Boolean).join('\n');
 }
 export function validateMessagingProfile(profile,contract){
- const out={};for(const name of fields){const f=contract.pathway.fields[name],v=profile[name]??'';if(!f){if(v)throw Error('Critère indisponible : '+name);continue;}
+ const out={};for(const name of extendedFields){const f=contract.pathway.fields[name],v=profile[name]??'';if(!f){if(v)throw Error('Critère indisponible : '+name);continue;}
   if(typeof v!=='string'||v.trim().length>f.maxLength)throw Error('Champ invalide : '+name);
   const text=v.trim();if(f.requiredInForm&&!text)throw Error('Champ obligatoire : '+name);
   if(text&&f.formControl==='select'&&!f.options.some(x=>x.value===text))throw Error('Choix à revalider : '+name);

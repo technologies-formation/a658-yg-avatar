@@ -35,6 +35,10 @@ jobs:
       - name: Install Chromium and system dependencies
         timeout-minutes: 3
         run: node "$RUNNER_TEMP/avatar-browser/node_modules/playwright/cli.js" install --with-deps chromium
+      - name: Verify course search and guided pathway with fake transports
+        env:
+          AVATAR_PLAYWRIGHT_MODULE: ${{ runner.temp }}/avatar-browser/node_modules/playwright/index.mjs
+        run: node experimental-service/assistant-v2-browser-check.mjs
       - name: Exercise the local questionnaire on desktop and mobile
         env:
           AVATAR_PLAYWRIGHT_MODULE: ${{ runner.temp }}/avatar-browser/node_modules/playwright/index.mjs
@@ -69,10 +73,6 @@ jobs:
           AVATAR_PLAYWRIGHT_MODULE: ${{ runner.temp }}/avatar-browser/node_modules/playwright/index.mjs
           AVATAR_BROWSER_UNLIMITED: 'true'
         run: node experimental-service/dialogue-pathway-browser-check.mjs
-      - name: Verify course search and guided pathway with fake transports
-        env:
-          AVATAR_PLAYWRIGHT_MODULE: ${{ runner.temp }}/avatar-browser/node_modules/playwright/index.mjs
-        run: node experimental-service/assistant-v2-browser-check.mjs
       - name: Verify three fixed validation cases without paid calls
         env:
           AVATAR_PLAYWRIGHT_MODULE: ${{ runner.temp }}/avatar-browser/node_modules/playwright/index.mjs

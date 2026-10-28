@@ -171,7 +171,13 @@ export function createDialogueInterface(options = {}, trial = null) {
         }
         else if (body.action === 'turn') { if(options.guidedDraft&&session.getDraft().requestMode!=='pathway')fail('invalid_request');if(trial?.validation)fail('disabled');result = await session.turn({ ...body, signal: context.signal }); value.lastError = null }
         else if(body.action==='load-case'&&trial?.validation){const c=trial.validation.load(body.caseId,value.references);result={draft:session.editProfile(c.profile,{expectedRevision:body.expectedRevision,modality:c.modality})}}
-        else if(body.action==='request-mode'&&options.guidedDraft)result={draft:session.setRequestMode(body.requestMode,body)}
+        else if(body.action==='request-mode'&&options.guidedDraft){
+          let research
+          if(body.fromResearch!==undefined){research=value.pathways.find(x=>x.number===body.fromResearch);if(body.requestMode!=='pathway'||!research?.result.searchQuery)fail('invalid_request')}
+          let draft=session.setRequestMode(body.requestMode,body)
+          if(research)draft=session.editProfile({...draft.profile,objective:research.result.searchQuery},{expectedRevision:draft.revision})
+          result={draft}
+        }
         else if (body.action === 'new-request') { result = { draft: session.restart(body) }; value.lastError = null }
         else if (body.action === 'accept') result = { draft: session.acceptProposal(body) }
         else if (body.action === 'reject') result = { draft: session.rejectProposal(body) }
