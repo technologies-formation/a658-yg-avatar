@@ -77,6 +77,13 @@ export function createProxyAttestation({ publicOrigin, requestProbe = requestHtt
   }
   return {
     secure,
+    refusalReason(req) {
+      if (stopped) return 'stopped'
+      if (req.headers.host !== origin.host) return 'host'
+      if (req.headers['x-forwarded-proto'] !== 'https') return 'protocol'
+      if (typeof req.socket.remoteAddress !== 'string' || !isIP(normalize(req.socket.remoteAddress))) return 'peer'
+      return 'unverified_peer'
+    },
     async ensure(req) {
       if (secure(req)) return true
       if (stopped || !transport(req)) return false

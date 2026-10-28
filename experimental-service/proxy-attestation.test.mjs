@@ -115,17 +115,41 @@ test('intégration : preuve indépendante avant challenge Basic, accès et quota
       let text = ''; res.setEncoding('utf8'); res.on('data', chunk => { text += chunk }); res.on('end', () => resolve({ status: res.statusCode, headers: res.headers, text }))
     }); req.on('error', reject); req.end()
   })
-  service = createHostedSimulation({ enabled: true, publicOrigin: HOSTED_ORIGIN, proxyVerification: 'self-https',
+  const refusals = []
+  service = createHostedSimulation({ enabled: true, publicOrigin: HOSTED_ORIGIN, proxyVerification: 'self-https', reportTransportRefusal: reason => refusals.push(reason),
     users: [user], stateFile, loadProfileReferences: () => references(), preview: data(),
     requestProbe: async (_origin, path) => { const res = await send(path); assert.equal(res.status, 200); return res.text } })
   t.after(async () => { try { await service.close() } finally { rmSync(dir, { recursive: true, force: true }) } })
   await new Promise(resolve => service.server.listen(0, '127.0.0.1', resolve))
   const before = await send('/private/', '', 'http'); assert.equal(before.status, 403); assert.equal(before.headers['www-authenticate'], undefined)
+  for (const path of ['/private/dialogue','/private/pathway','/private/course-search','/private/profile-references','/private/catalogue-status']) {
+    const blocked = await send(path, 'Basic ' + Buffer.from('tester:' + password).toString('base64'), 'http')
+    assert.equal(blocked.status, 403); assert.equal(blocked.headers['www-authenticate'], undefined)
+    assert.match(blocked.headers['content-type'], /^application\/json/)
+    assert.equal(blocked.headers['cache-control'], 'no-store')
+    assert.deepEqual(JSON.parse(blocked.text), {code:'secure_transport_required'})
+  }
+  assert.deepEqual(refusals, ['protocol']) // Rafale limitée, sans valeur d'en-tête ni compte.
   const challenge = await send('/private/'); assert.equal(challenge.status, 401); assert.match(challenge.headers['www-authenticate'], /Basic/)
   const page = await send('/private/', 'Basic ' + Buffer.from('tester:' + password).toString('base64'))
   assert.equal(page.status, 200); assert.match(page.text, /simulation uniquement/)
   assert.equal(service.status().total, 2)
   assert.equal((await send('/_avatar_proxy_proof/guess')).status, 404)
+})
+
+test('diagnostic borné : ne crée aucune confiance pour un pair refusé', async () => {
+  const f = fixture()
+  for (const [req,reason] of [[request('192.0.2.99'),'unverified_peer'],[request('192.0.2.10','http'),'protocol'],[request('192.0.2.10','https','private-value.invalid'),'host'],[request('private-value'),'peer']]) {
+    assert.equal(f.gate.refusalReason(req),reason)
+    assert.equal(f.gate.secure(req),false)
+  }
+  assert.equal(f.calls(),0)
+  assert.equal(await f.gate.ensure(request('192.0.2.99')),false)
+  assert.equal(f.gate.refusalReason(request('192.0.2.99')),'unverified_peer')
+  // Une preuve sur un autre pair et le délai entre lots n'autorisent jamais ce visiteur.
+  assert.equal(await f.gate.ensure(request('192.0.2.99')),false)
+  assert.equal(f.calls(),8)
+  f.gate.stop();assert.equal(f.gate.refusalReason(request('192.0.2.10')),'stopped')
 })
 
  test('diagnostic autonome : aucune authentification ni donnée privée, preuve avant succès', async t => {

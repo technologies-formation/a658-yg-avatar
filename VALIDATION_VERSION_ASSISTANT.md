@@ -51,3 +51,17 @@ Pour les réponses refusées, le diagnostic authentifié utilise seulement une c
 Les essais navigateur rejouent trois ouvertures, une annulation puis une reprise, et une réponse malformée volontaire après un tour valide. Ils vérifient message unique, données identiques, absence de nouvel appel automatique, récupération manuelle, historique et compteurs.
 
 L'ouverture publique est en attente. Le mode courant reste authentifié. Avant un public anonyme, préparer séparément l'isolation des visiteurs, les limites durables, la limitation de cadence et les tests associés ; aucun de ces mécanismes n'est prétendu activé par ce correctif. Les dernières consignes de recommandation et le traitement du dialogue restent à valider avec l'opérateur.
+
+## Retour opérateur et refus HTTPS — 28 octobre 2026
+
+L'opérateur a installé cc7668b après sauvegarde privée et a confirmé le redémarrage et le contrôle HTTPS. Les captures montrent une invitation de reprise unique, le retrait de cette invitation après reprise et le critère enregistré conservé. Un essai réel de préférence souple a ensuite abouti : modalité En ligne et acceptation du présentiel si la formation correspond mieux au besoin. Ce résultat valide ce cas, pas toutes les réponses futures du modèle.
+
+Un essai précédent affichait une erreur de parsing JSON dont le corps commençait par Transport. Le transport hébergé possède précisément un refus 403 en texte avant le gestionnaire authentifié. Le refus ne s'est pas reproduit au contrôle sans authentification (401 attendu) et l'essai réel suivant a réussi. Le statut HTTP de la requête initiale n'a pas été capturé : la correspondance avec cette branche est forte, mais la cause du refus reste inconnue. Aucun coût réel de cet essai n'est déduit de la capture.
+
+Le correctif suivant fournit un refus JSON stable pour les API, une lecture défensive des réponses de l'Assistant (y compris les anciens refus texte et les pages HTML d'erreur), un message compréhensible et l'accès à Ma demande après échec du dialogue. Aucun corps brut d'erreur n'est affiché. Un refus de transport connu n'entraîne pas de rafraîchissement supplémentaire du budget ; aucune requête payante n'est rejouée.
+
+Le journal du transport ajoute une catégorie bornée, au maximum une fois par cinq secondes : host, protocol, peer, stopped, unverified_peer ou exact_address_check. Aucune adresse, URL, authentification ni donnée métier n'y figure. unverified_peer signifie seulement que le pair n'est pas attesté après les contrôles ; cela ne prouve ni une rotation du proxy ni un défaut de TLS. L'origine, le protocole, les preuves TLS, leur validité, les limites et les refus sont inchangés. Aucun réseau d'hébergeur n'est ajouté à une liste de confiance.
+
+Validation locale : 246 tests réussis avec transports fictifs, dont compatibilité JSON/texte, refus non JSON, absence de contenu brut, diagnostic borné, protection du nouveau module privé et refus avant challenge Basic sans modification de compteur. Le scénario navigateur ajoute des refus texte/JSON et une erreur HTML sur ordinateur et mobile, en vérifiant critères, recherches, récupération manuelle et nombre d'appels. Son exécution GitHub doit être confirmée avant installation ; le navigateur local n'est pas disponible dans l'environnement de préparation.
+
+Installation distante de ce nouveau lot et validation du diagnostic encore en attente. La cause du refus intermittent et les conditions d'ouverture publique restent ouvertes. Aucun appel IA réel ni SMTP n'est lancé par l'agent.

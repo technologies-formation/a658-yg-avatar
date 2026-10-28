@@ -35,6 +35,8 @@ test('interface fictive protégée et fermée aux ressources serveur',async t=>{
  const page=await request('/private/');assert.match(page.text,/"dialogue":"fictitious"/);assert.match(page.text,/\/private\/dialogue-client.mjs/)
  assert.equal((await request('/private/dialogue-client.mjs',{auth:false})).status,401)
  assert.equal((await request('/private/dialogue-client.mjs')).status,200)
+ assert.equal((await request('/private/private-response.mjs',{auth:false})).status,401)
+ assert.equal((await request('/private/private-response.mjs')).status,200)
  assert.equal((await request('/private/openai-dialogue.mjs')).status,404)
  assert.equal((await request('/private/dialogue',{body:{action:'turn'},source:''})).status,403)
  assert.equal(service.status().total,0)
