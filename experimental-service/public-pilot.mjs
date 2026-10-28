@@ -1,6 +1,6 @@
 // Aucun lanceur ne monte cette préparation. Désactivée par défaut, sans accès au privé.
 import {Readable} from 'node:stream'
-import {randomBytes} from 'node:crypto'
+import {randomBytes,createHash} from 'node:crypto'
 import {mkdirSync,realpathSync} from 'node:fs'
 import {join,relative,isAbsolute} from 'node:path'
 import {createPublicPilotLedger,PublicPilotError,PUBLIC_POLICY} from './public-pilot-ledger.mjs'
@@ -9,6 +9,9 @@ import {createRealDialogueTrialInterface} from './dialogue-real-trial.mjs'
 import {createPilotCredential} from './pilot-auth.mjs'
 import {createResearchEmailService,emailAddress} from './research-email.mjs'
 import {protectedDirectory} from './consumption-ledger.mjs'
+import {readBoundedJson} from './course-search.mjs'
+import {PUBLIC_COST_POLICY,verifyPublicCostProof,requirePublicCostPolicy} from './public-cost-policy.mjs'
+import {createPublicOpenAIDialogueProvider} from './public-openai-dialogue.mjs'
 
 const messages={
   public_budget_limit:'L’enveloppe de ce test est atteinte. Aucun nouvel appel IA n’a été lancé. Vos recherches restent consultables.',
@@ -19,6 +22,8 @@ const messages={
   public_mail_recipient:'Cette adresse n’est pas autorisée pour le test. Aucun courriel n’a été envoyé.',
   public_mail_limit:'La limite des courriels de ce test est atteinte. Le PDF reste téléchargeable.',
   public_session:'Votre session de test est absente ou expirée. Revenez à la page d’accueil du test.',
+  public_bounds_unverified:'Le moteur de ce test n’a pas pu être vérifié. Aucune relance automatique.',
+  public_cost_review_expired:'La période de ce test est terminée. Vos recherches restent consultables.',
 }
 const errorValue=error=>{const message=messages[error.code]??'Le test est indisponible. Aucune relance automatique.';return {code:error instanceof PublicPilotError?error.code:'public_unavailable',publicMessage:message,error:message}}
 const send=(res,status,value)=>{res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});res.end(JSON.stringify(value))}
@@ -31,7 +36,7 @@ export function createPreparedPublicPilot(options={}){
   if(options.billingReviewed!==true||options.backendBoundsReviewed!==true||typeof options.isSecureRequest!=='function')throw new PublicPilotError('public_configuration',503)
   const origin=new URL(options.publicOrigin)
   if(origin.protocol!=='https:'||origin.origin!==options.publicOrigin||typeof options.apiKey!=='string'||!options.apiKey.trim()||
-    !Array.isArray(options.allowedRecipients)||options.allowedRecipients.length<1||options.allowedRecipients.length>2)throw new PublicPilotError('public_configuration',503)
+    !Array.isArray(options.allowedRecipients)||options.allowedRecipients.length<1||options.allowedRecipients.length>2||typeof options.backendToken!=='string'||!/^[A-Za-z0-9_-]{43}$/.test(options.backendToken))throw new PublicPilotError('public_configuration',503)
   const allowedRecipients=new Set(options.allowedRecipients.map(canonicalEmail))
   if(allowedRecipients.size!==options.allowedRecipients.length)throw new PublicPilotError('public_configuration',503)
   const root=protectedDirectory(options.directory),privateRoot=realpathSync(options.privateDirectory)
@@ -47,9 +52,10 @@ export function createPreparedPublicPilot(options={}){
   const visitors=new Map(),shutdown=new AbortController();let closed=false,active=false
   const quota=actor=>{
     const s=ledger.status(actor),remaining=s.limitMicroUsd-s.reservedMicroUsd
+    if(now()>=Date.parse(PUBLIC_COST_POLICY.validUntil))s.stopped=true
     return {publicQuota:{dialogue:s.dialogue,research:s.research,dialoguePerDay:10,researchPerDay:3},
       pathwayQuota:{total:s.research,daily:s.research,maxTotalRequests:3,maxDailyRequests:3,unlimited:false,stopped:s.stopped,enabled:!s.stopped&&remaining>=PUBLIC_POLICY.reserveMicroUsd.pathway,busy:false},
-      budget:{model:'gpt-6-luna',attempts:s.dialogue,maxAttempts:10,reservedMicroUsd:s.dialogue*10000,stopped:s.stopped,unlimited:false}}
+      budget:{model:'gpt-6-luna',attempts:s.dialogue,maxAttempts:10,reservedMicroUsd:s.dialogue*PUBLIC_COST_POLICY.dialogue.reserveMicroUsd,stopped:s.stopped,unlimited:false}}
   }
   async function visitor(actor){
     if(visitors.has(actor))return visitors.get(actor)
@@ -60,7 +66,7 @@ export function createPreparedPublicPilot(options={}){
       let operation=null
       const meteredFetch=async(destination,init={})=>{
         const url=new URL(destination),method=init.method??'GET'
-        const isDialogue=url.origin===openaiOrigin&&['/v1/responses/input_tokens','/v1/responses'].includes(url.pathname)&&method==='POST'
+        const isDialogue=url.origin===openaiOrigin&&url.pathname==='/v1/responses'&&method==='POST'
         const isResearch=url.origin===catalogueOrigin&&['/api/search','/api/pathway'].includes(url.pathname)&&method==='POST'
         const isRead=url.origin===catalogueOrigin&&['/api/catalogue','/api/profile-references','/api/health'].includes(url.pathname)&&method==='GET'
         if(!isDialogue&&!isResearch&&!isRead)throw new PublicPilotError('public_destination',503)
@@ -68,11 +74,29 @@ export function createPreparedPublicPilot(options={}){
           const expected=isDialogue?'dialogue':url.pathname==='/api/search'?'search':'pathway'
           if(!operation||operation.action!==expected)throw new PublicPilotError('public_request',400)
           if(operation.paths.has(url.pathname))throw new PublicPilotError('public_duplicate',409)
-          try{if(ledger.status(actor).stopped)throw new PublicPilotError('public_stopped',503);if(!operation.reserved){ledger.reserve({actor,action:expected,requestId:operation.requestId});operation.reserved=true}}
-          catch(error){operation.failure=error;throw error}
+          try{
+            requirePublicCostPolicy(now())
+            if(isResearch&&!operation.policyVerified){
+              const preflight=await fetchImpl(catalogueOrigin+'/api/public/policy',{method:'GET',credentials:'omit',redirect:'error',headers:{Authorization:'Bearer '+options.backendToken,Accept:'application/json'},signal:AbortSignal.any([shutdown.signal,init.signal??new AbortController().signal,AbortSignal.timeout(5000)])})
+              const proof=await readBoundedJson(preflight,4096)
+              if(proof.policy!==PUBLIC_COST_POLICY.id)throw new PublicPilotError('public_bounds_unverified',503)
+              operation.policyVerified=true
+            }
+            if(ledger.status(actor).stopped)throw new PublicPilotError('public_stopped',503);if(!operation.reserved){ledger.reserve({actor,action:expected,requestId:operation.requestId});operation.reserved=true}
+          }
+          catch(error){operation.failure=error instanceof PublicPilotError?error:new PublicPilotError(error.code==='public_cost_review_expired'?error.code:'public_bounds_unverified',503);throw operation.failure}
           operation.paths.add(url.pathname)
         }
-        return fetchImpl(destination,{...init,redirect:'error',...(isResearch&&options.consumption?{headers:{...init.headers,'X-A658-Report-Token':options.consumption.token}}:{}),...(!isRead?{signal:AbortSignal.any([shutdown.signal,init.signal??new AbortController().signal])}:{})})
+        const headers=isResearch?{...init.headers,Authorization:'Bearer '+options.backendToken,'X-A658-Public-Request':createHash('sha256').update(actor+'\n'+operation.requestId).digest('hex'),...(options.consumption?{'X-A658-Report-Token':options.consumption.token}:{})}:init.headers
+        const signal=!isRead?AbortSignal.any([shutdown.signal,init.signal??new AbortController().signal]):init.signal
+        signal?.throwIfAborted()
+        const response=await fetchImpl(isResearch?catalogueOrigin+'/api/public/'+operation.action:destination,{...init,headers,redirect:'error',...(signal?{signal}:{})})
+        signal?.throwIfAborted()
+        if(isResearch){
+          try{const result=await readBoundedJson(response.clone(),4*1024*1024);verifyPublicCostProof(result.publicCostProof)}
+          catch{operation.failure=new PublicPilotError('public_bounds_unverified',503);throw operation.failure}
+        }
+        return response
       }
       const restrictedMail={enabled:true,async send(payload){
         const recipient=canonicalEmail(payload.recipient)
@@ -82,6 +106,7 @@ export function createPreparedPublicPilot(options={}){
         catch(error){if(error instanceof PublicPilotError)operation.failure=error;throw error}
       }}
       const gateway=createRealDialogueTrialInterface({enabled:true,paidTrialAuthorized:true,unlimited:true,guidedDraft:true,
+        providerFactory:settings=>createPublicOpenAIDialogueProvider({...settings,now}),usagePolicy:'public-generation-only',
         apiKey:options.apiKey,budgetDirectory,fetchImpl:meteredFetch,courseSearchFetchImpl:meteredFetch,courseSearchDirectory:join(directory,'course-search'),
         pathwayTrial:{enabled:true,paidTrialAuthorized:true,stateFile:join(directory,'pathway-quotas.json'),reportFile:join(directory,'pathway-report.json'),fetchImpl:meteredFetch},
         resumeDirectory:join(directory,'resume'),deviceMemoryEnabled:false,publicOrigin:options.publicOrigin,users:[user],stateFile:join(directory,'quotas.json'),

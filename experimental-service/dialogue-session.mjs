@@ -61,7 +61,9 @@ function createSession(options, realTrial) {
     rejectProposal() { fail('disabled') }, getProposal() { fail('disabled') }, editProfile() { fail('disabled') }, restart() { fail('disabled') }, getDraft() { fail('disabled') },
     getPathwayProfile() { fail('disabled') }, getUsage() { fail('disabled') },
   })
-  const { provider, references, initialProfile = {}, initialModality = '', maxTurns, timeoutMs, maxHistoryCharacters = 12000, unlimited = false, guidedDraft = false, initialRequestMode = '' } = options
+  const { provider, references, initialProfile = {}, initialModality = '', maxTurns, timeoutMs, maxHistoryCharacters = 12000, unlimited = false, guidedDraft = false, initialRequestMode = '', usagePolicy = 'private-counted' } = options
+  if(!['private-counted','public-generation-only'].includes(usagePolicy)||(usagePolicy==='public-generation-only'&&(!realTrial||!guidedDraft||!unlimited)))fail('configuration')
+  const usageLimit=usagePolicy==='public-generation-only'?{input:1050000,reserved:0.30,calls:1}:{input:30000,reserved:0.01,calls:2}
   const mode = realTrial ? 'real' : 'simulation', usageRecords = []
   if (typeof unlimited !== 'boolean' || (unlimited && !realTrial) || provider?.mode !== mode || typeof provider.respond !== 'function' ||
       !Number.isSafeInteger(maxTurns) || maxTurns < 1 || maxTurns > 20 ||
@@ -220,11 +222,11 @@ function createSession(options, realTrial) {
         let usage = { apiCalls: 0, inputTokens: 0, outputTokens: 0, costUsd: 0 }
         if (realTrial) {
           const u = raw?.usage
-          if (!object(u) || !Number.isSafeInteger(u.inputTokens) || u.inputTokens < 1 || u.inputTokens > 30000 ||
+          if (!object(u) || !Number.isSafeInteger(u.inputTokens) || u.inputTokens < 1 || u.inputTokens > usageLimit.input ||
               !Number.isSafeInteger(u.outputTokens) || u.outputTokens < 0 || u.outputTokens > 2000 ||
-              u.model !== 'gpt-6-luna' || u.reservedUsd !== 0.01 ||
-              !Number.isFinite(u.calculatedUpperCostUsd) || u.calculatedUpperCostUsd < 0 || u.calculatedUpperCostUsd > 0.01) fail('usage_unverified')
-          usage = { ...u, apiCalls: 2 }
+              u.model !== 'gpt-6-luna' || u.reservedUsd !== usageLimit.reserved ||
+              !Number.isFinite(u.calculatedUpperCostUsd) || u.calculatedUpperCostUsd < 0 || u.calculatedUpperCostUsd > usageLimit.reserved) fail('usage_unverified')
+          usage = { ...u, apiCalls: usageLimit.calls }
           // Conserver l’usage vérifié même si le contrat métier rejette la réponse.
           usageRecords.push(copy({ requestId, ...usage }))
         }

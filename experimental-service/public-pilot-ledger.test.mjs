@@ -22,7 +22,7 @@ test('limites quotidiennes, cadence et doublons durables, sans remboursement apr
  assert.throws(()=>reserve(f,'0001'),e=>e.code==='public_duplicate')
  for(let i=2;i<=10;i++){reserve(f,String(i).padStart(4,'0'));f.tick()}
  f.reopen();assert.throws(()=>reserve(f,'0011'),e=>e.code==='public_daily_limit');assert.equal(f.ledger.status(actor).dialogue,10)
- f.tick(86400000);reserve(f,'0012');assert.equal(f.ledger.status(actor).dialogue,1);assert.equal(f.ledger.status(actor).reservedMicroUsd,110000)
+ f.tick(86400000);reserve(f,'0012');assert.equal(f.ledger.status(actor).dialogue,1);assert.equal(f.ledger.status(actor).reservedMicroUsd,3300000)
 })
 test('recherche et parcours partagent trois tentatives quotidiennes ; deux courriels par visiteur',t=>{
  const f=fixture(t);reserve(f,'0001','search');f.tick();reserve(f,'0002','pathway');f.tick();reserve(f,'0003','search');f.tick()

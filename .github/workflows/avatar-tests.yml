@@ -14,11 +14,21 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: technologies-formation/catalogue-formations
+          ref: ce4e3455211dfc295a606f78f13a17cfd8ef6a43
+          path: .public-contract-source
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
       - name: Run local simulation tests
         run: node --test experimental-service/*.test.mjs
+      - name: Verify both public services together without paid calls
+        env:
+          AVATAR_PUBLIC_CATALOGUE_MODULE: .public-contract-source/server/publicPilotApi.mjs
+        run: node --test experimental-service/public-contract.test.mjs
   windows-setup:
     runs-on: windows-latest
     timeout-minutes: 5

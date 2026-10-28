@@ -3,9 +3,10 @@ import {openSync,closeSync,writeFileSync,fsyncSync,readdirSync,unlinkSync,exists
 import {join} from 'node:path'
 import {createHash,randomUUID} from 'node:crypto'
 import {protectedDirectory,readPrivateJson,consumptionDay} from './consumption-ledger.mjs'
+import {PUBLIC_COST_POLICY,requirePublicCostPolicy} from './public-cost-policy.mjs'
 
-export const PUBLIC_POLICY=Object.freeze({version:1,limitMicroUsd:5_000_000,dialoguePerDay:10,researchPerDay:3,mailPerDay:2,globalMailPerDay:10,cadenceMs:10_000,
-  reserveMicroUsd:Object.freeze({dialogue:10_000,search:1_250_000,pathway:1_250_000,mail:0})})
+export const PUBLIC_POLICY=Object.freeze({version:2,costPolicy:PUBLIC_COST_POLICY.id,limitMicroUsd:5_000_000,dialoguePerDay:10,researchPerDay:3,mailPerDay:2,globalMailPerDay:10,cadenceMs:10_000,
+  reserveMicroUsd:Object.freeze({dialogue:PUBLIC_COST_POLICY.dialogue.reserveMicroUsd,search:PUBLIC_COST_POLICY.research.reserveMicroUsd,pathway:PUBLIC_COST_POLICY.research.reserveMicroUsd,mail:0})})
 export class PublicPilotError extends Error{constructor(code,status=429){super(code);this.code=code;this.status=status}}
 const fail=(code,status)=>{throw new PublicPilotError(code,status)}
 const hash=value=>createHash('sha256').update(value).digest('hex')
@@ -73,6 +74,7 @@ export function createPublicPilotLedger({directory,now=Date.now,policy=PUBLIC_PO
       if(action==='mail'){
         if(own.filter(r=>r.action==='mail').length>=policy.mailPerDay||daily.filter(r=>r.action==='mail').length>=policy.globalMailPerDay)fail('public_mail_limit')
       }else{
+        try{requirePublicCostPolicy(at)}catch{fail('public_cost_review_expired',503)}
         const paid=own.filter(r=>r.action!=='mail')
         if(paid.length&&at-paid.at(-1).at<policy.cadenceMs)fail('public_cadence')
         if(action==='dialogue'&&paid.filter(r=>r.action==='dialogue').length>=policy.dialoguePerDay)fail('public_daily_limit')

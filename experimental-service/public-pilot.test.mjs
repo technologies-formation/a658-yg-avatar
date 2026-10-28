@@ -66,7 +66,7 @@ test('corps malformés, absence de confirmation et adresses à en-têtes inject�
  await f.request('/public/research-email',{cookie:a,body:{confirmed:true,recipient:'tester@example.invalid\r\nBcc:other@example.invalid',number:1,requestId:randomUUID()}})
  assert.equal(f.calls.length,0);assert.equal(f.emails.length,0);assert.equal((await f.get(a)).publicQuota.dialogue,0)
 })
-test('arrêt pendant le comptage : aucune génération ultérieure, réservation conservée et résultats toujours lisibles',async t=>{
+test('arrêt pendant une génération : aucun nouveau départ, réservation conservée et résultats toujours lisibles',async t=>{
  const f=await fixture(t),a=await f.enter();await f.mode(a)
  let release;f.setHold(new Promise(resolve=>{release=resolve}));const pending=f.turn(a)
  for(let n=0;f.calls.length<1&&n<500;n++)await new Promise(resolve=>setTimeout(resolve,10))
@@ -77,6 +77,11 @@ test('arrêt pendant le comptage : aucune génération ultérieure, réservation
 test('suivi agrégé : un dialogue attribué une fois à l’Assistant sans question, réponse ni adresse',async t=>{
  const f=await fixture(t),a=await f.enter();await f.mode(a);assert.equal((await f.turn(a)).status,200)
  assert.equal(f.events.length,1);assert.equal(f.events[0].app,'assistant');assert.equal(f.events[0].action,'dialogue');assert.equal(f.events[0].outcome,'success')
- assert.deepEqual(f.events[0].usage,{costMicroUsd:330,inputTokens:1000,outputTokens:100})
+ assert.deepEqual(f.events[0].usage,{costMicroUsd:358,inputTokens:1000,outputTokens:100})
  assert.doesNotMatch(JSON.stringify(f.events),/Un besoin fictif|Quel est|tester@|cookie|apiKey/)
+})
+test('un moteur sans politique bornée est refusé avant réservation et avant tout POST coûteux',async t=>{
+ const f=await fixture(t),a=await f.enter();await f.mode(a,'search');f.setPolicy(false)
+ const d=await f.get(a),r=await f.request('/public/course-search',{cookie:a,body:{query:'Word',requestId:randomUUID(),confirmed:true,expectedRevision:d.draft.revision}})
+ assert.equal(r.status,503);assert.equal(r.value.code,'public_bounds_unverified');assert.equal(f.calls.length,0);assert.equal((await f.get(a)).publicQuota.research,0)
 })
