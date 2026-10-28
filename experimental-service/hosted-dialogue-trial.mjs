@@ -101,7 +101,9 @@ export function createHostedDialogueTrial(options = {}) {
   if(pathway?.series&&options.validationAuthorized!==true)throw Error('Validation distincte non autorisée au lancement')
   const reporter=options.dailyReport?createDailyReporter({config:options.dailyReport,mail:options.mail,consumption:options.consumption,fetchImpl:options.reportFetchImpl}):null
   const hosted=createHostedTransport({...options,responseTimeoutMs:pathway?210000:35000,socketTimeoutMs:pathway?215000:40000,
-    createGateway:({isSecureRequest})=>createRealDialogueTrialInterface({enabled:true,paidTrialAuthorized:true,unlimited:options.unlimited??false,
+    createGateway:({isSecureRequest})=>createRealDialogueTrialInterface({enabled:true,paidTrialAuthorized:true,unlimited:options.unlimited??false,guidedDraft:options.guidedDraft===true,
+      courseSearchDirectory:options.guidedDraft?join(options.privateDirectory,'course-search-attempts'):undefined,
+      courseSearchFetchImpl:options.pathwayFetchImpl??options.fetchImpl,reportingToken:options.consumption?.token,
       publicOrigin:options.publicOrigin,users:options.users,isSecureRequest,stateFile:options.stateFile,
       loadProfileReferences:options.loadProfileReferences,preview:options.preview,loadCatalogueStatus:()=>fetchCatalogueStatus({fetchImpl:options.catalogueStatusFetchImpl??options.fetchImpl??globalThis.fetch}),mail:options.mail,consumption:options.consumption,budgetDirectory:options.budgetDirectory,
       apiKey:options.apiKey,fetchImpl:options.fetchImpl,timeoutMs:30000,resumeDirectory:join(options.privateDirectory,'resume'),deviceMemoryEnabled:options.deviceMemoryEnabled??false,

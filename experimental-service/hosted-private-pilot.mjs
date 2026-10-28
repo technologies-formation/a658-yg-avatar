@@ -21,7 +21,7 @@ export function readPrivatePilotLaunch(configFile, siteDirectory, environment, p
     if (!info.isFile() || info.isSymbolicLink() || (info.mode & 0o077)) throw Error('Registre privé existant requis')
   }
   const options = readDialogueTrialLaunch(configFile, siteDirectory, environment)
-  return { ...options, unlimited: true, validationAuthorized: false,
+  return { ...options, unlimited: true, guidedDraft: true, validationAuthorized: false,
     pathwayTrial: { enabled: true, paidTrialAuthorized: true },
     pathwayStateFile: stateFile, pathwayReportFile: reportFile }
 }

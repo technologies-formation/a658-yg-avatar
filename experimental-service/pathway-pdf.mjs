@@ -10,7 +10,8 @@ export function createPdfModel(snapshot,{references,now=new Date()}={}){
   if(!snapshot||JSON.stringify(snapshot).length>1024*1024)throw Error('Recherche indisponible pour l’export.')
   const saved=createMessagingSnapshot(snapshot.profile,snapshot.result,snapshot.referenceRevision,snapshot.number,snapshot.modality,snapshot.mode)
   const simulation=saved.mode!=='real',result=saved.result
-  const criteria=Object.entries(labels).map(([key,label])=>{
+  const criterionLabels={...labels,...(saved.profile.professionalEnvironment?{professionalEnvironment:'Environnement professionnel'}:{}),...(saved.profile.trainingOffers?{trainingOffers:'Offres de formation'}:{}),...(saved.profile.trainingOrganizers?{trainingOrganizers:'Entités de formation'}:{})};if(saved.profile.professionalEnvironment||result.searchQuery)delete criterionLabels.entity;
+  const criteria=Object.entries(criterionLabels).map(([key,label])=>{
     const value=saved.profile[key]??''
     const option=references?.revision===saved.referenceRevision?references.pathway?.fields?.[key]?.options?.find(x=>x.value===value):null
     return [label,option?.label||value||'Non renseigné']
@@ -20,13 +21,13 @@ export function createPdfModel(snapshot,{references,now=new Date()}={}){
   const prefix=composeConstraints(saved.modality)
   if(prefix&&(constraints===prefix||constraints.startsWith(prefix+'\n')))constraints=constraints.slice(prefix.length).trim()
   criteria.push(['Autres contraintes',constraints||'Non renseignées'])
-  const groups=[['Votre parcours recommandé',result.recommendedSteps??result.steps??[]],['Compléments et alternatives - facultatifs',result.optionalSteps??[]],['Pour information - accès à vérifier',result.informationalCourses??[]]]
+  const groups=[[(result.searchQuery?'Formations proposées':'Votre parcours recommandé'),result.recommendedSteps??result.steps??[]],[(result.searchQuery?'Formations complémentaires':'Compléments et alternatives - facultatifs'),result.optionalSteps??[]],[(result.searchQuery?'Autres pistes - accès à vérifier':'Pour information - accès à vérifier'),result.informationalCourses??[]]]
   const noPathway=Boolean(result.abstain||!groups[0][1].length)
   const date=new Date(now)
   if(!Number.isFinite(date.getTime()))throw Error('Date d’export invalide.')
   const slug=saved.profile.objective?.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,60)||'formation'
   return {title:researchLabel(saved),catalogueLabel:catalogueVersionLabel(result.catalogue,{results:true,simulation}),criteria,groups,summary:result.summary,interpretedGoal:result.interpretedGoal||'',gaps:result.gaps??[],duration:result.durationSummary??null,
-    simulation,noPathway,objective:saved.profile.objective||'',preferredModality:saved.modality||'',guidance:AI_GUIDANCE,date,filename:'a658yg-recherche-'+slug+'.pdf'}
+    simulation,noPathway,searchOnly:Boolean(result.searchQuery),objective:saved.profile.objective||'',preferredModality:saved.modality||'',guidance:AI_GUIDANCE,date,filename:'a658yg-recherche-'+slug+'.pdf'}
 }
 
 export function renderPathwayPdf(model,{jsPDF,fonts,logo}={}){
@@ -77,10 +78,10 @@ export function renderPathwayPdf(model,{jsPDF,fonts,logo}={}){
     }
     y+=height
   }
-  heading(model.noPathway?'Résultat de votre recherche':'Votre parcours de formation')
+  heading(model.searchOnly||model.noPathway?'Résultat de votre recherche':'Votre parcours de formation')
   write(model.summary)
   if(model.interpretedGoal)write('Objectif interprété : '+model.interpretedGoal,{size:9,color:muted})
-  if(model.noPathway)write('Aucun parcours adapté n’a été proposé dans ce résultat.')
+  if(model.noPathway&&!model.searchOnly)write('Aucun parcours adapté n’a été proposé dans ce résultat.')
   for(const [label,items]of model.groups){
     if(!items.length)continue
     let first=true
@@ -90,7 +91,7 @@ export function renderPathwayPdf(model,{jsPDF,fonts,logo}={}){
       const primary=label==='Votre parcours recommandé'
       const parts=[
         {text:(primary?'ÉTAPE '+item.position+' - ':'')+course.code+' - '+course.title,size:10,style:'bold'},
-        ...(!primary?[{text:label.startsWith('Pour information')?'Pour information - accès à vérifier':'Piste facultative',size:8.5,color:muted}]:[]),
+        ...(!primary&&!model.searchOnly?[{text:label.startsWith('Pour information')?'Pour information - accès à vérifier':'Piste facultative',size:8.5,color:muted}]:[]),
         {text:'Durée : '+presentation.duration+' | Public : '+(course.public||'non renseigné')+' | '+presentation.modality,size:8.5,color:muted},
         ...presentation.statuses.map(status=>({text:status.label,size:8.5,style:'bold',badge:status.kind})),
         {text:'Pourquoi ce cours ?',size:8.5,style:'bold'},
@@ -135,6 +136,7 @@ export function renderPathwayPdf(model,{jsPDF,fonts,logo}={}){
 
     }
   }
+  if(!model.searchOnly){
   heading('Temps de formation')
   const duration=model.duration
   if(model.simulation)write('Les durées de cet exemple fictif ne sont pas comparées à votre disponibilité. Le temps que vous avez indiqué figure dans les critères ci-dessus.')
@@ -161,6 +163,7 @@ export function renderPathwayPdf(model,{jsPDF,fonts,logo}={}){
       if(duration.excessHours>0)write('Dépassement : '+duration.excessHours+' h. Le parcours dépasse le temps disponible.',{color:'#795015'})
       if(duration.durationsKnown===false||duration.verified===false||duration.budgetVerified===false)write('La vérification des durées est incomplète.',{color:muted})
     }else write('Durée totale non renseignée dans ce résultat.')
+  }
   }
   if(model.gaps.length){heading('Limites des fiches examinées');for(const gap of model.gaps)write('- '+gap)}
   y+=4

@@ -1,7 +1,7 @@
 name: Avatar browser simulation
 on:
   push:
-    branches: ['feat/avatar-interactive-local', 'feat/avatar-messaging-simulation']
+    branches: ['feat/avatar-interactive-local', 'feat/avatar-messaging-simulation', 'feat/assistant-recherche-parcours-v2']
     paths:
       - 'index.html'
       - 'experimental-service/**'
@@ -69,6 +69,10 @@ jobs:
           AVATAR_PLAYWRIGHT_MODULE: ${{ runner.temp }}/avatar-browser/node_modules/playwright/index.mjs
           AVATAR_BROWSER_UNLIMITED: 'true'
         run: node experimental-service/dialogue-pathway-browser-check.mjs
+      - name: Verify course search and guided pathway with fake transports
+        env:
+          AVATAR_PLAYWRIGHT_MODULE: ${{ runner.temp }}/avatar-browser/node_modules/playwright/index.mjs
+        run: node experimental-service/assistant-v2-browser-check.mjs
       - name: Verify three fixed validation cases without paid calls
         env:
           AVATAR_PLAYWRIGHT_MODULE: ${{ runner.temp }}/avatar-browser/node_modules/playwright/index.mjs

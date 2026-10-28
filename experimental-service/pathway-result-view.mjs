@@ -31,16 +31,16 @@ export function renderPathwayResult(document, data, { replay = false, preferredM
     parent.append(element)
     return element
   }
-  add(root, 'h2', replay ? 'Aperçu hors ligne du parcours' : data.abstain || empty ? 'Résultat de votre recherche' : 'Votre parcours de formation')
+  add(root, 'h2', data.searchQuery ? 'Résultats de votre recherche' : replay ? 'Aperçu hors ligne du parcours' : data.abstain || empty ? 'Résultat de votre recherche' : 'Votre parcours de formation')
   if (replay) add(root, 'p', 'Données de test pour vérifier l’affichage ; elles ne répondent pas à ton profil. Aucun appel au moteur ni à OpenAI.')
   add(root, 'p', data.summary)
   if (data.interpretedGoal) add(root, 'p', 'Objectif interprété : ' + data.interpretedGoal)
-  if (data.abstain) add(root, 'p', 'Le moteur ne propose pas de parcours adapté à cette demande.')
+  if (data.abstain) add(root, 'p', data.searchQuery?'Aucune formation correspondante n’a été trouvée. Vous pouvez préciser ou élargir votre recherche.':'Le moteur ne propose pas de parcours adapté à cette demande.')
   else if (empty) add(root, 'p', 'Aucune formation proposée dans ce résultat.')
   for (const [label, items] of [
-    ['Étapes recommandées', data.recommendedSteps ?? data.steps ?? []],
-    ['Compléments', data.optionalSteps ?? []],
-    ['Pour information', data.informationalCourses ?? []],
+    [data.searchQuery?'Formations proposées':'Étapes recommandées', data.recommendedSteps ?? data.steps ?? []],
+    [data.searchQuery?'Formations complémentaires':'Compléments', data.optionalSteps ?? []],
+    [data.searchQuery?'Autres pistes':'Pour information', data.informationalCourses ?? []],
   ]) {
     if (!items.length) continue
     add(root, 'h3', label)
