@@ -72,7 +72,7 @@ export function createPreparedPublicPilot(options={}){
           catch(error){operation.failure=error;throw error}
           operation.paths.add(url.pathname)
         }
-        return fetchImpl(destination,{...init,redirect:'error',...(!isRead?{signal:AbortSignal.any([shutdown.signal,init.signal??new AbortController().signal])}:{})})
+        return fetchImpl(destination,{...init,redirect:'error',...(isResearch&&options.consumption?{headers:{...init.headers,'X-A658-Report-Token':options.consumption.token}}:{}),...(!isRead?{signal:AbortSignal.any([shutdown.signal,init.signal??new AbortController().signal])}:{})})
       }
       const restrictedMail={enabled:true,async send(payload){
         const recipient=canonicalEmail(payload.recipient)
@@ -86,7 +86,7 @@ export function createPreparedPublicPilot(options={}){
         pathwayTrial:{enabled:true,paidTrialAuthorized:true,stateFile:join(directory,'pathway-quotas.json'),reportFile:join(directory,'pathway-report.json'),fetchImpl:meteredFetch},
         resumeDirectory:join(directory,'resume'),deviceMemoryEnabled:false,publicOrigin:options.publicOrigin,users:[user],stateFile:join(directory,'quotas.json'),
         isSecureRequest:options.isSecureRequest,loadProfileReferences:options.loadProfileReferences,loadCatalogueStatus:options.loadCatalogueStatus,
-        preview:options.preview,mail:restrictedMail})
+        preview:options.preview,mail:restrictedMail,consumption:options.consumption,reportingToken:options.consumption?.token})
       return {gateway,authorization:'Basic '+Buffer.from('visitor:'+password).toString('base64'),setOperation:value=>{operation=value}}
     })()
     visitors.set(actor,pending)

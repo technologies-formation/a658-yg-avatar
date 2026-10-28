@@ -74,3 +74,9 @@ test('arrêt pendant le comptage : aucune génération ultérieure, réservation
  assert.equal(f.calls.length,1);assert.equal((await f.get(a)).publicQuota.dialogue,1)
  await f.reopen();assert.notEqual((await f.turn(a)).status,200);assert.equal(f.calls.length,1)
 })
+test('suivi agrégé : un dialogue attribué une fois à l’Assistant sans question, réponse ni adresse',async t=>{
+ const f=await fixture(t),a=await f.enter();await f.mode(a);assert.equal((await f.turn(a)).status,200)
+ assert.equal(f.events.length,1);assert.equal(f.events[0].app,'assistant');assert.equal(f.events[0].action,'dialogue');assert.equal(f.events[0].outcome,'success')
+ assert.deepEqual(f.events[0].usage,{costMicroUsd:330,inputTokens:1000,outputTokens:100})
+ assert.doesNotMatch(JSON.stringify(f.events),/Un besoin fictif|Quel est|tester@|cookie|apiKey/)
+})

@@ -12,12 +12,13 @@ export async function publicPilotFixture(t){
  const root=mkdtempSync(join(tmpdir(),'public-gateway-')),privateDirectory=join(root,'private'),directory=join(root,'public');mkdirSync(privateDirectory,{mode:0o700})
  writeFileSync(join(privateDirectory,'private-sentinel.txt'),'PRIVATE_STATE_MUST_NOT_CHANGE',{mode:0o600})
  const refs=references(v=>{v.pathway.fields.professionalEnvironment={type:'string',maxLength:4000,requiredInApi:false,requiredInForm:false,formControl:'select',options:[{value:'Police',label:'Police'}]}}),version={snapshotDate:'2026-10-27',snapshotHash:'a'.repeat(64)}
- let at=Date.parse('2026-10-28T12:00:00Z'),calls=[],emails=[],failNext=false,hold=null
+ let at=Date.parse('2026-10-28T12:00:00Z'),calls=[],emails=[],events=[],failNext=false,hold=null
  const options={enabled:true,billingReviewed:true,backendBoundsReviewed:true,directory,privateDirectory,publicOrigin:origin,now:()=>at,apiKey:'SYNTHETIC_PUBLIC_TEST_KEY',allowedRecipients:['tester@example.invalid'],
   isSecureRequest:req=>req.headers['x-test-secure']==='true',loadProfileReferences:()=>refs,loadCatalogueStatus:()=>version,preview:data(),
+  consumption:{token:'t'.repeat(43),ledger:{begin(app,action){const event={app,action};events.push(event);return(outcome,usage)=>Object.assign(event,{outcome,usage})}}},
   mail:{from:'sender@example.invalid',transport:{sendMail:async message=>{emails.push(message);return {accepted:[message.to.address],rejected:[]}}},buildPdf:()=>({model:{title:'Résultat fictif',filename:'test.pdf',simulation:false},content:Buffer.from('FAKE_PDF')})},
   fetchImpl:async(url,init)=>{
-   const paid=init.method==='POST';if(paid){calls.push(url);assert.ok(readdirSync(join(directory,'ledger')).some(n=>n.startsWith('reservation-')));if(hold)await hold;if(failNext){failNext=false;throw Error('synthetic ambiguous failure')}}
+   const paid=init.method==='POST';if(paid){calls.push(url);assert.ok(readdirSync(join(directory,'ledger')).some(n=>n.startsWith('reservation-')));if(url.startsWith('https://api.a658yg-catalogue.ch/'))assert.equal(init.headers['X-A658-Report-Token'],'t'.repeat(43));if(hold)await hold;if(failNext){failNext=false;throw Error('synthetic ambiguous failure')}}
    if(url.endsWith('/input_tokens'))return json({object:'response.input_tokens',input_tokens:1000})
    if(url==='https://api.openai.com/v1/responses')return json({status:'completed',model:'gpt-6-luna',usage:{input_tokens:1000,output_tokens:100},output:[{type:'message',role:'assistant',content:[{type:'output_text',text:JSON.stringify({kind:'ask',reply:'Quel est votre objectif ?',changes:[]})}]}]})
    if(url.endsWith('/api/profile-references'))return new Response(JSON.stringify(refs),{headers:{'Content-Type':'application/json',ETag:'"'+refs.revision+'"'}})
@@ -38,5 +39,5 @@ export async function publicPilotFixture(t){
  const get=async cookie=>(await request('/public/dialogue',{cookie})).value
  const mode=async(cookie,requestMode='pathway')=>request('/public/dialogue',{cookie,body:{action:'request-mode',requestMode,intent:'start',confirmed:true,expectedRevision:(await get(cookie)).draft.revision}})
  const turn=async(cookie,requestId=randomUUID())=>request('/public/dialogue',{cookie,body:{action:'turn',message:'Un besoin fictif',paidTrialConfirmed:true,requestId,expectedRevision:(await get(cookie)).draft.revision,referenceRevision:refs.revision}})
- return {root,directory,privateDirectory,options,request,enter,get,mode,turn,calls,emails,port:server.address().port,stop(){service.stop()},tick(ms=11000){at+=ms},fail(){failNext=true},setHold(value){hold=value},async reopen(){await service.close();service=createPreparedPublicPilot(options)}}
+ return {root,directory,privateDirectory,options,request,enter,get,mode,turn,calls,emails,events,port:server.address().port,stop(){service.stop()},tick(ms=11000){at+=ms},fail(){failNext=true},setHold(value){hold=value},async reopen(){await service.close();service=createPreparedPublicPilot(options)}}
 }
