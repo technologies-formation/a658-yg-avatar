@@ -39,6 +39,10 @@ jobs:
         env:
           AVATAR_PLAYWRIGHT_MODULE: ${{ runner.temp }}/avatar-browser/node_modules/playwright/index.mjs
         run: node experimental-service/assistant-v2-browser-check.mjs
+      - name: Verify proxy refusals and manual recovery without paid retries
+        env:
+          AVATAR_PLAYWRIGHT_MODULE: ${{ runner.temp }}/avatar-browser/node_modules/playwright/index.mjs
+        run: node experimental-service/transport-recovery-browser-check.mjs
       - name: Exercise the local questionnaire on desktop and mobile
         env:
           AVATAR_PLAYWRIGHT_MODULE: ${{ runner.temp }}/avatar-browser/node_modules/playwright/index.mjs
