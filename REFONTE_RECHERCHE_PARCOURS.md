@@ -62,3 +62,10 @@ Validation locale : 239 tests Assistant et 386 tests Catalogue réussis, transpo
 - Les premières générations réelles confirment le déplacement du e-learning en alternative mais révèlent encore un socle imposé pour vérifier des acquis, un objectif interprété transformant le repère de temps en plafond et des identifiants techniques dans le texte. Les consignes sont renforcées dès la première passe et distinguent les prérequis réellement manquants des maîtrises à confirmer. Les identifiants de provenance sont traduits dans les explications ; les preuves structurées restent inchangées.
 - « / Formation autonome en ligne » est reconnu comme déclaration explicite de modalité dans le titre. Une simple mention du sujet e-learning reste insuffisante.
 - Les recherches antérieures sont conservées, sans relance ni réécriture automatique. Le déplacement Apparence et les autres retours du dialogue restent dans le lot UX à valider.
+
+
+## Interrupteur Apparence et validation des versions
+
+Déplacement validé par l’opérateur : interrupteur compact dans l’en-tête, à droite de l’identité de l’assistant, suppression du titre APPARENCE et du bloc en bas. Le libellé accessible Mode nuit reste associé à l’état du commutateur ; une infobulle indique l’action Mode jour/Mode nuit. La préférence sur cet appareil est conservée. Aucun moteur, état métier ou compteur ne change.
+
+VALIDATION_VERSION_ASSISTANT.md distingue les contrôles techniques avant installation, les essais métier de l’opérateur, les anomalies ouvertes et le bilan de chaque version. Ne pas assimiler un contrôle de ce bouton ou une suite simulée réussie à la validation générale de l’assistant.

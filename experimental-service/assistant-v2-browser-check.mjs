@@ -8,8 +8,53 @@ import {createRealDialogueTrialInterface} from './dialogue-real-trial.mjs'
 import {createPilotCredential} from './pilot-auth.mjs'
 import {references} from './reference-test-fixtures.mjs'
 import {data} from './result-test-fixtures.mjs'
-import {clickNavigation} from './browser-navigation-fixtures.mjs'
+import {clickNavigation,openNavigation} from './browser-navigation-fixtures.mjs'
 const {chromium}=await import(process.env.AVATAR_PLAYWRIGHT_MODULE||'playwright')
+async function checkHeaderAppearance(page,name){
+ await openNavigation(page)
+ const toggle=page.getByRole('switch',{name:'Mode nuit',exact:true})
+ assert.equal(await page.locator('.appearance-control').count(),1)
+ assert.equal(await page.locator('.sidebar-header .appearance-control').count(),1)
+ const bounds=await page.locator('.sidebar-header').evaluate(header=>{
+  const rect=e=>{const r=e.getBoundingClientRect();return {left:r.left,right:r.right,top:r.top,bottom:r.bottom,width:r.width,height:r.height}}
+  return {header:rect(header),brand:rect(header.querySelector('.brand')),control:rect(header.querySelector('.appearance-switch')),close:getComputedStyle(header.querySelector('#close-menu')).display==='none'?null:rect(header.querySelector('#close-menu'))}
+ })
+ assert.ok(bounds.control.width>=44&&bounds.control.height>=44)
+ assert.ok(bounds.control.left>=bounds.brand.right-.5&&bounds.control.right<=bounds.header.right+.5)
+ assert.ok(bounds.control.top>=bounds.header.top-.5&&bounds.control.bottom<=bounds.header.bottom+.5)
+ if(bounds.close)assert.ok(bounds.close.bottom<=bounds.control.top+.5)
+ const before=await page.locator('html').getAttribute('data-appearance'),target=before==='day'?'night':'day'
+ await toggle.focus();await page.keyboard.press('Space')
+ await page.waitForFunction(value=>document.documentElement.dataset.appearance===value,target)
+ assert.equal(await toggle.isChecked(),target==='night')
+ assert.equal(await toggle.locator('..').getAttribute('title'),target==='night'?'Passer au mode jour':'Passer au mode nuit')
+ await page.locator('.sidebar-header').screenshot({path:'visual-check/appearance-header-'+name+'.png',animations:'disabled'})
+ await page.reload();await page.getByRole('button',{name:'Rechercher des formations',exact:true}).waitFor()
+ assert.equal(await page.locator('html').getAttribute('data-appearance'),target)
+ await openNavigation(page)
+ await page.evaluate(()=>{
+  const fixture=document.createElement('div');fixture.id='appearance-long-list-test'
+  for(let i=0;i<18;i++){
+   const row=document.createElement('div');row.className='research-tab-group'
+   const button=document.createElement('button');button.className='research-tab';button.textContent='Recherche fictive '+(i+1)+' : formation et perfectionnement dans un domaine professionnel'
+   row.append(button);fixture.append(row)
+  }
+  document.getElementById('research-list').append(fixture)
+ })
+ assert.equal(await page.locator('#sidebar').evaluate(e=>e.scrollHeight>e.clientHeight),true)
+ const overlap=()=>page.evaluate(()=>{
+  const control=document.querySelector('.appearance-control').getBoundingClientRect()
+  return [...document.querySelectorAll('#appearance-long-list-test .research-tab-group')].some(e=>{const r=e.getBoundingClientRect();return r.top<control.bottom&&r.bottom>control.top})
+ })
+ assert.equal(await overlap(),false)
+ await page.locator('#sidebar').evaluate(e=>e.scrollTop=e.scrollHeight)
+ assert.equal(await overlap(),false)
+ await page.locator('#sidebar').screenshot({path:'visual-check/appearance-long-list-'+name+'.png',animations:'disabled'})
+ await page.evaluate(()=>{document.getElementById('appearance-long-list-test').remove();document.getElementById('sidebar').scrollTop=0})
+ await toggle.focus();await page.keyboard.press('Space')
+ assert.equal(await page.locator('html').getAttribute('data-appearance'),before)
+ if(name==='mobile')await page.locator('#close-menu').click()
+}
 const origin='https://assistant-v2-test.invalid',password='FAKE_V2_PASSWORD_ONLY',dir=mkdtempSync(join(tmpdir(),'assistant-v2-browser-'))
 const refs=references(v=>{const field=(options,formControl='textarea')=>({type:'string',maxLength:4000,requiredInApi:false,requiredInForm:false,formControl,options:options.map(value=>({value,label:value}))});Object.assign(v.pathway.fields,{professionalEnvironment:field(['Police','Autre'],'select'),trainingOffers:field(['Offre A','Offre B']),trainingOrganizers:field(['Centre A','Centre B'])})})
 function qualityResult(){const result=data();result.recommendedSteps[0].course.deliveryMode={value:'in_person',sourceField:'catalogue-default',evidence:null};result.optionalSteps[0].course.deliveryMode={value:'online',sourceField:'generalInformation',evidence:'Cette formation est en ligne.'};return result}
@@ -32,6 +77,7 @@ try{
   const oldSearch=searchCalls,oldDialogue=dialogueCalls,oldPathway=pathwayCalls
   await page.goto(origin+'/private/');await page.getByRole('button',{name:'Rechercher des formations',exact:true}).waitFor();assert.equal(searchCalls,oldSearch);assert.equal(dialogueCalls,oldDialogue)
   await page.screenshot({path:'visual-check/v2-welcome-'+name+'.png',animations:'disabled'})
+  await checkHeaderAppearance(page,name);assert.equal(searchCalls,oldSearch);assert.equal(dialogueCalls,oldDialogue);assert.equal(pathwayCalls,oldPathway)
   const readDraft=()=>page.evaluate(async()=>{const r=await fetch('/private/dialogue');return (await r.json()).draft})
   await page.evaluate(async()=>{const r=await fetch('/private/dialogue'),v=await r.json();await fetch('/private/dialogue',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'edit',expectedRevision:v.draft.revision,profile:{professionalEnvironment:'Police',personnelCategory:'TEST-A',role:'Chef cockpit',managerStatus:'TEST-MANAGER',objective:'Ancien objectif cockpit',existingSkills:'Débutant cockpit',timeAvailable:'6 jours',constraints:'Le matin',trainingOffers:'Offre A',trainingOrganizers:'Centre A'},modality:'En ligne'})})})
   await page.reload();await page.getByRole('button',{name:'Reprendre ma demande existante',exact:true}).waitFor();
