@@ -29,7 +29,7 @@ async function checkHeaderAppearance(page,name){
  assert.equal(await toggle.isChecked(),target==='night')
  assert.equal(await toggle.locator('..').getAttribute('title'),target==='night'?'Passer au mode jour':'Passer au mode nuit')
  await page.locator('.sidebar-header').screenshot({path:'visual-check/appearance-header-'+name+'.png',animations:'disabled'})
- await page.reload();await page.getByRole('button',{name:'Rechercher des formations',exact:true}).waitFor()
+ await page.reload();await page.getByRole('button',{name:'Rechercher des formations',exact:true}).waitFor();await page.locator('#courses-content .catalogue-freshness').filter({hasText:'27.10.2026'}).waitFor({state:'attached'})
  assert.equal(await page.locator('html').getAttribute('data-appearance'),target)
  await openNavigation(page)
  await page.evaluate(()=>{
