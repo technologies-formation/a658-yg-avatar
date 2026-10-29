@@ -45,6 +45,6 @@ try{
    }
    assert.equal(f.calls.length,1);assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);assert.deepEqual(errors,[])
    console.log(JSON.stringify({name,publicIsolation:true,pdf:true,allowlist:!mailPending,mailPending,paidExternalCalls:0,realSmtpConnections:0}))
-  }finally{await context.close();for(const close of cleanup.reverse())await close()}
+  }finally{await context.unrouteAll({behavior:'wait'});await context.close();for(const close of cleanup.reverse())await close()}
  }
 }finally{await browser.close()}
