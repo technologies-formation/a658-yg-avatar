@@ -44,7 +44,7 @@ try{
  await page.goto(origin+'/private/');await page.getByRole('button',{name:'Rechercher des formations',exact:true}).click();
  await page.locator('#message').fill('Word');await page.locator('#send-message').click();await page.getByText('J’ai trouvé 1 formation',{exact:false}).waitFor();
  await page.getByRole('button',{name:'Affiner cette recherche et construire mon parcours',exact:true}).first().click();await page.getByRole('button',{name:'Police',exact:true}).waitFor();assert.equal(await page.locator('#profile-dialog').evaluate(e=>e.open),false);
- await page.getByRole('button',{name:'Police',exact:true}).click();await page.getByText('À quel groupe de personnel appartenez-vous ?', {exact:true}).waitFor();
+ await page.getByRole('button',{name:'Police',exact:true}).click();await page.locator('[data-guided-question="personnelCategory"]').waitFor();
  const before=await readState(),callsBefore=dialogueCalls;
  assert.equal(before.history.length,1);assert.equal(before.draft.profile.professionalEnvironment,'Police');
  for(const [status,contentType,body]of [[403,'text/plain','Transport HTTPS via proxy de confiance requis'],[403,'application/json',JSON.stringify({code:'secure_transport_required'})],[502,'text/html','<html>PRIVATE_SENTINEL</html>']]){
