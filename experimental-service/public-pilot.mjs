@@ -20,6 +20,7 @@ const messages={
   public_busy:'Une demande est déjà en cours. Aucun nouvel appel n’a été lancé ; aucune relance automatique.',
   public_duplicate:'Cette demande a déjà été tentée. Aucune relance automatique.',
   public_mail_recipient:'Cette adresse n’est pas autorisée pour le test. Aucun courriel n’a été envoyé.',
+  public_mail_pending:'L’envoi par courriel est en attente de la liste des testeurs autorisés. Le PDF reste disponible.',
   public_mail_limit:'La limite des courriels de ce test est atteinte. Le PDF reste téléchargeable.',
   public_session:'Votre session de test est absente ou expirée. Revenez à la page d’accueil du test.',
   public_bounds_unverified:'Le moteur de ce test n’a pas pu être vérifié. Aucune relance automatique.',
@@ -35,10 +36,11 @@ export function createPreparedPublicPilot(options={}){
   // Attestations opérateur, pas vérifications automatiques de facturation ou du moteur.
   if(options.billingReviewed!==true||options.backendBoundsReviewed!==true||typeof options.isSecureRequest!=='function')throw new PublicPilotError('public_configuration',503)
   const origin=new URL(options.publicOrigin)
+  const recipients=options.allowedRecipients===undefined?[]:options.allowedRecipients
   if(origin.protocol!=='https:'||origin.origin!==options.publicOrigin||typeof options.apiKey!=='string'||!options.apiKey.trim()||
-    !Array.isArray(options.allowedRecipients)||options.allowedRecipients.length<1||options.allowedRecipients.length>2||typeof options.backendToken!=='string'||!/^[A-Za-z0-9_-]{43}$/.test(options.backendToken))throw new PublicPilotError('public_configuration',503)
-  const allowedRecipients=new Set(options.allowedRecipients.map(canonicalEmail))
-  if(allowedRecipients.size!==options.allowedRecipients.length)throw new PublicPilotError('public_configuration',503)
+    !Array.isArray(recipients)||recipients.length>2||typeof options.backendToken!=='string'||!/^[A-Za-z0-9_-]{43}$/.test(options.backendToken))throw new PublicPilotError('public_configuration',503)
+  const allowedRecipients=new Set(recipients.map(canonicalEmail))
+  if(allowedRecipients.size!==recipients.length)throw new PublicPilotError('public_configuration',503)
   const root=protectedDirectory(options.directory),privateRoot=realpathSync(options.privateDirectory)
   const inside=(a,b)=>{const r=relative(a,b);return !r||(!r.startsWith('..')&&!isAbsolute(r))}
   if(inside(root,privateRoot)||inside(privateRoot,root))throw new PublicPilotError('public_configuration',503)
@@ -47,7 +49,8 @@ export function createPreparedPublicPilot(options={}){
   let sessions,mail
   try{
     sessions=createPublicPilotSessions({directory:join(root,'sessions'),now})
-    mail=createResearchEmailService({directory:join(root,'mail-outbox'),from:options.mail?.from,transport:options.mail?.transport,now,...(options.mail?.buildPdf?{buildPdf:options.mail.buildPdf}:{})})
+    // Sans destinataire confirmé, ne lire ni compte expéditeur ni transport SMTP.
+    mail=allowedRecipients.size?createResearchEmailService({directory:join(root,'mail-outbox'),from:options.mail?.from,transport:options.mail?.transport,now,...(options.mail?.buildPdf?{buildPdf:options.mail.buildPdf}:{})}):null
   }catch(error){ledger.close();throw error}
   const visitors=new Map(),shutdown=new AbortController();let closed=false,active=false
   const quota=actor=>{
@@ -58,11 +61,13 @@ export function createPreparedPublicPilot(options={}){
       budget:{model:'gpt-6-luna',attempts:s.dialogue,maxAttempts:10,reservedMicroUsd:s.dialogue*PUBLIC_COST_POLICY.dialogue.reserveMicroUsd,stopped:s.stopped,unlimited:false}}
   }
   async function visitor(actor){
+    if(closed)throw new PublicPilotError('public_stopped',503)
     if(visitors.has(actor))return visitors.get(actor)
     const pending=(async()=>{
       const directory=join(root,'visitors',actor);protectedDirectory(directory)
       const budgetDirectory=join(directory,'dialogue-budget');mkdirSync(budgetDirectory,{mode:0o700,recursive:true})
       const password=randomBytes(32).toString('hex'),user=await createPilotCredential({id:'visitor',username:'visitor',password})
+      if(closed)throw new PublicPilotError('public_stopped',503)
       let operation=null
       const meteredFetch=async(destination,init={})=>{
         const url=new URL(destination),method=init.method??'GET'
@@ -98,7 +103,8 @@ export function createPreparedPublicPilot(options={}){
         }
         return response
       }
-      const restrictedMail={enabled:true,async send(payload){
+      const restrictedMail={enabled:Boolean(mail),async send(payload){
+        if(!mail)throw new PublicPilotError('public_mail_pending',503)
         const recipient=canonicalEmail(payload.recipient)
         if(!allowedRecipients.has(recipient))throw new PublicPilotError('public_mail_recipient',403)
         if(!operation||operation.action!=='mail'||operation.requestId!==payload.requestId)throw new PublicPilotError('public_request',400)
@@ -111,7 +117,7 @@ export function createPreparedPublicPilot(options={}){
         pathwayTrial:{enabled:true,paidTrialAuthorized:true,stateFile:join(directory,'pathway-quotas.json'),reportFile:join(directory,'pathway-report.json'),fetchImpl:meteredFetch},
         resumeDirectory:join(directory,'resume'),deviceMemoryEnabled:false,publicOrigin:options.publicOrigin,users:[user],stateFile:join(directory,'quotas.json'),
         isSecureRequest:options.isSecureRequest,loadProfileReferences:options.loadProfileReferences,loadCatalogueStatus:options.loadCatalogueStatus,
-        preview:options.preview,mail:restrictedMail,consumption:options.consumption,reportingToken:options.consumption?.token})
+        preview:options.preview,mail:mail?restrictedMail:null,consumption:options.consumption,reportingToken:options.consumption?.token})
       return {gateway,authorization:'Basic '+Buffer.from('visitor:'+password).toString('base64'),setOperation:value=>{operation=value}}
     })()
     visitors.set(actor,pending)
@@ -139,6 +145,7 @@ export function createPreparedPublicPilot(options={}){
           if(!body||typeof body!=='object'||Array.isArray(body))throw new PublicPilotError('public_request',400)
           const action=originalUrl==='/public/dialogue'&&body.action==='turn'?'dialogue':originalUrl==='/public/course-search'?'search':originalUrl==='/public/pathway'?'pathway':originalUrl==='/public/research-email'?'mail':null
           if(action){
+            if(action==='mail'&&!mail)throw new PublicPilotError('public_mail_pending',503)
             if(action==='mail'&&!allowedRecipients.has(canonicalEmail(body.recipient)))throw new PublicPilotError('public_mail_recipient',403)
             if(active)throw new PublicPilotError('public_busy',409)
             active=true;ownsActive=true;operation={action,requestId:body.requestId,reserved:false,paths:new Set(),failure:null}
@@ -161,7 +168,7 @@ export function createPreparedPublicPilot(options={}){
             }catch{}
           }else if(typeof value==='string'&&/text\/(?:html|javascript)/.test(type)){
             output=value.replaceAll('/private/','/public/').replaceAll('Votre accès privé','Votre session de test')
-            if(type.includes('text/html'))output=output.replace('"unlimited":true','"unlimited":false,"publicPilot":true')
+            if(type.includes('text/html'))output=output.replace('"unlimited":true','"unlimited":false,"publicPilot":true,"publicMailPending":'+!mail)
               .replace('Pilote privé · dialogue IA et recherches sans plafond d’essais','Test public · 10 messages et 3 recherches par jour')
           }
           return end.call(this,output,...args)
@@ -170,7 +177,12 @@ export function createPreparedPublicPilot(options={}){
       }catch(error){if(!res.writableEnded&&!res.headersSent)send(res,error.status??503,errorValue(error));else if(!res.writableEnded)end.call(res)}
       finally{res.end=end;res.writeHead=writeHead;if(ownsActive){inner?.setOperation(null);active=false}}
     },
-    async close(){if(closed)return;closed=true;shutdown.abort();for(const pending of visitors.values()){try{(await pending).gateway.close()}catch{}}ledger.close()},
+    async close(){
+      if(closed)return;closed=true;shutdown.abort()
+      const entries=await Promise.allSettled([...visitors.values()])
+      for(const entry of entries)if(entry.status==='fulfilled'){try{await entry.value.gateway.close()}catch{}}
+      ledger.close()
+    },
     stop(){ledger.stop();shutdown.abort()},
   }
 }

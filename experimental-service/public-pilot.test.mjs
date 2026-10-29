@@ -1,6 +1,8 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import {randomUUID} from 'node:crypto'
+import {existsSync,readdirSync,readFileSync} from 'node:fs'
+import {join} from 'node:path'
 import {createPreparedPublicPilot} from './public-pilot.mjs'
 import {publicPilotFixture as fixture} from './public-pilot-test-fixtures.mjs'
 
@@ -26,6 +28,17 @@ test('deux visiteurs : brouillons, recherches et reprise isolés, même après r
  await f.reopen();assert.equal((await f.get(a)).draft.profile.objective,'Objectif fictif A');assert.deepEqual((await f.get(b)).draft.profile,{})
  assert.equal(f.calls.length,0)
 })
+test('redémarrage pendant l’admission : les anciennes fabriques ne gardent aucun verrou de dialogue',async t=>{
+ const f=await fixture(t,{mailPending:true}),pending=[f.request('/public/'),f.request('/public/')]
+ for(let n=0;n<200&&readdirSync(join(f.directory,'sessions')).length<2;n++)await new Promise(resolve=>setTimeout(resolve,5))
+ assert.equal(readdirSync(join(f.directory,'sessions')).length,2)
+ await f.reopen()
+ for(const result of await Promise.all(pending)){
+  assert.ok([200,503].includes(result.status));const cookie=result.headers['set-cookie'][0].split(';')[0]
+  assert.equal((await f.request('/public/',{cookie})).status,200);assert.deepEqual((await f.get(cookie)).draft.profile,{})
+ }
+ assert.equal(f.calls.length,0);assert.equal(f.emails.length,0)
+})
 test('réservation avant départ, cadence, refus d’un deuxième départ concurrent et échec sans remboursement',async t=>{
  const f=await fixture(t),a=await f.enter();await f.mode(a);f.fail()
  const failed=await f.turn(a);assert.equal(f.calls.length,1);assert.notEqual(failed.status,200)
@@ -45,6 +58,30 @@ test('courriels : seul un résultat de la session vers une adresse autorisée ; 
  const sent=await f.request('/public/research-email',{cookie:a,body:mail});assert.equal(sent.status,200);assert.equal(f.emails.length,1);assert.equal(f.emails[0].to.address,'tester@example.invalid')
  const duplicate=await f.request('/public/research-email',{cookie:a,body:mail});assert.notEqual(duplicate.status,200);assert.equal(f.emails.length,1);assert.equal(f.calls.length,before)
  await f.reopen();assert.notEqual((await f.request('/public/research-email',{cookie:a,body:mail})).status,200);assert.equal(f.emails.length,1)
+})
+test('adresses en attente : démarrage sans SMTP, recherches conservées et refus sans réservation ni file d’envoi',async t=>{
+ const f=await fixture(t,{mailPending:true}),a=await f.enter();await f.mode(a,'search')
+ const page=await f.request('/public/',{cookie:a});assert.match(page.text,/"emailEnabled":false/);assert.match(page.text,/"publicMailPending":true/)
+ const d=await f.get(a);assert.equal((await f.request('/public/course-search',{cookie:a,body:{query:'Word',requestId:randomUUID(),confirmed:true,expectedRevision:d.draft.revision}})).status,200)
+ const before=f.calls.length,records=()=>readdirSync(join(f.directory,'ledger')).filter(n=>n.startsWith('reservation-')).map(n=>readFileSync(join(f.directory,'ledger',n),'utf8'))
+ const reserved=records()
+ for(const recipient of ['tester@example.invalid','',undefined]){
+  const result=await f.request('/public/research-email',{cookie:a,body:{number:1,recipient,requestId:randomUUID(),confirmed:true}})
+  assert.equal(result.status,503);assert.equal(result.value.code,'public_mail_pending');assert.match(result.value.publicMessage,/Le PDF reste disponible/)
+ }
+ assert.deepEqual(records(),reserved);assert.equal(f.emails.length,0);assert.equal(f.calls.length,before);assert.equal(existsSync(join(f.directory,'mail-outbox')),false)
+ f.options.allowedRecipients=[];await f.reopen();assert.equal((await f.get(a)).savedPathways.length,1);assert.equal(f.emails.length,0);assert.equal(existsSync(join(f.directory,'mail-outbox')),false)
+})
+test('adresses ajoutées ultérieurement : aucun rattrapage automatique, un nouvel envoi exige une confirmation',async t=>{
+ const f=await fixture(t,{mailPending:true}),a=await f.enter();await f.mode(a,'search');const d=await f.get(a)
+ await f.request('/public/course-search',{cookie:a,body:{query:'Word',requestId:randomUUID(),confirmed:true,expectedRevision:d.draft.revision}})
+ const body={number:1,recipient:'tester@example.invalid',requestId:randomUUID(),confirmed:true}
+ assert.equal((await f.request('/public/research-email',{cookie:a,body})).value.code,'public_mail_pending')
+ const before=f.calls.length;f.options.allowedRecipients=['tester@example.invalid'];Object.defineProperty(f.options,'mail',{configurable:true,value:f.configuredMail});await f.reopen()
+ const page=await f.request('/public/',{cookie:a});assert.match(page.text,/"emailEnabled":true/);assert.match(page.text,/"publicMailPending":false/)
+ assert.equal((await f.get(a)).savedPathways.length,1);assert.equal(f.emails.length,0)
+ assert.notEqual((await f.request('/public/research-email',{cookie:a,body:{...body,requestId:randomUUID(),confirmed:false}})).status,200);assert.equal(f.emails.length,0)
+ assert.equal((await f.request('/public/research-email',{cookie:a,body:{...body,requestId:randomUUID()}})).status,200);assert.equal(f.emails.length,1);assert.equal(f.calls.length,before)
 })
 test('plafond global au départ du transport : nouveau cookie et redémarrage ne permettent pas un cinquième appel Catalogue',async t=>{
  const f=await fixture(t),a=await f.enter(),b=await f.enter();await f.mode(a,'search');await f.mode(b,'search')

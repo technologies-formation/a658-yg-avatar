@@ -9,7 +9,7 @@ import {createPreparedPublicPilot} from './public-pilot.mjs'
 import {references} from './reference-test-fixtures.mjs'
 import {data} from './result-test-fixtures.mjs'
 const origin='https://public-test.invalid',json=value=>new Response(JSON.stringify(value),{headers:{'Content-Type':'application/json'}})
-export async function publicPilotFixture(t){
+export async function publicPilotFixture(t,{mailPending=false}={}){
  const root=mkdtempSync(join(tmpdir(),'public-gateway-')),privateDirectory=join(root,'private'),directory=join(root,'public');mkdirSync(privateDirectory,{mode:0o700})
  writeFileSync(join(privateDirectory,'private-sentinel.txt'),'PRIVATE_STATE_MUST_NOT_CHANGE',{mode:0o600})
  const refs=references(v=>{v.pathway.fields.professionalEnvironment={type:'string',maxLength:4000,requiredInApi:false,requiredInForm:false,formControl:'select',options:[{value:'Police',label:'Police'}]}}),version={snapshotDate:'2026-10-27',snapshotHash:'a'.repeat(64)}
@@ -29,6 +29,8 @@ export async function publicPilotFixture(t){
    if(url.endsWith('/api/public/pathway'))return json({...data(),publicCostProof})
    throw Error('unexpected synthetic destination')
   }}
+ const configuredMail=options.mail
+ if(mailPending){delete options.allowedRecipients;Object.defineProperty(options,'mail',{configurable:true,get(){throw Error('Pending recipients must not load SMTP configuration')}})}
  let service=createPreparedPublicPilot(options)
  const server=http.createServer((req,res)=>service.handler(req,res));await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve))
  t.after(async()=>{server.closeAllConnections();await new Promise(resolve=>server.close(resolve));await service.close();assert.equal(readFileSync(join(privateDirectory,'private-sentinel.txt'),'utf8'),'PRIVATE_STATE_MUST_NOT_CHANGE');rmSync(root,{recursive:true,force:true})})
@@ -38,8 +40,8 @@ export async function publicPilotFixture(t){
   });req.on('error',reject);req.end(raw??(body?JSON.stringify(body):undefined))
  })
  const enter=async()=>{const r=await request('/public/');assert.equal(r.status,200);return r.headers['set-cookie'][0].split(';')[0]}
- const get=async cookie=>(await request('/public/dialogue',{cookie})).value
+ const get=async cookie=>{const result=await request('/public/dialogue',{cookie});assert.equal(result.status,200,result.text);return result.value}
  const mode=async(cookie,requestMode='pathway')=>request('/public/dialogue',{cookie,body:{action:'request-mode',requestMode,intent:'start',confirmed:true,expectedRevision:(await get(cookie)).draft.revision}})
  const turn=async(cookie,requestId=randomUUID())=>request('/public/dialogue',{cookie,body:{action:'turn',message:'Un besoin fictif',paidTrialConfirmed:true,requestId,expectedRevision:(await get(cookie)).draft.revision,referenceRevision:refs.revision}})
- return {root,directory,privateDirectory,options,request,enter,get,mode,turn,calls,emails,events,port:server.address().port,setPolicy(value){policyReady=value},stop(){service.stop()},tick(ms=11000){at+=ms},fail(){failNext=true},setHold(value){hold=value},async reopen(){await service.close();service=createPreparedPublicPilot(options)}}
+ return {root,directory,privateDirectory,options,configuredMail,request,enter,get,mode,turn,calls,emails,events,port:server.address().port,setPolicy(value){policyReady=value},stop(){service.stop()},tick(ms=11000){at+=ms},fail(){failNext=true},setHold(value){hold=value},async reopen(){await service.close();service=createPreparedPublicPilot(options)}}
 }
