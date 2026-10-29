@@ -178,7 +178,8 @@ export function createDialogueInterface(options = {}, trial = null) {
           if(!['start','resume'].includes(intent)||(research&&intent==='resume'))fail('invalid_request')
           if(intent==='resume'&&session.getDraft().requestMode&&session.getDraft().requestMode!==body.requestMode)fail('invalid_request')
           const draft=intent==='resume'?session.setRequestMode(body.requestMode,body):session.startRequestMode(body.requestMode,{...body,objective:research?.result.searchQuery??''})
-          result={draft}
+          if(intent==='start'&&body.requestMode==='search')value.pathway=null
+          result={draft,savedPathway:value.pathway??null,savedPathways:value.pathways}
         }
         else if (body.action === 'new-request') { result = { draft: session.restart(body) }; value.lastError = null }
         else if (body.action === 'accept') result = { draft: session.acceptProposal(body) }

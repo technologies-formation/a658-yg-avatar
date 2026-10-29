@@ -17,7 +17,7 @@ export function validateResume(value){
  if(value.version===1)return structuredClone({version:1,profile:value.profile,modality:value.modality,referenceRevision:value.referenceRevision,pathway})
  if(!Array.isArray(value.pathways)||value.pathways.length>20||!Number.isSafeInteger(value.nextNumber)||value.nextNumber<1)fail()
  const pathways=value.pathways.map(snapshot),numbers=pathways.map(p=>p.number)
- if(new Set(numbers).size!==numbers.length||numbers.some(n=>n>=value.nextNumber)||Boolean(pathway)!==Boolean(pathways.length))fail()
+ if(new Set(numbers).size!==numbers.length||numbers.some(n=>n>=value.nextNumber))fail()
  if(pathway&&!pathways.some(p=>JSON.stringify(p)===JSON.stringify(pathway)))fail()
  return structuredClone({version:2,profile:value.profile,modality:value.modality,referenceRevision:value.referenceRevision,pathway,pathways,nextNumber:value.nextNumber,...(['search','pathway'].includes(value.requestMode)?{requestMode:value.requestMode}:{})})
 }

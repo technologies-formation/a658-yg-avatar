@@ -17,6 +17,7 @@ if(realPathway&&!realTrial)throw Error('Dialogue réel requis pour cet essai de 
 let references=config.references,profile={},modality='',other='',busy=false,controller=null,epoch=0,current=null,history=[],active='discussion',draftRevision=0,proposal=null,pathwayQuota=null,validationCases=null,validationCaseId=null;
 let deviceMemory=null;
 let resumeChoicePending=false;
+let completedSearch=null;
 let catalogueStatus=null;
 const scrolls={discussion:0,courses:0};
 const labels={personnelCategory:'Groupe de personnel',entity:'Entité ou service',managerStatus:'Situation managériale',role:'Métier ou fonction',objective:'Objectif',existingSkills:'Compétences actuelles',timeAvailable:'Temps disponible',constraints:'Autres contraintes',professionalEnvironment:'Environnement professionnel',trainingOffers:'Offres de formation à explorer',trainingOrganizers:'Entités de formation organisatrices',modality:'Modalité souhaitée'};
@@ -60,6 +61,7 @@ function restorePathway(value,values){
  if(Array.isArray(values))history=values.map(readSavedPathway);
  else if(value&&!history.some(p=>p.number===value.number))history.push(readSavedPathway(value));
  current=value?history.find(p=>p.number===value.number)??readSavedPathway(value):null;
+ if(guidedDraft&&requestMode==='search'){completedSearch=current?.result.searchQuery?current.number:null;updateSearchComposer();}
  sync();if(!current||JSON.stringify(previous)===JSON.stringify(current))return;
  const snapshot=current;
  const el=say('Derniers résultats retrouvés. Ils reprennent la recherche enregistrée, sans nouvelle génération.');el.classList.add('result-message');el.querySelector('.bubble').append(renderSnapshot(snapshot));
@@ -103,7 +105,7 @@ function updateResearchTabs(focusNumber){
  if(focusNumber!==undefined)requestAnimationFrame(()=>{if($('sidebar').inert)(active==='courses'?$('courses-view'):$('conversation')).focus({preventScroll:true});else document.querySelector('[data-research-number="'+focusNumber+'"]')?.focus({preventScroll:true});});
 }
 function sync(){updateResearchTabs();const panel=$('courses-content'),y=$('courses-view').scrollTop;const previousCriteria=panel.querySelector('details.research-criteria'),criteriaOpen=Boolean(previousCriteria?.open&&previousCriteria.dataset.criteriaResearchNumber===String(current?.number));panel.replaceChildren();if(config.catalogueStatusEnabled)panel.append(node('p',catalogueVersionLabel(catalogueStatus),'catalogue-freshness'));if(!current){const empty=node('div',undefined,'view-empty');empty.append(node('h2','Vos cours apparaîtront ici'),node('p',realPathway?'Complétez et vérifiez les repères de la demande, puis confirmez explicitement la génération payante du parcours.':'Complétez les repères de la demande dans la discussion, puis confirmez la simulation. Le résultat reste un exemple fixe, sans analyse de votre besoin.'));action('Revenir à la discussion',()=>switchView('discussion'),empty,true);panel.append(empty);}
- else{const result=renderSnapshot(current),marker=result.firstElementChild;marker.dataset.researchSummary='true';marker.replaceChildren(stateNotice(current,true));const need=createResearchCriteria(document,current,current.result.searchQuery?(p,parent)=>{const dl=node('dl',undefined,'need-grid');dl.append(node('dt','Recherche'),node('dd',current.result.searchQuery));parent.append(dl);}:profileList,criteriaOpen);const caution=node('p',AI_GUIDANCE,'ai-caution');caution.style.cssText='font-size:13px;line-height:1.65;color:#50685a;border-left:3px solid #c8d9be;padding:10px 14px;margin:0 0 22px';panel.append(marker,need,result);appendPdfExport(document,panel,current,references);if(config.emailEnabled)appendResearchEmail(document,panel.querySelector('.pdf-export'),current);panel.append(caution);}
+ else{const result=renderSnapshot(current),marker=result.firstElementChild;marker.dataset.researchSummary='true';marker.replaceChildren(stateNotice(current,true));const need=createResearchCriteria(document,current,current.result.searchQuery?(p,parent)=>{const dl=node('dl',undefined,'need-grid');dl.append(node('dt','Recherche'),node('dd',current.result.searchQuery));parent.append(dl);}:profileList,criteriaOpen);const caution=node('p',AI_GUIDANCE,'ai-caution');caution.style.cssText='font-size:13px;line-height:1.65;color:#50685a;border-left:3px solid #c8d9be;padding:10px 14px;margin:0 0 22px';panel.append(marker,need,result);appendPdfExport(document,panel,current,references);if(config.emailEnabled)appendResearchEmail(document,panel.querySelector('.pdf-export'),current);panel.append(caution);if(guidedDraft&&current.result.searchQuery)appendSearchChoices(panel,current.number);}
  $('courses-view').scrollTop=y;
  document.querySelectorAll('[data-snapshot-notice]').forEach(e=>{const snapshot=history.find(x=>x.number===Number(e.dataset.snapshotNotice));if(snapshot)e.replaceChildren(stateNotice(snapshot,e.dataset.researchSummary==='true'));});
 }
@@ -236,7 +238,7 @@ function showPending(reply='Une proposition précédente attend votre décision.
 }
 async function send(text){
  if(realValidation){status('Utilisez les boutons de scénarios ; aucun tour de dialogue IA dans cette validation.');return;}
- text=text.trim();if(!text||busy)return;if(guidedDraft&&!requestMode){status('Choisissez Rechercher des formations ou Construire mon parcours pour poursuivre.');return;}if(guidedDraft&&requestMode==='search'){return searchCourses(text);}if(proposal){status('Acceptez ou refusez d’abord la proposition en attente.',true);return;}clearChoices();$('message').value='';say(text,true);proposal=null;
+ text=text.trim();if(!text||busy)return;if(guidedDraft&&!requestMode){status('Choisissez Rechercher des formations ou Construire mon parcours pour poursuivre.');return;}if(guidedDraft&&requestMode==='search'){if(completedSearch!==null){$('message').value='';say(text,true);const el=say('Pour compléter votre recherche, choisissez « Affiner cette recherche et construire mon parcours ». Votre recherche initiale sera reprise dans Ma demande. Pour un autre sujet, choisissez « Faire une nouvelle recherche ».');appendSearchChoices(el.querySelector('.bubble'),completedSearch);focusStart(el);status('Demande conservée. Aucun appel IA ni nouvelle recherche lancé.');return;}return searchCourses(text);}if(proposal){status('Acceptez ou refusez d’abord la proposition en attente.',true);return;}clearChoices();$('message').value='';say(text,true);proposal=null;
  try{const value=await dialogueRequest({action:'turn',requestId:crypto.randomUUID(),message:text,expectedRevision:draftRevision,referenceRevision:references.revision,...(realTrial?{paidTrialConfirmed:true}:{})});
   applyDraft(value.draft);proposal=value.proposal;
   if(proposal)showPending(value.reply);
@@ -259,7 +261,7 @@ $('restart').addEventListener('click',async()=>{
  if(busy)return;
  if((Object.values(profile).some(v=>String(v??'').trim())||modality||other||$('message').value.trim()||document.querySelector('#thread .message.user,#thread .result-message'))&&!await confirmNewRequest(document))return;
  if(busy)return;
- try{const value=await dialogueRequest({action:'new-request',confirmed:true,expectedRevision:draftRevision});proposal=null;$('message').value='';$('thread').replaceChildren();applyDraft(value.draft);switchView('discussion',true);if(guidedDraft){resumeChoicePending=false;welcome();}else{say('Commençons une nouvelle demande. Vos recherches précédentes restent disponibles à gauche.');offerNext();}status('Nouvelle demande commencée. Recherches conservées ; compteurs inchangés.');}catch(error){status(error.message,true);}
+ try{const value=await dialogueRequest({action:'new-request',confirmed:true,expectedRevision:draftRevision});proposal=null;$('message').value='';$('thread').replaceChildren();applyDraft(value.draft);switchView('discussion',true);if(guidedDraft){resumeChoicePending=false;completedSearch=null;welcome();}else{say('Commençons une nouvelle demande. Vos recherches précédentes restent disponibles à gauche.');offerNext();}status('Nouvelle demande commencée. Recherches conservées ; compteurs inchangés.');}catch(error){status(error.message,true);}
 });
 $('refresh-references').addEventListener('click',async()=>{
  if(busy)return;try{const value=await dialogueRequest();references=value.references;proposal=value.proposal;applyDraft(value.draft);clearChoices();status(value.lastError?failureMessage(value.lastError,value.lastError.status):'Brouillon accepté rechargé. Le résultat précédent reste conservé ; aucune recherche automatique.',Boolean(value.lastError));if(proposal)showPending();else offerNext();restorePathway(value.savedPathway,value.savedPathways);}catch(error){status(error.message,true);}
@@ -281,15 +283,16 @@ function welcome(){
  if(requestMode||modality||Object.values(profile).some(x=>String(x??'').trim())){const resume=node('div',undefined,'action-row question-actions');action('Reprendre ma demande existante',()=>chooseMode(requestMode||'pathway',undefined,true),resume);el.querySelector('.bubble').append(resume);}
  focusStart(el);
 }
-async function chooseMode(mode,fromResearch,resume=false){
+async function chooseMode(mode,fromResearch,resume=false,explicitNewSearch=false){
  if(busy)return;
  const hasDraft=modality||Object.values(profile).some(x=>String(x??'').trim())||$('message').value.trim()||document.querySelector('#thread .message.user');
- if(!resume&&hasDraft&&!await confirmNewRequest(document))return;
+ if(!resume&&!explicitNewSearch&&fromResearch===undefined&&hasDraft&&!await confirmNewRequest(document))return;
  if(busy)return;
- try{const value=await dialogueRequest({action:'request-mode',requestMode:mode,intent:resume?'resume':'start',confirmed:!resume,expectedRevision:draftRevision,...(fromResearch!==undefined?{fromResearch}:{})});proposal=null;resumeChoicePending=false;document.querySelectorAll('[data-resume-choice]').forEach(el=>el.remove());if(!resume){$('thread').replaceChildren();$('message').value='';}applyDraft(value.draft);clearChoices();switchView('discussion');if(resume)say('Votre demande existante a été reprise avec ses critères enregistrés. Vérifiez-les avant de poursuivre.');
+ try{const value=await dialogueRequest({action:'request-mode',requestMode:mode,intent:resume?'resume':'start',confirmed:!resume,expectedRevision:draftRevision,...(fromResearch!==undefined?{fromResearch}:{})});proposal=null;resumeChoicePending=false;document.querySelectorAll('[data-resume-choice]').forEach(el=>el.remove());if(!resume){$('thread').replaceChildren();$('message').value='';}if(!resume&&mode==='search')current=null;applyDraft(value.draft);if(!resume)completedSearch=null;clearChoices();switchView('discussion');if(resume)say('Votre demande existante a été reprise avec ses critères enregistrés. Vérifiez-les avant de poursuivre.');
  const text=mode==='search'?'Quelle formation recherchez-vous ? Donnez-moi un titre, un code, quelques mots-clés ou décrivez ce que vous souhaitez apprendre. La recherche utilise l’IA du catalogue et peut être payante. Aucun formulaire complet à remplir.':'Je vais vous aider à préciser votre besoin. Nous compléterons progressivement le formulaire « Ma demande », que vous pourrez modifier avant de lancer la recherche. Chaque message envoyé peut consommer un appel IA payant.';
  const el=say(text);$('message').placeholder=mode==='search'?'Un titre, un code ou ce que vous souhaitez apprendre…':'Décrivez votre besoin…';$('message').maxLength=mode==='search'?1000:1500;$('send-message').setAttribute('aria-label',mode==='search'?'Rechercher des formations — IA payante':'Envoyer un message — IA payante');
- if(mode==='pathway')guidedNext();focusStart(el);$('message').focus({preventScroll:true});
+ if(mode==='search')updateSearchComposer();
+ if(mode==='pathway'){guidedNext();if(fromResearch!==undefined){say('La recherche « '+profile.objective+' » est reprise dans Ma demande. Complétez vos critères, puis vérifiez-les avant de générer le parcours.');await openProfile('professionalEnvironment');return;}}focusStart(el);$('message').focus({preventScroll:true});
  }catch(error){status(error.message,true);}
 }
 function guidedNext(){
@@ -305,12 +308,25 @@ function guidedNext(){
  action('Compléter ou modifier Ma demande',openProfile,row);$('thread').append(row);
  }
 }
+function updateSearchComposer(){
+ const followup=completedSearch!==null;
+ $('message').placeholder=followup?'Une question sur la suite de cette recherche ?':'Un titre, un code ou ce que vous souhaitez apprendre…';
+ const label=followup?'Demander comment poursuivre cette recherche':'Rechercher des formations — IA payante';
+ $('send-message').setAttribute('aria-label',label);$('send-message').title=label;
+}
+function appendSearchChoices(parent,number){
+ const row=node('div',undefined,'search-next-choices');
+ const choice=(title,description,fn)=>{const button=action('',fn,row);button.setAttribute('aria-label',title);button.append(node('strong',title),node('span',description));};
+ choice('Faire une nouvelle recherche','Repartir avec une demande vide. Vos recherches enregistrées restent disponibles.',()=>chooseMode('search',undefined,false,true));
+ choice('Affiner cette recherche et construire mon parcours','Conserver ce besoin et compléter Ma demande avant de générer le parcours.',()=>chooseMode('pathway',number));
+ parent.append(row);
+}
 async function searchCourses(query){
  if(busy)return;if(history.length>=20){status('Fermez une recherche avant d’en créer une nouvelle (20 maximum).',true);return;}
  clearChoices();$('message').value='';say(query,true);invalidate();const attempt=epoch;controller=new AbortController();const abort=controller;setBusy(true,'Recherche de formations en cours…');status('Recherche IA du catalogue en cours. Aucune relance automatique.');
  const timer=setTimeout(()=>abort.abort(),210000);
  try{const response=await fetch('/private/course-search',{method:'POST',credentials:'same-origin',cache:'no-store',redirect:'error',headers:{Accept:'application/json','Content-Type':'application/json'},signal:abort.signal,body:JSON.stringify({query,requestId:crypto.randomUUID(),confirmed:true,expectedRevision:draftRevision})});const value=await readPrivateResponse(response);if(attempt!==epoch)return;if(!response.ok)throw Error('Recherche non aboutie. Vos recherches précédentes sont conservées. Aucune relance automatique.');
- showResumeNotice(value);history=value.savedPathways.map(readSavedPathway);current=history.find(x=>x.number===value.savedPathway.number);const found=current,el=say('');el.classList.add('result-message');el.querySelector('.bubble').append(renderSnapshot(current));const total=(found.result.recommendedSteps??[]).length+(found.result.optionalSteps??[]).length+(found.result.informationalCourses??[]).length;const transition=say(total?'J’ai trouvé '+total+' formation'+(total>1?'s':'')+' correspondant à votre recherche. Vous pouvez les consulter dans « Cours proposés » et les retrouver dans « Mes recherches ». Souhaitez-vous les consulter ou construire un parcours à partir de ces pistes ?':'Je n’ai pas trouvé de formation correspondante. Vous pouvez préciser votre recherche ou construire un parcours pour affiner votre besoin.');const row=node('div',undefined,'action-row');action('Voir les cours proposés',()=>selectResearch(found.number),row,true);action('Construire un parcours à partir de ces pistes',()=>chooseMode('pathway',found.number),row);transition.querySelector('.bubble').append(row);sync();focusStart(el);status('Recherche terminée. Vous pouvez préciser votre recherche dans un nouveau message.');
+ showResumeNotice(value);history=value.savedPathways.map(readSavedPathway);current=history.find(x=>x.number===value.savedPathway.number);completedSearch=current.number;const found=current,el=say('');el.classList.add('result-message');el.querySelector('.bubble').append(renderSnapshot(current));const total=(found.result.recommendedSteps??[]).length+(found.result.optionalSteps??[]).length+(found.result.informationalCourses??[]).length;const transition=say(total?'J’ai trouvé '+total+' formation'+(total>1?'s':'')+' correspondant à votre recherche. Retrouvez-les dans « Cours proposés » et « Mes recherches ». Quelle suite souhaitez-vous donner ?':'Je n’ai pas trouvé de formation correspondante. Vous pouvez commencer une nouvelle recherche ou compléter Ma demande pour affiner votre besoin.');action('Voir les cours proposés',()=>selectResearch(found.number),transition.querySelector('.bubble'));appendSearchChoices(transition.querySelector('.bubble'),found.number);updateSearchComposer();sync();focusStart(el);status('Recherche terminée. Choisissez une nouvelle recherche ou complétez Ma demande pour construire votre parcours.');
  }catch(error){if(attempt===epoch)status(error.name==='AbortError'?'Recherche interrompue. Aucune relance automatique.':error.message,true);}
  finally{clearTimeout(timer);if(attempt===epoch){controller=null;setBusy(false);}}
 }

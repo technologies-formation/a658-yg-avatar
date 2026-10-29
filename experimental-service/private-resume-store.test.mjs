@@ -36,7 +36,8 @@ test('historique v2 : migration v1 sans perte, fermeture sans réutiliser un num
  const second=createMessagingSnapshot({...legacy.profile,objective:'Deuxième besoin'},data(),references().revision,2,'Présentiel','simulation')
  const value={...legacy,version:2,pathways:[legacy.pathway,second],pathway:legacy.pathway,nextNumber:3}
  f.store.write('alice',value);assert.deepEqual(createPrivateResumeStore(f.dir).read('alice'),value)
- for(const invalid of [{...value,pathways:[second,second]},{...value,nextNumber:2},{...value,pathways:[second]},{...value,pathway:null},{...value,pathways:Array(21).fill(second)}])assert.throws(()=>f.store.write('alice',invalid))
+ for(const invalid of [{...value,pathways:[second,second]},{...value,nextNumber:2},{...value,pathways:[second]},{...value,pathways:Array(21).fill(second)}])assert.throws(()=>f.store.write('alice',invalid))
  assert.deepEqual(f.store.read('alice'),value)
+ const unselected={...value,pathway:null,requestMode:'search'};f.store.write('alice',unselected);assert.deepEqual(createPrivateResumeStore(f.dir).read('alice'),unselected);
  const closed={...value,pathways:[],pathway:null};f.store.write('alice',closed);assert.equal(f.store.read('alice').nextNumber,3)
 })
