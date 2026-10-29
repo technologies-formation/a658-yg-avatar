@@ -2,6 +2,7 @@
 import { readFileSync } from 'node:fs'
 
 const modules = new Map([
+  ['/private/guided-questions.mjs', new URL('./guided-questions.mjs', import.meta.url)],
   ['/private/private-response.mjs', new URL('./private-response.mjs', import.meta.url)],
   ['/private/catalogue-version.mjs', new URL('./catalogue-version.mjs', import.meta.url)],
   ['/private/device-memory-client.mjs', new URL('./device-memory-client.mjs', import.meta.url)],

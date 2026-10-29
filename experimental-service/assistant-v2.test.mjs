@@ -97,3 +97,16 @@ test('effacement d’une contrainte uniquement avec demande explicite et preuve 
   else{await assert.rejects(operation,e=>e.code==='invalid_response'&&e.validation==='change');assert.equal(session.getDraft().profile.constraints,'Le lundi')}
  }
 })
+
+
+test('responsabilité libre ambiguë : pas de faux statut, brouillon conservé et clarification possible',async()=>{
+ const contract=refs(),initialProfile={professionalEnvironment:'Police',personnelCategory:'TEST-A',role:'Chef',objective:'Cockpits'};
+ const session=createDialogueSession({enabled:true,guidedDraft:true,references:contract,initialProfile,maxTurns:10,timeoutMs:1000,provider:{mode:'simulation',async respond(p){
+  assert.match(p.rules.join(' '),/Question actuellement affichée.*situation managériale/);
+  const m=p.messages.at(-1);return {kind:'clarify',reply:'Quelle situation souhaitez-vous préciser ?',changes:[{field:'managerStatus',value:'Manager',evidence:[{messageId:m.id,quote:m.text}]}]};
+ }}});
+ const result=await session.turn({message:'Manager',questionField:'managerStatus',requestId:'manager-ambiguous-0001',expectedRevision:0,referenceRevision:contract.revision});
+ assert.deepEqual(result.draft.profile,initialProfile);assert.equal(result.proposal,null);
+ await assert.rejects(session.turn({message:'Chef',questionField:'champ-invente',requestId:'invalid-question-0001',expectedRevision:0,referenceRevision:contract.revision}),e=>e.code==='invalid_request');
+ assert.equal(session.status().attemptedTurns,1);
+});

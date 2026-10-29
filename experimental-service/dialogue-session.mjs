@@ -1,3 +1,4 @@
+import {GUIDED_QUESTIONS} from './guided-questions.mjs'
 // Préparation isolée : aucune route, écoute HTTP, clé, variable d’environnement ou destination.
 // Le chemin réel distinct exige une autorisation explicite ; aucun transport implicite.
 import { DRAFT_FIELDS as PROFILE_FIELDS, validateProfileReferences, normalizePathwayProfile } from './profile-references.mjs'
@@ -27,6 +28,8 @@ export const DIALOGUE_RULES = Object.freeze([
 ])
 
 export const GUIDED_DIALOGUE_RULES = Object.freeze([
+  'Utilisez les libellés complets Personnel administratif et technique et Personnel enseignant, jamais les sigles PAT ou PE dans la réponse. Manager sans expérience précisée ne signifie ni nouveau ni expérimenté ; utilisez le choix général s’il est disponible ou posez une clarification facultative. Un champ facultatif peut rester vide.',
+  'La question actuellement affichée par l’interface identifie le champ auquel répond le dernier message. Exploitez le brouillon accepté pour les choix précédents. Les acquis ne changent pas le sujet recherché : débuter avec Excel ne remplace pas une demande sur les cockpits. Conservez le besoin initial dans objective lorsque la personne le précise ; ne le remplacez que si elle change explicitement de sujet.',
   'Vous accompagnez la personne pour construire un parcours et compléter progressivement le formulaire Ma demande. Répondez en français en vouvoyant.',
   'Posez UNE seule question utile à la fois. Réutilisez les informations déjà explicites, sans redemander les champs renseignés. Proposez une reformulation seulement si elle apporte une clarification.',
   'Complétez uniquement les champs dont la personne a donné une preuve explicite. Chaque changement nécessite une citation exacte d’un message utilisateur et son identifiant.',
@@ -122,7 +125,7 @@ function createSession(options, realTrial) {
         if(explicit&&!explicit.test(proof))continue
       }
       if (item.field === 'modality') { if (!modalities.slice(1).includes(item.value.trim())) invalid('modality') }
-      else { try { profileValue({ [item.field]: item.value }) } catch { invalid('field') } }
+      else { try { profileValue({ [item.field]: item.value }) } catch { if(guidedDraft&&item.field==='managerStatus')continue;invalid('field') } }
       changes.push({ field: item.field, value: item.value.trim(), evidence: structuredClone(item.evidence) })
     }
     return { kind: value.kind, reply: value.reply.trim(), changes }
@@ -187,10 +190,11 @@ function createSession(options, realTrial) {
       const value = { ...profile, constraints: composeConstraints(modality, profile.constraints || '') }
       return copy(normalizePathwayProfile(value, contract))
     },
-    async turn({ requestId, message, expectedRevision, referenceRevision, signal, paidTrialConfirmed = false } = {}) {
+    async turn({ requestId, message, expectedRevision, referenceRevision, signal, paidTrialConfirmed = false, questionField } = {}) {
       available(); if (active) fail('busy')
       if (realTrial && paidTrialConfirmed !== true) fail('unconfirmed')
       if (!idValid(requestId) || typeof message !== 'string' || !message.trim() || message.length > 1500) fail('invalid_request')
+      if(questionField!==undefined&&(!guidedDraft||!Object.hasOwn(GUIDED_QUESTIONS,questionField)))fail('invalid_request')
       if (expectedRevision !== revision) fail('stale_profile')
       if (referenceRevision !== contract.revision) fail('references_changed')
       if (signal !== undefined && !(signal instanceof AbortSignal)) fail('invalid_request')
@@ -212,7 +216,7 @@ function createSession(options, realTrial) {
         const raw = await Promise.race([
           Promise.resolve().then(() => {
             available(); if (controller.signal.aborted) fail('cancelled')
-            return provider.respond(copy({ rules: guidedDraft ? GUIDED_DIALOGUE_RULES : DIALOGUE_RULES, draft: snapshot(), references: contract,
+            return provider.respond(copy({ rules: guidedDraft ? [...GUIDED_DIALOGUE_RULES,...(questionField?['Question actuellement affichée : '+GUIDED_QUESTIONS[questionField]]:[])] : DIALOGUE_RULES, draft: snapshot(), references: contract,
               messages: history }), { signal: controller.signal })
           }), interrupted, deadline,
         ])
