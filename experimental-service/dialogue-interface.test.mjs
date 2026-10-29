@@ -1,30 +1,32 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import http from 'node:http'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync, rmSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { createDialogueSimulationInterface } from './dialogue-interface.mjs'
+import {createRealDialogueTrialInterface} from './dialogue-real-trial.mjs'
 import { createPilotCredential } from './pilot-auth.mjs'
 import { references } from './reference-test-fixtures.mjs'
 import { data } from './result-test-fixtures.mjs'
 const origin = 'https://dialogue-test.invalid'
 const r = references()
 const profile = { personnelCategory: 'TEST-A', role: 'Assistant', objective: 'Organiser les tâches de test', existingSkills: 'Je débute', timeAvailable: '1 à 2 jours' }
-async function fixture(t,{resume=false,mail=null,deviceMemoryEnabled=false,deviceMemoryNow=Date.now,loadCatalogueStatus}={}) {
+async function fixture(t,{resume=false,mail=null,deviceMemoryEnabled=false,deviceMemoryNow=Date.now,loadCatalogueStatus,guidedDraft=false,courseSearchFetchImpl}={}) {
  const dir = mkdtempSync(join(tmpdir(),'avatar-dialogue-interface-')), password = 'TEST_LOCAL_PASSWORD_ONLY'
  const users = await Promise.all(['alice','bob'].map(id=>createPilotCredential({id,username:id,password})))
- const options = { mail, loadCatalogueStatus, deviceMemoryEnabled,deviceMemoryNow, enabled:true, publicOrigin:origin, users, stateFile:join(dir,'quotas.json'),
-  isSecureRequest:req=>req.headers['x-test-secure']==='true', loadProfileReferences:()=>r, preview:data(),...(resume?{resumeDirectory:join(dir,'resume')}:{}) };let service=createDialogueSimulationInterface(options)
+ const options = { guidedDraft,courseSearchDirectory:guidedDraft?join(dir,'search'):undefined,courseSearchFetchImpl,mail, loadCatalogueStatus, deviceMemoryEnabled,deviceMemoryNow, enabled:true, publicOrigin:origin, users, stateFile:join(dir,'quotas.json'),
+  isSecureRequest:req=>req.headers['x-test-secure']==='true', loadProfileReferences:()=>r, preview:data(),...(resume?{resumeDirectory:join(dir,'resume')}:{}) };
+ const make=()=>{if(!guidedDraft)return createDialogueSimulationInterface(options);mkdirSync(join(dir,'budget'),{recursive:true,mode:0o700});return createRealDialogueTrialInterface({...options,paidTrialAuthorized:true,apiKey:'FAKE_TEST_KEY_ONLY',budgetDirectory:join(dir,'budget'),fetchImpl:()=>{throw Error('Aucun appel dialogue attendu')}})};let service=make()
  const server = http.createServer((req,res)=>service.handler(req,res));await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve))
- t.after(async()=>{server.closeAllConnections();await new Promise(resolve=>server.close(resolve));rmSync(dir,{recursive:true,force:true})})
+ t.after(async()=>{service.close();server.closeAllConnections();await new Promise(resolve=>server.close(resolve));rmSync(dir,{recursive:true,force:true})})
  const request = (path,{body,user='alice',auth=true,source=origin,secure=true,raw}={})=>new Promise((resolve,reject)=>{
   const req = http.request({host:'127.0.0.1',port:server.address().port,path,method:body||raw?'POST':'GET',headers:{host:new URL(origin).host,
    ...(source?{origin:source}:{}),'content-type':'application/json','x-test-secure':String(secure),...(auth?{authorization:'Basic '+Buffer.from(user+':'+password).toString('base64')}:{})}},res=>{
    let text='';res.on('data',x=>text+=x);res.on('end',()=>{let value;try{value=JSON.parse(text)}catch{}resolve({status:res.statusCode,text,value,headers:res.headers})})})
   req.on('error',reject);req.end(raw||body&&JSON.stringify(body))
  })
- return {dir,get service(){return service},request,reopen(){service.close();service=createDialogueSimulationInterface(options)}}
+ return {dir,get service(){return service},request,reopen(){service.close();service=make()}}
 }
 
 test('interface fictive protégée et fermée aux ressources serveur',async t=>{
@@ -35,6 +37,8 @@ test('interface fictive protégée et fermée aux ressources serveur',async t=>{
  const page=await request('/private/');assert.match(page.text,/"dialogue":"fictitious"/);assert.match(page.text,/\/private\/dialogue-client.mjs/)
  assert.equal((await request('/private/dialogue-client.mjs',{auth:false})).status,401)
  assert.equal((await request('/private/dialogue-client.mjs')).status,200)
+ assert.equal((await request('/private/private-response.mjs',{auth:false})).status,401)
+ assert.equal((await request('/private/private-response.mjs')).status,200)
  assert.equal((await request('/private/openai-dialogue.mjs')).status,404)
  assert.equal((await request('/private/dialogue',{body:{action:'turn'},source:''})).status,403)
  assert.equal(service.status().total,0)
@@ -172,3 +176,27 @@ test('date du catalogue : lecture privée seule, repli explicite et aucun quota 
  unavailable=true;assert.equal((await f.request('/private/catalogue-status')).status,503)
  assert.equal(f.service.status().total,0)
 })
+
+
+test('recherche vers parcours : objectif conservé, nouvelle recherche vide et archives durables sans appel supplémentaire',async t=>{
+ let calls=0;
+ const json=value=>new Response(JSON.stringify(value),{headers:{'Content-Type':'application/json'}});
+ const f=await fixture(t,{resume:true,guidedDraft:true,courseSearchFetchImpl:async url=>{
+  if(url.endsWith('/api/catalogue'))return json({catalogue:{snapshotDate:'2026-10-27',snapshotHash:'a'.repeat(64)},courses:[]});
+  calls++;return json({ok:true,catalogue:{snapshotDate:'2026-10-27',snapshotHash:'a'.repeat(64)},results:[],recommendedResults:[],complementaryResults:[],relatedResults:[],reason:'Aucun résultat fictif'});
+ }});
+ const mode=body=>f.request('/private/dialogue',{body:{action:'request-mode',confirmed:true,intent:'start',...body}});
+ let response=await mode({requestMode:'search',expectedRevision:0});assert.equal(response.status,200,JSON.stringify(response.value));let state=response.value;
+ const searched=await f.request('/private/course-search',{body:{query:'Cockpit',confirmed:true,requestId:crypto.randomUUID(),expectedRevision:state.draft.revision}});
+ assert.equal(searched.status,200,JSON.stringify(searched.value));assert.equal(calls,1);const number=searched.value.savedPathway.number;
+ const invalid=await mode({requestMode:'pathway',fromResearch:number+1,expectedRevision:state.draft.revision});assert.equal(invalid.status,400);
+ state=(await mode({requestMode:'pathway',fromResearch:number,expectedRevision:state.draft.revision})).value;
+ assert.deepEqual(state.draft.profile,{objective:'Cockpit'});assert.equal(state.draft.modality,'');assert.equal(state.savedPathways.length,1);assert.equal(calls,1);
+ const stale=await mode({requestMode:'search',expectedRevision:0});assert.equal(stale.status,409);
+ state=(await mode({requestMode:'search',expectedRevision:state.draft.revision})).value;
+ assert.deepEqual(state.draft.profile,{});assert.equal(state.savedPathway,null);assert.equal(state.savedPathways[0].result.searchQuery,'Cockpit');
+ f.reopen();state=(await f.request('/private/dialogue')).value;
+ assert.deepEqual(state.draft.profile,{});assert.equal(state.savedPathway,null);assert.equal(state.savedPathways.length,1);assert.equal(calls,1);
+ state=(await mode({requestMode:'pathway',fromResearch:number,expectedRevision:state.draft.revision})).value;
+ assert.deepEqual(state.draft.profile,{objective:'Cockpit'});assert.equal(calls,1);
+});

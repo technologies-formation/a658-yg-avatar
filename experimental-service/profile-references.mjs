@@ -5,6 +5,8 @@ export const PROFILE_FIELDS = Object.freeze([
   'personnelCategory', 'entity', 'managerStatus', 'role', 'objective',
   'existingSkills', 'timeAvailable', 'constraints',
 ])
+export const EXTRA_PROFILE_FIELDS = Object.freeze(['professionalEnvironment','trainingOffers','trainingOrganizers'])
+export const DRAFT_FIELDS = Object.freeze([...PROFILE_FIELDS,...EXTRA_PROFILE_FIELDS])
 export const MAX_REFERENCE_BYTES = 128 * 1024
 
 export class ProfileReferencesError extends Error {
@@ -46,6 +48,12 @@ export function validateProfileReferences(value) {
       choices(field.suggestions, field.maxLength, false)
     }
   }
+  for (const name of EXTRA_PROFILE_FIELDS) {
+    const field=pathway.fields[name]
+    if(field===undefined)continue
+    if(!object(field)||field.type!=='string'||!Number.isSafeInteger(field.maxLength)||field.maxLength<1||field.maxLength>4000||field.requiredInApi!==false||field.requiredInForm!==false||!['select','textarea'].includes(field.formControl))fail('schema','Critère complémentaire invalide')
+    choices(field.options,4000,false)
+  }
   const actual = createHash('sha256').update(JSON.stringify({ schemaVersion: 1, pathway })).digest('hex')
   if (revision !== actual) fail('revision', 'Empreinte de référentiel incorrecte')
   return freeze(structuredClone(value))
@@ -67,8 +75,9 @@ export function normalizePathwayProfile(profile, references, { form = true } = {
   const contract = validateProfileReferences(references)
   if (!object(profile)) fail('invalid_profile', 'Profil invalide')
   const normalized = {}
-  for (const name of PROFILE_FIELDS) {
+  for (const name of DRAFT_FIELDS) {
     const field = contract.pathway.fields[name]
+    if(!field){if(profile[name])fail('references_changed','Nouveaux critères indisponibles');continue}
     const value = profile[name]
     const required = form ? field.requiredInForm : field.requiredInApi
     if (value == null) {
@@ -84,6 +93,10 @@ export function normalizePathwayProfile(profile, references, { form = true } = {
     if (text.length > field.maxLength) fail('invalid_profile', 'Champ trop long : ' + name)
     if (form && field.formControl === 'select' && !field.options.some(item => item.value === text)) {
       fail('removed_value', 'Valeur à sélectionner de nouveau : ' + name)
+    }
+    if(EXTRA_PROFILE_FIELDS.includes(name)) {
+      const values=name==='professionalEnvironment'?[text]:text.split('\n').filter(Boolean)
+      if(new Set(values).size!==values.length||values.some(value=>!field.options.some(x=>x.value===value)))fail('removed_value','Critère à actualiser : '+name)
     }
     normalized[name] = text
   }

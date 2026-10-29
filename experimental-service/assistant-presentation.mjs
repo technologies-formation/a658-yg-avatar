@@ -46,6 +46,7 @@ export function initAssistantPresentation(document) {
     root.style.colorScheme = night ? 'dark' : 'light'
     toggle.checked = night
     label.textContent = night ? 'Mode nuit' : 'Mode jour'
+    toggle.closest('label').title = night ? 'Passer au mode jour' : 'Passer au mode nuit'
   }
   toggle.addEventListener('change', () => {
     preference = toggle.checked ? 'night' : 'day'

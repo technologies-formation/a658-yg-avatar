@@ -34,3 +34,14 @@ Primitives utilisées : [HTTPS Node.js](https://nodejs.org/api/https.html) et
 [crypto.randomBytes](https://nodejs.org/api/crypto.html#cryptorandombytessize-callback).
 Le mécanisme d'attestation est une implémentation du projet, pas une procédure
 certifiée par un hébergeur.
+
+Les refus des API sont renvoyés en JSON avec le code
+`secure_transport_required`, avant le challenge et les gestionnaires métier.
+Les pages conservent un refus texte. Le journal indique seulement une catégorie
+bornée, au maximum une fois par cinq secondes : `host`, `protocol`, `peer`,
+`stopped`, `unverified_peer` ou `exact_address_check`. Il n'expose aucune adresse,
+URL, valeur d'en-tête ou donnée utilisateur. Ce diagnostic ne change ni la
+confiance ni le rythme des preuves. Un pair non attesté reste refusé, y compris
+pendant le délai entre lots de preuves ; la catégorie ne permet pas à elle seule
+de conclure à une rotation du proxy. Aucune relance automatique d'un appel métier
+n'est autorisée après un tel refus.

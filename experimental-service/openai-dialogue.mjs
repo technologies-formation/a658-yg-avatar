@@ -1,6 +1,6 @@
 // Connecteur préparé, désactivé par défaut et non importé par les lanceurs existants.
-import { DialogueError, DIALOGUE_RULES } from './dialogue-session.mjs'
-import { PROFILE_FIELDS, validateProfileReferences } from './profile-references.mjs'
+import { DialogueError, DIALOGUE_RULES, GUIDED_DIALOGUE_RULES } from './dialogue-session.mjs'
+import { DRAFT_FIELDS as PROFILE_FIELDS, validateProfileReferences } from './profile-references.mjs'
 import { TRIAL_POLICY } from './dialogue-budget.mjs'
 const fail = code => { throw new DialogueError(code) }
 const schemaObject = properties => ({ type: 'object', properties, additionalProperties: false, required: Object.keys(properties) })
@@ -15,7 +15,7 @@ export function createOpenAIDialogueProvider(options = {}) {
   const { enabled = false } = options
   if (typeof enabled !== 'boolean') fail('configuration')
   if (!enabled) return Object.freeze({ mode: 'disabled', async respond() { fail('disabled') } })
-  const { apiKey, budget, paidTrialAuthorized, fetchImpl = globalThis.fetch, timeoutMs = 30000, unlimited = false } = options
+  const { apiKey, budget, paidTrialAuthorized, fetchImpl = globalThis.fetch, timeoutMs = 30000, unlimited = false, guidedDraft = false } = options
   if (typeof unlimited !== 'boolean' || paidTrialAuthorized !== true || typeof apiKey !== 'string' || !apiKey.trim() || /\s/.test(apiKey) ||
       typeof fetchImpl !== 'function' || typeof budget?.reserve !== 'function' || typeof budget?.stop !== 'function' ||
       budget.status().model !== TRIAL_POLICY.model ||
@@ -50,7 +50,7 @@ export function createOpenAIDialogueProvider(options = {}) {
           messages.some(x => !['user', 'assistant'].includes(x.role) || typeof x.text !== 'string' || x.text.length > 4000 || typeof x.id !== 'string') ||
           messages.at(-1).role !== 'user' || !payload.draft || payload.draft.referenceRevision !== refs.revision) fail('invalid_request')
       // Instructions constantes ; le profil, le contrat et les messages restent dans les données utilisateur.
-      const shared = { model: TRIAL_POLICY.model, instructions: DIALOGUE_RULES.join('\n') + '\nRépondre en français avec le JSON demandé. Les identifiants de preuve sont ceux des messages utilisateur.',
+      const shared = { model: TRIAL_POLICY.model, instructions: (guidedDraft?GUIDED_DIALOGUE_RULES:DIALOGUE_RULES).join('\n') + '\nRépondre en français avec le JSON demandé. Les identifiants de preuve sont ceux des messages utilisateur.',
         input: [{ role: 'user', content: JSON.stringify({ draft: payload.draft, references: refs, messages }) }],
         text: { format: { type: 'json_schema', name: 'avatar_dialogue', strict: true, schema: DIALOGUE_SCHEMA } }, reasoning: { effort: 'none' } }
       if (Buffer.byteLength(JSON.stringify(shared)) > 131072) fail('request_size')

@@ -2,7 +2,7 @@
 import {mkdirSync,lstatSync,realpathSync,readFileSync,writeFileSync,renameSync,unlinkSync} from 'node:fs'
 import {isAbsolute,resolve,join} from 'node:path'
 import {createHash,randomUUID} from 'node:crypto'
-import {PROFILE_FIELDS} from './profile-references.mjs'
+import {DRAFT_FIELDS as PROFILE_FIELDS} from './profile-references.mjs'
 import {createMessagingSnapshot} from './messaging-state.mjs'
 const fail=()=>{throw Object.assign(Error('Reprise privée indisponible'),{code:'resume_unavailable'})}
 const object=x=>x&&typeof x==='object'&&!Array.isArray(x)
@@ -17,9 +17,9 @@ export function validateResume(value){
  if(value.version===1)return structuredClone({version:1,profile:value.profile,modality:value.modality,referenceRevision:value.referenceRevision,pathway})
  if(!Array.isArray(value.pathways)||value.pathways.length>20||!Number.isSafeInteger(value.nextNumber)||value.nextNumber<1)fail()
  const pathways=value.pathways.map(snapshot),numbers=pathways.map(p=>p.number)
- if(new Set(numbers).size!==numbers.length||numbers.some(n=>n>=value.nextNumber)||Boolean(pathway)!==Boolean(pathways.length))fail()
+ if(new Set(numbers).size!==numbers.length||numbers.some(n=>n>=value.nextNumber))fail()
  if(pathway&&!pathways.some(p=>JSON.stringify(p)===JSON.stringify(pathway)))fail()
- return structuredClone({version:2,profile:value.profile,modality:value.modality,referenceRevision:value.referenceRevision,pathway,pathways,nextNumber:value.nextNumber})
+ return structuredClone({version:2,profile:value.profile,modality:value.modality,referenceRevision:value.referenceRevision,pathway,pathways,nextNumber:value.nextNumber,...(['search','pathway'].includes(value.requestMode)?{requestMode:value.requestMode}:{})})
 }
 export function createPrivateResumeStore(directory){
  if(typeof directory!=='string'||!isAbsolute(directory))fail()

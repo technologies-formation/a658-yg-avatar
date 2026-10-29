@@ -1,3 +1,6 @@
+export const TIME_EXCESS_NOTICE='Ce parcours pourrait nécessiter plus de temps que vous ne l’aviez envisagé.'
+export const TIME_PLANNING_NOTICE='Le temps disponible est un repère de planification. Vous pourriez envisager d’étaler le parcours ou de revoir le temps nécessaire avec votre hiérarchie. Les cours complémentaires et les alternatives ne sont pas compris dans cette durée.'
+export const SEARCH_RESULT_NOTE='Formation retenue par la recherche du catalogue. Consultez la fiche officielle pour vérifier son contenu et ses conditions d’accès.'
 import {readCatalogueVersion} from './catalogue-version.mjs'
 // Contrat de résultat partagé entre le transport serveur et l’affichage. Aucun accès réseau.
 export class PathwayAdapterError extends Error {
@@ -43,9 +46,13 @@ export function validatePathwayResult(data) {
       }
       if (item.course.deliveryMode !== undefined) {
         const mode = item.course.deliveryMode
+        const unknown = mode?.value === 'unknown' && mode.sourceField === null && mode.evidence === null
+        const presumed = mode?.value === 'in_person' && mode.sourceField === 'catalogue-default' && mode.evidence === null
+        const titleEvidence = mode?.sourceField === 'titleRaw' && mode.evidence === item.course.title
+        const descriptionEvidence = ['generalInformation','content','objectives','additionalInformation'].includes(mode?.sourceField) &&
+          typeof mode.evidence === 'string' && mode.evidence.trim().length > 0 && mode.evidence.length <= 2000
         if (!object(mode) || !['online','in_person','hybrid','unknown'].includes(mode.value) ||
-            (mode.value === 'unknown' ? mode.sourceField !== null || mode.evidence !== null
-              : mode.sourceField !== 'titleRaw' || mode.evidence !== item.course.title)) {
+            !(mode.value === 'unknown' ? unknown : presumed || titleEvidence || descriptionEvidence)) {
           fail('invalid_response', 'Preuve de modalite invalide')
         }
       }
@@ -158,7 +165,8 @@ export function courseDisplayDetails(course, { replay = false, now = new Date(),
   }
   return {
     duration: course.duration || (course.durationHours == null ? 'Non renseignée' : course.durationHours + ' h'),
-    modality: modes[course.deliveryMode?.value] || 'Modalité à vérifier',
+    modality: course.deliveryMode?.sourceField === 'catalogue-default' ? 'Présentiel présumé' : modes[course.deliveryMode?.value] || 'Modalité à vérifier',
+    modalityNote: course.deliveryMode?.sourceField === 'catalogue-default' ? 'Présentiel présumé en l’absence de mention de modalité dans le titre ou le descriptif. À vérifier sur la fiche officielle.' : '',
     statuses, sessionNote, versionNote,
   }
 }

@@ -17,7 +17,8 @@ export function secureProxyCheck(trustedProxyAddresses) {
 }
 
 export function createHostedTransport({ enabled = false, publicOrigin, trustedProxyAddresses, users, stateFile,
-  createSession, renderPage, createGateway = null, responseTimeoutMs = 10000, socketTimeoutMs = 15000, proxyVerification = 'exact-addresses', requestProbe } = {}) {
+  createSession, renderPage, createGateway = null, responseTimeoutMs = 10000, socketTimeoutMs = 15000, proxyVerification = 'exact-addresses', requestProbe,
+  reportTransportRefusal = reason => console.warn('Contrôle HTTPS refusé : ' + reason) } = {}) {
   if (enabled !== true || publicOrigin !== HOSTED_ORIGIN) throw Error('Activation et origine distante explicites requises')
   if (createGateway !== null && typeof createGateway !== 'function') throw Error('Fabrique privée invalide')
   if (!['exact-addresses', 'self-https'].includes(proxyVerification)) throw Error('Mode de proxy inconnu')
@@ -39,14 +40,22 @@ export function createHostedTransport({ enabled = false, publicOrigin, trustedPr
         maxAttempts: 100, windowMs: 60000, isSecureRequest: secure,
         serveResource: createPrivateResources(simulation, renderPage, responseTimeoutMs) })
     }
+    let lastRefusalLog = -Infinity
     server = http.createServer((req, res) => {
       if (attestation?.handleProof(req, res)) return
       const handle = async () => {
         if (attestation) await attestation.ensure(req)
         // Rejeter avant même le challenge Basic si le transport n'est pas attesté.
         if (!secure(req)) {
-          res.writeHead(403, { 'Content-Type': 'text/plain', 'Cache-Control': 'no-store' })
-          return res.end('Transport HTTPS via proxy de confiance requis')
+          // Diagnostic borné, sans IP, URL, en-tête, identifiant ou contenu utilisateur.
+          const now = Date.now()
+          if (now - lastRefusalLog >= 5000) {
+            lastRefusalLog = now
+            try { reportTransportRefusal(attestation ? attestation.refusalReason(req) : 'exact_address_check') } catch {}
+          }
+          const api = ['/private/dialogue', '/private/pathway', '/private/course-search', '/private/profile-references', '/private/catalogue-status'].includes(req.url?.split('?')[0]) || req.headers.accept?.includes('application/json')
+          res.writeHead(403, { 'Content-Type': api ? 'application/json; charset=utf-8' : 'text/plain; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' })
+          return res.end(api ? JSON.stringify({ code: 'secure_transport_required' }) : 'Transport HTTPS via proxy de confiance requis')
         }
         res.setHeader('Strict-Transport-Security', 'max-age=86400')
         await gateway.handler(req, res)

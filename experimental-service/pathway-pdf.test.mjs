@@ -62,3 +62,15 @@ test('sessions PDF : ouverture datée figée et repli si la date est passée',()
  const output=doc.output()
  assert.ok(output.startsWith('%PDF-'))
 })
+
+
+test('PDF : titre complet, hypothèse de présentiel et repère de temps conservés sans modifier la recherche',()=>{
+  const objective='Mieux structurer mes rapports dans Word, notamment en automatisant les titres et la table des matières.'
+  const result=data();result.recommendedSteps[0].course.deliveryMode={value:'in_person',sourceField:'catalogue-default',evidence:null}
+  const saved=createMessagingSnapshot({...profile,objective},result,'old-reference',3,'En ligne','real')
+  const before=structuredClone(saved),model=createPdfModel(saved)
+  assert.equal(model.title,objective)
+  const doc=renderPathwayPdf(model,{jsPDF,fonts})
+  assert.ok(doc.getNumberOfPages()>0)
+  assert.deepEqual(saved,before)
+})

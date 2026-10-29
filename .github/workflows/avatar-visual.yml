@@ -1,7 +1,7 @@
 name: Avatar browser simulation
 on:
   push:
-    branches: ['feat/avatar-interactive-local', 'feat/avatar-messaging-simulation']
+    branches: ['feat/avatar-interactive-local', 'feat/avatar-messaging-simulation', 'feat/assistant-recherche-parcours-v2']
     paths:
       - 'index.html'
       - 'experimental-service/**'
@@ -35,6 +35,14 @@ jobs:
       - name: Install Chromium and system dependencies
         timeout-minutes: 3
         run: node "$RUNNER_TEMP/avatar-browser/node_modules/playwright/cli.js" install --with-deps chromium
+      - name: Verify course search and guided pathway with fake transports
+        env:
+          AVATAR_PLAYWRIGHT_MODULE: ${{ runner.temp }}/avatar-browser/node_modules/playwright/index.mjs
+        run: node experimental-service/assistant-v2-browser-check.mjs
+      - name: Verify proxy refusals and manual recovery without paid retries
+        env:
+          AVATAR_PLAYWRIGHT_MODULE: ${{ runner.temp }}/avatar-browser/node_modules/playwright/index.mjs
+        run: node experimental-service/transport-recovery-browser-check.mjs
       - name: Exercise the local questionnaire on desktop and mobile
         env:
           AVATAR_PLAYWRIGHT_MODULE: ${{ runner.temp }}/avatar-browser/node_modules/playwright/index.mjs

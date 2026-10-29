@@ -1,5 +1,5 @@
 // Affichage seul : aucune requête, aucun stockage, aucun HTML issu du résultat.
-import { validatePathwayResult, courseDisplayDetails } from './pathway-result.mjs'
+import { validatePathwayResult, courseDisplayDetails, SEARCH_RESULT_NOTE, TIME_PLANNING_NOTICE, TIME_EXCESS_NOTICE } from './pathway-result.mjs'
 
 export function renderPathwayResult(document, data, { replay = false, preferredModality = '', objective = '' } = {}) {
   const { empty } = validatePathwayResult(data)
@@ -31,16 +31,16 @@ export function renderPathwayResult(document, data, { replay = false, preferredM
     parent.append(element)
     return element
   }
-  add(root, 'h2', replay ? 'Aperçu hors ligne du parcours' : data.abstain || empty ? 'Résultat de votre recherche' : 'Votre parcours de formation')
+  add(root, 'h2', data.searchQuery ? 'Résultats de votre recherche' : replay ? 'Aperçu hors ligne du parcours' : data.abstain || empty ? 'Résultat de votre recherche' : 'Votre parcours de formation')
   if (replay) add(root, 'p', 'Données de test pour vérifier l’affichage ; elles ne répondent pas à ton profil. Aucun appel au moteur ni à OpenAI.')
   add(root, 'p', data.summary)
   if (data.interpretedGoal) add(root, 'p', 'Objectif interprété : ' + data.interpretedGoal)
-  if (data.abstain) add(root, 'p', 'Le moteur ne propose pas de parcours adapté à cette demande.')
+  if (data.abstain) add(root, 'p', data.searchQuery?'Aucune formation correspondante n’a été trouvée. Vous pouvez préciser ou élargir votre recherche.':'Le moteur ne propose pas de parcours adapté à cette demande.')
   else if (empty) add(root, 'p', 'Aucune formation proposée dans ce résultat.')
   for (const [label, items] of [
-    ['Étapes recommandées', data.recommendedSteps ?? data.steps ?? []],
-    ['Compléments', data.optionalSteps ?? []],
-    ['Pour information', data.informationalCourses ?? []],
+    [data.searchQuery?'Formations proposées':'Étapes recommandées', data.recommendedSteps ?? data.steps ?? []],
+    [data.searchQuery?'Formations complémentaires':'Compléments', data.optionalSteps ?? []],
+    [data.searchQuery?'Autres pistes':'Pour information', data.informationalCourses ?? []],
   ]) {
     if (!items.length) continue
     add(root, 'h3', label)
@@ -63,29 +63,31 @@ export function renderPathwayResult(document, data, { replay = false, preferredM
       const identity = add(header, 'div', ''); identity.className = 'course-identity'
       add(identity, 'span', item.course.code).className = 'course-code'
       add(identity, 'h4', item.course.title)
-      if (label !== 'Étapes recommandées') add(identity, 'span', label === 'Pour information' ? 'Pour information · accès à vérifier' : 'Piste facultative').className = 'course-category'
+      if (!data.searchQuery && label !== 'Étapes recommandées') add(identity, 'span', label === 'Pour information' ? 'Pour information · accès à vérifier' : 'Piste facultative').className = 'course-category'
       const metadata = add(body, 'div', ''); metadata.className = 'course-metadata'
       add(metadata, 'span', presentation.duration === 'Non renseignée' ? 'Durée non renseignée' : 'Durée : ' + presentation.duration)
       if (item.course.public) add(metadata, 'span', 'Public : ' + item.course.public)
       add(metadata, 'span', presentation.modality)
       const footer = add(body, 'div', ''); footer.className = 'course-footer'
+      if(!data.searchQuery||item.rationale!==SEARCH_RESULT_NOTE){
       const rationale = add(footer, 'div', ''); rationale.className = 'course-rationale'
       add(rationale, 'strong', 'Pourquoi ce cours ?')
       add(rationale, 'p', item.rationale)
+      }
       const actions = add(footer, 'div', ''); actions.className = 'course-actions'
       if (presentation.versionNote) add(body, 'p', presentation.versionNote).className = 'course-version-note'
       const delivery = add(body, 'div', ''); delivery.className = 'course-delivery-notes'
       const mode = item.course.deliveryMode
       const modeLabels = {online:'en ligne',in_person:'en présentiel',hybrid:'hybride'}
-      const known = mode && mode.value !== 'unknown'
-      add(delivery, 'p', known ? 'Modalité indiquée dans l’intitulé : ' + modeLabels[mode.value] + '.'
-        : 'Modalité du cours : non renseignée dans les données transmises.')
+      const known = mode && mode.value !== 'unknown' && mode.sourceField !== 'catalogue-default'
+      add(delivery, 'p', presentation.modalityNote || (known ? 'Modalité indiquée dans ' + (mode.sourceField === 'titleRaw' ? 'l’intitulé' : 'le descriptif') + ' : ' + modeLabels[mode.value] + '.'
+        : 'Modalité du cours : non renseignée dans les données transmises.'))
       if (preferredModality) add(delivery, 'p', 'Votre préférence : ' + (preferredModality === 'Indifférent' ? 'Sans préférence de modalité' : preferredModality) + '.')
       if (preferredModality && preferredModality !== 'Indifférent') {
         const preferred = preferredModality === 'En ligne' ? 'online' : 'in_person'
         add(delivery, 'p', !known ? 'Compatibilité avec votre préférence : non établie. Vérifiez la modalité sur la fiche officielle.'
           : mode.value === 'hybrid' ? 'Compatibilité à vérifier : une formation hybride peut comporter des séances en ligne et en présentiel.'
-          : mode.value === preferred ? 'Modalité conforme à votre préférence selon l’intitulé ; vérifiez les conditions sur la fiche officielle.'
+          : mode.value === preferred ? 'Modalité conforme à votre préférence selon ' + (mode.sourceField === 'titleRaw' ? 'l’intitulé' : 'le descriptif') + ' ; vérifiez les conditions sur la fiche officielle.'
           : 'Écart avec votre préférence : la modalité indiquée pour ce cours est différente. Cette piste reste à comparer.')
       }
       const sessions = add(header, 'div', ''); sessions.className = 'session-availability'
@@ -130,7 +132,7 @@ export function renderPathwayResult(document, data, { replay = false, preferredM
         metric('Durée du parcours', duration.recommendedHours == null ? 'Non renseignée' : duration.recommendedHours + ' h')
         if (duration.excessHours > 0) {
           metric('Dépassement', '+ ' + duration.excessHours + ' h', 'warning')
-          const warning = add(root, 'p', 'Le parcours dépasse le temps disponible.')
+          const warning = add(root, 'p', TIME_EXCESS_NOTICE + ' ' + TIME_PLANNING_NOTICE)
           warning.className = 'duration-notice warning'
         } else if (duration.withinBudget === true && duration.durationsKnown === true && duration.verified === true && duration.budgetVerified === true) {
           metric('Dépassement', 'Aucun', 'success')
