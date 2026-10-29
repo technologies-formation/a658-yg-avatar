@@ -43,7 +43,7 @@ try{
  const readState=()=>page.evaluate(async()=>{const r=await fetch('/private/dialogue');if(!r.ok)throw Error('Fixture GET HTTP '+r.status);const v=await r.json();return {draft:v.draft,history:v.savedPathways,budget:v.budget};});
  await page.goto(origin+'/private/');await page.getByRole('button',{name:'Rechercher des formations',exact:true}).click();
  await page.locator('#message').fill('Word');await page.locator('#send-message').click();await page.getByText('J’ai trouvé 1 formation',{exact:false}).waitFor();
- await page.getByRole('button',{name:'Affiner cette recherche et construire mon parcours',exact:true}).first().click();await page.locator('#profile-dialog').waitFor({state:'visible'});await page.locator('#close-profile').click();
+ await page.getByRole('button',{name:'Affiner cette recherche et construire mon parcours',exact:true}).first().click();await page.getByRole('button',{name:'Police',exact:true}).waitFor();assert.equal(await page.locator('#profile-dialog').evaluate(e=>e.open),false);
  await page.getByRole('button',{name:'Police',exact:true}).click();await page.getByText('À quel groupe de personnel appartenez-vous ?', {exact:true}).waitFor();
  const before=await readState(),callsBefore=dialogueCalls;
  assert.equal(before.history.length,1);assert.equal(before.draft.profile.professionalEnvironment,'Police');
