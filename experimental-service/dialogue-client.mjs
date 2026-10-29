@@ -127,16 +127,21 @@ function showIncompleteProfile(saved=false){
  clearChoices();const el=say(message),row=node('div',undefined,'action-row question-actions');
  action('Compléter ma demande',()=>openProfile(first),row,true);el.querySelector('.bubble').append(row);status(message);focusStart(el);
 }
+function scopeOptions(name,value=''){
+ const f=references.pathway.fields[name];
+  const wrapper=node('fieldset');wrapper.className='scope-options';wrapper.dataset.scopeField=name;const legend=node('legend',labels[name]);wrapper.append(legend);const selected=value.split('\n');
+  const unrestricted=node('p','Sans sélection : fonctionnement habituel à partir de votre profil.');wrapper.append(unrestricted);
+  for(const opt of f.options){const row=node('label'),check=node('input');check.type='checkbox';check.name=name;check.value=opt.value;check.checked=selected.includes(opt.value);row.append(check,document.createTextNode(opt.label));wrapper.append(row);}
+  for(const value of selected.filter(x=>x&&!f.options.some(o=>o.value===x))){const row=node('label'),check=node('input');check.type='checkbox';check.name=name;check.value=value;check.checked=true;row.append(check,document.createTextNode(value+' — choix retiré, à vérifier'));wrapper.append(row);}
+  if(selected.some(x=>x&&!f.options.some(o=>o.value===x)))wrapper.append(node('p','Une sélection n’est plus disponible. Choisissez une autre valeur ou décochez explicitement ce choix avant d’enregistrer.','error'));
+ return wrapper;
+}
 function renderProfile(focusField){const form=$('profile-form');form.replaceChildren();const content=node('div',undefined,'profile-fields-grid');form.append(content);const issues=profileIssues(),required=requiredProfileFields();if(guidedDraft){content.append(node('p',catalogueVersionLabel(catalogueStatus),'catalogue-freshness'));}if(issues.length)content.append(node('p','Vous pouvez enregistrer une demande incomplète. Les critères signalés sont nécessaires pour obtenir des propositions.','profile-completion-note'));for(const name of (guidedDraft?['professionalEnvironment','personnelCategory','role','managerStatus','objective','existingSkills','timeAvailable','modality','other','trainingOffers','trainingOrganizers']:['personnelCategory','managerStatus','entity','role','objective','existingSkills','timeAvailable','modality','other'])){const key=name==='other'?'constraints':name,f=references.pathway.fields[key],group=node('div',undefined,'field'+(['entity','role','objective','existingSkills','other'].includes(name)?' field-wide':'')),label=node('label',name==='modality'?'Modalité souhaitée':labels[key]);label.htmlFor='edit-'+name;let input;
  if(guidedDraft){const sections={professionalEnvironment:'Votre situation professionnelle',objective:'Votre besoin de formation',timeAvailable:'Vos disponibilités et préférences',trainingOffers:'Le périmètre de recherche'};if(sections[name])content.append(node('h3',sections[name],'request-section-title'));if(name==='trainingOffers')content.append(node('p','Ces choix limitent les cours explorés sans garantir leur accessibilité. Vérifiez les publics visés et les prérequis dans les résultats.','profile-completion-note'));}
  if(!f&&name!=='modality'){group.append(node('p','Les choix du catalogue sont indisponibles. Actualisez-les avant de renseigner ce critère.'));content.append(group);continue;}
 
  if(guidedDraft&&['trainingOffers','trainingOrganizers'].includes(name)){
-  const wrapper=node('fieldset');wrapper.className='scope-options';wrapper.dataset.scopeField=name;const legend=node('legend',labels[name]);wrapper.append(legend);const selected=(profile[name]||'').split('\n');
-  const unrestricted=node('p','Sans sélection : sans restriction.');wrapper.append(unrestricted);
-  for(const opt of f.options){const row=node('label'),check=node('input');check.type='checkbox';check.name=name;check.value=opt.value;check.checked=selected.includes(opt.value);row.append(check,document.createTextNode(opt.label));wrapper.append(row);}
-  for(const value of selected.filter(x=>x&&!f.options.some(o=>o.value===x))){const row=node('label'),check=node('input');check.type='checkbox';check.name=name;check.value=value;check.checked=true;row.append(check,document.createTextNode(value+' — choix retiré, à vérifier'));wrapper.append(row);}
-  if(selected.some(x=>x&&!f.options.some(o=>o.value===x)))wrapper.append(node('p','Une sélection n’est plus disponible. Choisissez une autre valeur ou décochez explicitement ce choix avant d’enregistrer.','error'));
+  const wrapper=scopeOptions(name,profile[name]||'');
   content.append(wrapper);continue;
  }
  if(f?.formControl==='select'||name==='modality'){input=node('select');input.append(new Option('Non renseigné',''));for(const [text,value]of choices(name))input.append(new Option(text,value));}
@@ -212,12 +217,39 @@ function offerNext(){
  for(const [label,value]of suggestions.slice(0,8))action(label,()=>send(value),row);
  action('Compléter dans Ma demande',openProfile,row);$('thread').append(row);focusStart(el);
 }
-function confirmProfile(){
+async function offerResearchScope(selections){
+ if(busy)return;
+ try{
+  const value=await dialogueRequest();references=value.references;applyDraft(value.draft);
+  if(!ready()){guidedNext();return;}
+  document.querySelectorAll('[data-scope-review]').forEach(el=>el.remove());clearChoices();
+  const revision=draftRevision,baseProfile={...profile,constraints:other},baseModality=modality;
+  const el=say('Avant de construire votre parcours, souhaitez-vous préciser une ou plusieurs offres de formation, une ou plusieurs entités organisatrices, ou les deux ? Ce choix est facultatif. En laissant ces deux critères vides, la recherche fonctionnera comme d’habitude à partir de votre profil.');el.dataset.scopeReview='true';
+  const bubble=el.querySelector('.bubble'),form=node('form');form.className='scope-review-form';form.style.cssText='display:grid;gap:14px;margin-top:18px';
+  for(const name of ['trainingOffers','trainingOrganizers'])form.append(scopeOptions(name,selections?.[name]??profile[name]??''));
+  form.append(node('p','Ces critères précisent les cours explorés. Les conditions d’accès et les prérequis restent à vérifier.','source-note'));
+  const error=node('p','','status-line error');error.setAttribute('role','alert');form.append(error);
+  const submit=node('button','','primary');submit.type='submit';submit.style.cssText='white-space:normal;line-height:1.5';form.append(submit);
+  const chosen=()=>Object.fromEntries(['trainingOffers','trainingOrganizers'].map(name=>[name,new FormData(form).getAll(name).join('\n')]));
+  const updateLabel=()=>{submit.textContent=Object.values(chosen()).some(Boolean)?'Continuer avec ces choix':'Continuer sans préciser ces critères';};form.addEventListener('change',updateLabel);updateLabel();
+  form.addEventListener('submit',async event=>{
+   event.preventDefault();if(busy)return;submit.disabled=true;error.textContent='';
+   try{
+    const selected=chosen();for(const [name,text]of Object.entries(selected))validateField(name,text);
+    const saved=await dialogueRequest({action:'edit',profile:{...baseProfile,...selected},modality:baseModality,expectedRevision:revision});
+    applyDraft(saved.draft);form.remove();bubble.append(node('p','Périmètre enregistré dans Ma demande. Vérifiez maintenant le récapitulatif avant de lancer la recherche.'));confirmProfile(true);
+   }catch(e){error.textContent=e.message;if(!form.querySelector('[data-refresh-scope]')){const refresh=action('Actualiser les choix en gardant ma sélection',()=>offerResearchScope(chosen()),form);refresh.dataset.refreshScope='true';}}finally{submit.disabled=false;}
+  });
+  bubble.append(form);focusStart(el);
+ }catch(error){status('Les offres et entités n’ont pas pu être actualisées. Votre demande est conservée. '+error.message,true);}
+}
+function confirmProfile(scopeReviewed=false){
  if(guidedDraft&&requestMode!=='pathway'){chooseMode('pathway');return;}
  clearChoices();$('composer').hidden=realValidation;
  if(proposal){status('Acceptez ou refusez d’abord la proposition en attente.',true);return;}
  if(pathwayBlocked()){const el=say(pathwayNotice());if(ready())profileList(profile,el.querySelector('.bubble'));focusStart(el);return;}
  if(!ready()){showIncompleteProfile();return;}
+ if(guidedDraft&&!realValidation&&scopeReviewed!==true){offerResearchScope();return;}
  const el=say(realPathway?'Voici les repères de votre demande. Confirmer enverra ces informations au moteur A658-YG qui utilise OpenAI. '+(unlimitedTrial?'Chaque génération confirmée est payante. Aucune relance automatique.':realValidation?'Une seule tentative payante est autorisée pour ce scénario, dans la limite de trois scénarios.':'Une seule tentative payante de parcours est autorisée, sans relance automatique.')+'':'Voici les repères de votre demande. Souhaitez-vous simuler un parcours avec ces informations ?');profileList(profile,el.querySelector('.bubble'));
  const row=node('div',undefined,'action-row question-actions');const b=action(realPathway?'Confirmer ma demande et générer — essai payant':'Confirmer ma demande et simuler',simulate,row,true);b.dataset.confirm='true';action('Modifier ma demande',openProfile,row);$('thread').append(row);focusStart(el);
 }
