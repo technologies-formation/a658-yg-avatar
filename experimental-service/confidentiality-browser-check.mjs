@@ -36,7 +36,7 @@ try{
   const dialog=page.getByRole('dialog',{name:'Avant de commencer'}),button=dialog.getByRole('button',{name:'Commencer',exact:true})
   await dialog.waitFor();assert.equal(await button.isEnabled(),false)
   await page.keyboard.press('Escape');assert.equal(await dialog.isVisible(),true)
-  assert.match(await dialog.innerText(),/besoins réels de formation/);assert.match(await dialog.innerText(),/API OpenAI/)
+  assert.match(await dialog.innerText(),/besoins réels de formation/);assert.doesNotMatch(await dialog.innerText(),/API OpenAI|Formulez votre besoin sans identifier/)
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false)
   await page.screenshot({path:'visual-check/confidentiality-'+user+'.png',fullPage:true})
   await dialog.getByRole('checkbox').check();await button.click()

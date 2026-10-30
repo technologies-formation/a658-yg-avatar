@@ -208,7 +208,6 @@ async function requireConfidentiality(notice){
  const title=node('h2','Avant de commencer');title.id='confidentiality-title';title.style.cssText='font-size:22px;margin:0 0 16px';
  dialog.append(title,node('p','Vous pouvez décrire vos besoins réels de formation : métier, objectifs, compétences et contraintes.'));
  dialog.append(node('p','Ne saisissez aucune donnée confidentielle dans les échanges : noms de collègues, dossiers individuels, données de santé ou détails d’affaires judiciaires.'));
- dialog.append(node('p','Les informations nécessaires au traitement sont transmises à l’API OpenAI. Formulez votre besoin sans identifier les personnes concernées.'));
  const label=node('label');label.style.cssText='display:flex;gap:12px;align-items:flex-start;margin:20px 0;cursor:pointer';
  const check=node('input');check.type='checkbox';check.id='confidentiality-accepted';check.style.cssText='width:20px;height:20px;flex-shrink:0;margin-top:4px';
  label.append(check,node('span','J’ai compris et je m’engage à respecter cette consigne'));dialog.append(label);
