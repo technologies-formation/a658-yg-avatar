@@ -345,7 +345,7 @@ if(config.catalogueStatusEnabled){
 
 function welcome(){
  const el=say('Comment puis-je vous aider ? Vous cherchez des formations, ou souhaitez-vous construire un parcours adapté à votre situation ?'),row=node('div',undefined,'action-row question-actions');
- action('Rechercher des formations',()=>chooseMode('search'),row,true);action('Construire mon parcours',()=>chooseMode('pathway'),row);el.querySelector('.bubble').append(row);if(realTrial)el.querySelector('.bubble').append(node('p',participantAccount?'Décrivez vos besoins réels de formation sans données confidentielles. Les messages et recherches envoyés à l’IA peuvent être payants.':'Pour ce pilote privé, utilisez uniquement des données fictives. Les messages et recherches envoyés à l’IA peuvent être payants.','source-note'));
+ action('Rechercher des formations',()=>chooseMode('search'),row,true);action('Construire mon parcours',()=>chooseMode('pathway'),row);el.querySelector('.bubble').append(row);if(realTrial||participantAccount)el.querySelector('.bubble').append(node('p',participantAccount?'Décrivez vos besoins réels de formation sans données confidentielles. Les messages et recherches envoyés à l’IA peuvent être payants.':'Pour ce pilote privé, utilisez uniquement des données fictives. Les messages et recherches envoyés à l’IA peuvent être payants.','source-note'));
  if(requestMode||modality||Object.values(profile).some(x=>String(x??'').trim())){const resume=node('div',undefined,'action-row question-actions');action('Reprendre ma demande existante',()=>chooseMode(requestMode||'pathway',undefined,true),resume);el.querySelector('.bubble').append(resume);}
  focusStart(el);
 }
