@@ -1,5 +1,7 @@
 # Accès individuel du pilote avatar — préparation du 18 octobre 2026
 
+> État courant au 30 octobre 2026 : voir [Assistant formation — référence avant pilote](../GUIDE_REPRISE.md). Assistant installé `13fd45b`, affinement RH/absences + OPE sans entité DIP-SEM vérifié par l’opérateur, quatre accès préparés et zéro testeur activé. Les étapes datées ci-dessous restent historiques ; le pilote du groupe n’est pas ouvert.
+
 > Jalon historique : les constats ci-dessous décrivent cette étape. La page et le serveur HTTPS local ont depuis été assemblés en simulation ; voir [SERVEUR_PRIVE_SIMULATION.md](SERVEUR_PRIVE_SIMULATION.md). Aucun déploiement distant ni raccordement réel n’en découle.
 
 Statut : préparé sur la branche d’essai, désactivé par défaut et non déployé.
@@ -138,3 +140,14 @@ Le catalogue de production, sa configuration privée et le moteur restent inchan
 - [RFC 7617 — HTTP Basic](https://www.rfc-editor.org/rfc/rfc7617) : protocole et limites de confidentialité.
 - [Node.js 24 — crypto](https://nodejs.org/docs/latest-v24.x/api/crypto.html) : scrypt, génération aléatoire et comparaison.
 - [OWASP — stockage des mots de passe](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html) : variantes scrypt et compromis mémoire/calcul.
+
+
+## Mise à jour du 30 octobre — quatre accès individuels préparés
+
+Les composants sont désormais utilisés par l’Assistant hébergé. Le plan de préparation du 18 octobre ci-dessus reste historique. `provision-testers.mjs --create` a été exécuté sur l’hébergement ; le contrôle opérateur constate « préparation présente » et **zéro testeur activé**. Les comptes existants restent conservés. Aucun accès anonyme ni inscription par mail n’est ouvert.
+
+La préparation crée `pilote-01` à `pilote-04`, quatre mots de passe distincts générés localement, une sauvegarde des comptes et leur version future, dans un dossier privé 0700/fichiers 0600. Le marqueur `tester-batch.json` indique ce dossier. Ne pas refaire `--create` pour retrouver la sortie du terminal ; ne pas exposer le contenu des fiches. `--activate` reste distinct et requiert ensuite un redémarrage. Une modification intervenant entre préparation et activation provoque un refus, sans écraser les comptes. `--disable` vise seulement un compte marqué testeur et doit être suivi d’un redémarrage ; historique et compteurs ne sont pas effacés.
+
+La concurrence actuelle de l’authentification utilise au plus deux dérivations scrypt simultanées, avec huit empreintes de demandes en attente au maximum et coalescence des identifiants identiques. Elle remplace la limite historique d’une seule dérivation sans file. La limite de tentatives d’authentification, les refus de transport et les protections scrypt restent appliqués.
+
+Par testeur : dix messages IA et trois recherches/parcours combinés par jour Europe/Paris par défaut, réservations durables avant appel. Le mode opérateur sans plafond et son suivi restent distincts. Ces limites ne sont pas un plafond de dépense en USD. Voir le [guide actuel](../GUIDE_REPRISE.md) pour le jalon, la sauvegarde, la remise individuelle et les conditions avant activation.

@@ -1,5 +1,7 @@
 # Validation exploratoire du pilote — plan du 25 octobre 2026
 
+> État courant au 30 octobre 2026 : voir [Assistant formation — référence avant pilote](GUIDE_REPRISE.md). Assistant installé `13fd45b`, affinement RH/absences + OPE sans entité DIP-SEM vérifié par l’opérateur, quatre accès préparés et zéro testeur activé. Les étapes datées ci-dessous restent historiques ; le pilote du groupe n’est pas ouvert.
+
 Statut : scénarios préparés avant exécution. Aucun de ces essais réels n’a encore été lancé. Ce plan sert à une validation fonctionnelle exploratoire ; il ne constitue pas un benchmark indépendant ni une mesure statistique de pertinence. Les contrôles automatisés antérieurs restent des tests de développement.
 
 ## Procédure commune

@@ -1,5 +1,7 @@
 # Recherche de formations et construction de parcours
 
+> État courant au 30 octobre 2026 : voir [Assistant formation — référence avant pilote](GUIDE_REPRISE.md). Assistant installé `13fd45b`, affinement RH/absences + OPE sans entité DIP-SEM vérifié par l’opérateur, quatre accès préparés et zéro testeur activé. Les étapes datées ci-dessous restent historiques ; le pilote du groupe n’est pas ouvert.
+
 Branche de travail : feat/assistant-recherche-parcours-v2. Référence précédente : jalon/v1-avant-refonte-demande-2026-10-28, suivi dans l’issue #2.
 
 ## Fonctionnement
@@ -159,3 +161,12 @@ Code publié : `802c5e8218557056ba60674de5056915333413ac`, branche existante `fi
 L'installation et la préparation privée restent à effectuer. Ne pas lancer `--activate` avant la validation du jalon. Après préparation, conserver aussi une copie protégée du dossier privé `a658-quatre-acces-*` indiqué par la commande : il contient les fiches d'accès et les versions avant/après des comptes. Ce dossier ne doit pas entrer dans Git ou le document de reprise. Tant que les quatre comptes sont inactifs, un retour au code précédent ne modifie pas les accès. Après activation, un retour à un ancien code dépourvu des quotas testeurs exige de retirer préalablement leurs accès et de préserver tous les journaux et recherches ; ne pas restaurer aveuglément un ancien fichier de comptes si d'autres comptes ont évolué.
 
 Le budget monétaire global du groupe et le seuil d'arrêt à retenir doivent être confirmés au jalon : les quotas 10 messages / 3 recherches-parcours par personne et par jour ne garantissent pas une enveloppe en USD. La documentation de reprise technique est à jour dans le dépôt ; le document autonome personnel de l'utilisateur doit encore être fourni puis actualisé avec l'état de production vérifié. Le jalon avant pilote n'est donc pas encore déclaré achevé.
+
+
+## Bilan hébergé confirmé — 30 octobre 2026
+
+Cette section actualise les mentions d’installation et de préparation en attente ci-dessus. SSH confirme l’Assistant `13fd45b2f90b5a1d594a4ac54936fe7e7d8f2610`. Le contrôle de configuration confirme le marqueur de préparation et zéro compte testeur activé. Les captures après acceptation puis reprise montrent l’objectif Cockpit RH/suivi des absences, l’offre DF-OPE et aucune entité organisatrice ; les autres repères sont conservés. Le formulaire confirme DF-OPE seule cochée. La génération reste à confirmer séparément ; aucune nouvelle génération n’est validée par ces captures.
+
+Nom de jalon retenu : **Assistant formation — référence avant pilote**. Tag prévu : `jalon-assistant-avant-pilote-2026-10-30`, à vérifier après publication. Le [guide d’entrée](GUIDE_REPRISE.md) centralise désormais l’état actuel, les procédures, les limites et les prochaines étapes. Les anciennes sections de ce document restent la trace des livraisons successives.
+
+Les derniers démarrages annoncent le contrôle HTTPS réussi ; le refus initial « host » reste un fait historique sans cause définitivement identifiée. La sauvegarde privée et le dossier de préparation doivent être conservés et leur archivage vérifié. Le budget du groupe, le seuil d’arrêt et le document personnel de reprise restent à finaliser avant ouverture. L’utilisateur a demandé la mise à jour de toute la documentation du projet d’abord, puis de son document personnel. Aucun compte testeur n’est activé par cette mise à jour.

@@ -1,5 +1,7 @@
 # Attestation HTTPS d'un proxy variable
 
+> État courant au 30 octobre 2026 : voir [Assistant formation — référence avant pilote](../GUIDE_REPRISE.md). Assistant installé `13fd45b`, affinement RH/absences + OPE sans entité DIP-SEM vérifié par l’opérateur, quatre accès préparés et zéro testeur activé. Les étapes datées ci-dessous restent historiques ; le pilote du groupe n’est pas ouvert.
+
 Le module `proxy-attestation.mjs` permet un mode explicite `self-https` en
 complément du mode historique à adresses exactes. Aucun changement implicite
 de configuration n'active ce mode.
@@ -45,3 +47,10 @@ confiance ni le rythme des preuves. Un pair non attesté reste refusé, y compri
 pendant le délai entre lots de preuves ; la catégorie ne permet pas à elle seule
 de conclure à une rotation du proxy. Aucune relance automatique d'un appel métier
 n'est autorisée après un tel refus.
+
+
+## Renouvellement et observation hébergée — 30 octobre 2026
+
+Les lots actuels prennent en compte les pairs en attente. Les preuves sont renouvelées périodiquement pendant l’écoute ; une preuve manquante peut attendre un renouvellement gratuit partagé et borné. Le renouvellement ne rejoue aucun POST métier ni appel OpenAI. Host, protocole, pair et preuve de retour HTTPS restent obligatoires ; aucun réseau supposé de l’hébergeur n’est autorisé par déduction.
+
+Les journaux transmis par l’opérateur pour la version installée `13fd45b` montrent les derniers contrôles HTTPS réussis. Un refus « host » au début du flux reste visible ; ces succès ultérieurs n’établissent ni sa cause ni l’absence définitive de refus intermittents. En cas de blocage, conserver les critères et diagnostiquer le transport, sans relance payante automatique ni assouplissement de la preuve.

@@ -1,5 +1,7 @@
 # Validation des versions de l’Assistant
 
+> État courant au 30 octobre 2026 : voir [Assistant formation — référence avant pilote](GUIDE_REPRISE.md). Assistant installé `13fd45b`, affinement RH/absences + OPE sans entité DIP-SEM vérifié par l’opérateur, quatre accès préparés et zéro testeur activé. Les étapes datées ci-dessous restent historiques ; le pilote du groupe n’est pas ouvert.
+
 Ce document distingue l’installation d’un correctif dans le pilote privé de la validation fonctionnelle de l’ensemble de l’assistant. Un résultat vert des tests automatiques ne valide pas à lui seul la pertinence des réponses IA. Le plan historique de trois essais du 25 octobre reste dans VALIDATION_PILOTE.md ; il ne doit pas être réécrit comme si de nouveaux essais avaient déjà été exécutés.
 
 ## Contrôles techniques avant installation
@@ -72,3 +74,23 @@ Validation finale du lot sur **dc2a3846773e25895fc7c49c21167e14b138dfea** : 246 
 Les échecs intermédiaires **40743173036**, **40743464061** et **40743723866** restent dans l'historique : attente des contrôles après erreur, fin d'initialisation du catalogue avant insertion d'une longue liste fictive, puis séparation des nouveaux scénarios dans des instances de test indépendantes. Les protections et limites applicatives n'ont pas été assouplies pour faire passer les tests. Le lot applicatif conserve son refus d'accès si la preuve HTTPS n'aboutit pas ; aucune résolution de la cause intermittente n'est revendiquée.
 
 La version applicative testée à installer est **dc2a3846773e25895fc7c49c21167e14b138dfea**, même si une mise à jour documentaire postérieure est publiée. L'installation reste à réaliser par l'opérateur, uniquement sur l'Assistant après arrêt et sauvegarde privée. La version distante confirmée demeure **cc7668b** jusqu'au retour de cette installation. Le Catalogue et l'accès public ne changent pas.
+
+
+## Référence avant pilote — bilan du 30 octobre 2026
+
+Référence installée confirmée par SSH : `13fd45b2f90b5a1d594a4ac54936fe7e7d8f2610`, code applicatif `802c5e8218557056ba60674de5056915333413ac`. Les références distantes plus anciennes ci-dessus restent historiques.
+
+| Contrôle | Résultat et portée |
+| --- | --- |
+| Régression locale | 273 tests Node réussis avec transports fictifs ; DOM/HTTP authentifié réussi |
+| CI sécurité | [41055416903](https://github.com/technologies-formation/a658-yg-avatar/actions/runs/41055416903), Linux/Windows réussis |
+| CI navigateur | [41055417164](https://github.com/technologies-formation/a658-yg-avatar/actions/runs/41055417164), ordinateur/mobile réussis ; captures de proposition et récapitulatif examinées |
+| Installation | Commit exact fourni par l’opérateur dans SSH |
+| Préparation des comptes | Marqueur présent, zéro testeur actif ; pas de preuve de connexion réelle des quatre comptes |
+| Proposition explicite | Objectif RH/absences, DF-OPE, retrait DIP-SEM affichés avant acceptation |
+| Application et reprise | Captures du récapitulatif et du formulaire : les trois changements sont enregistrés et conservés après reprise |
+| Génération | Bouton de confirmation distinct toujours affiché ; aucune nouvelle génération prouvée par ce contrôle |
+| HTTPS | Derniers démarrages réussis ; refus initial « host » conservé comme point de diagnostic, cause non établie |
+| Ouverture du groupe | Non effectuée ; quatre accès non activés |
+
+Ce bilan valide le cas ciblé, pas toutes les recommandations futures. Aucun défaut critique de ce scénario n’apparaît dans les captures. Les tests simulés de quotas et d’isolation ne remplacent pas les contrôles d’exploitation après activation. Le [guide de reprise](GUIDE_REPRISE.md) liste les sauvegardes, le budget/seuil d’arrêt, le document personnel et le tag à finaliser. Aucun nouvel appel OpenAI ni SMTP réel n’a été lancé par l’agent pour ce bilan documentaire.

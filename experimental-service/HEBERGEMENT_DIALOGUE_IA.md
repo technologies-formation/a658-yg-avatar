@@ -1,5 +1,7 @@
 # Préparation hébergée du dialogue IA — désactivée
 
+> État courant au 30 octobre 2026 : voir [Assistant formation — référence avant pilote](../GUIDE_REPRISE.md). Assistant installé `13fd45b`, affinement RH/absences + OPE sans entité DIP-SEM vérifié par l’opérateur, quatre accès préparés et zéro testeur activé. Les étapes datées ci-dessous restent historiques ; le pilote du groupe n’est pas ouvert.
+
 ## Périmètre
 
 `hosted-dialogue-trial.mjs` ajoute un lanceur distinct. Les commandes et configurations des pilotes existants restent inchangées. Aucun déploiement ou essai payant n’est revendiqué par ce jalon.

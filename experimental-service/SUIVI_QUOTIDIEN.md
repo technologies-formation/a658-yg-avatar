@@ -1,5 +1,7 @@
 # Récapitulatif quotidien OpenAI — préparation désactivée
 
+> État courant au 30 octobre 2026 : voir [Assistant formation — référence avant pilote](../GUIDE_REPRISE.md). Assistant installé `13fd45b`, affinement RH/absences + OPE sans entité DIP-SEM vérifié par l’opérateur, quatre accès préparés et zéro testeur activé. Les étapes datées ci-dessous restent historiques ; le pilote du groupe n’est pas ouvert.
+
 Un seul récapitulatif est prévu à 08 h, heure de Paris, pour les deux applications. Il contient les quinze dernières journées clôturées (la plus récente d’abord), le cumul du mois courant, les mois précédents collectés, les sollicitations, les coûts calculés et le solde théorique. L’avertissement à 2 USD ou moins est intégré à ce message, avec un objet distinct. Les liens de vérification et d’achat ouvrent la facturation OpenAI ; aucune ouverture du message ne provoque d’achat.
 
 ## Sources et attribution
@@ -52,3 +54,10 @@ Pour arrêter uniquement le récapitulatif, retirer `A658_DAILY_REPORT_ENABLED=t
 ## Limites de cette première préparation
 
 Les coûts applicatifs ne constituent pas une facture et les dépenses effectuées en dehors de ces deux applications ne sont pas collectées. Une politique de rétention/rotation du registre reste à définir avant une diffusion plus large. Le collecteur refuse les archives excessives ou illisibles. Les tests utilisent des transports et événements fictifs ; aucun nouvel appel OpenAI ni courriel réel n’est nécessaire pour vérifier cette préparation.
+
+
+## Distinction avec le suivi des testeurs — 30 octobre 2026
+
+Le module `participant-usage.mjs` ajoute un registre privé de tentatives par identifiant testeur, des cumuls et une dernière activité disponible. `provision-testers.mjs --report CHEMIN_CONFIG` les restitue sans mot de passe. Avant activation, un tableau vide signifie aucun testeur actif, pas absence de préparation. Les limites quotidiennes par défaut sont dix messages IA et trois recherches/parcours combinés ; les échecs restent comptés et les réservations survivent au redémarrage.
+
+Ce registre ne fournit pas un montant facturé par personne et ne remplace pas le suivi agrégé ci-dessus. Les alertes et courriels ne constituent pas une coupure automatique. L’activation actuelle du récapitulatif quotidien et le solde réel ne sont pas recontrôlés par les captures du scénario d’affinement. Définir le budget du groupe et le seuil d’arrêt avant ouverture ; ne pas promettre un plafond monétaire à partir des seuls quotas d’usage. Voir le [guide actuel](../GUIDE_REPRISE.md).

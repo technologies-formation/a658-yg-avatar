@@ -1,5 +1,7 @@
 # Préparation de l’essai réel privé distant
 
+> État courant au 30 octobre 2026 : voir [Assistant formation — référence avant pilote](../GUIDE_REPRISE.md). Assistant installé `13fd45b`, affinement RH/absences + OPE sans entité DIP-SEM vérifié par l’opérateur, quatre accès préparés et zéro testeur activé. Les étapes datées ci-dessous restent historiques ; le pilote du groupe n’est pas ouvert.
+
 Cette préparation ne modifie pas le service en cours et ne constitue pas une autorisation d’appel payant. Une validation distincte est nécessaire avant activation et confirmation dans le navigateur. Ne pas utiliser de profil personnel pour cet essai.
 
 `hosted-real.mjs` est un lanceur séparé, désactivé par défaut. L’environnement de simulation ne peut pas l’activer. La lecture de configuration rend également `enabled: false` et ne crée ni compteur ni rapport.
