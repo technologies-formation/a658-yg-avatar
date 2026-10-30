@@ -9,7 +9,7 @@
 | Nom du jalon retenu | Assistant formation — référence avant pilote |
 | Tag Git publié et vérifié | `jalon-assistant-avant-pilote-2026-10-30` → `d45b45aace503dbd4ceed3494bcbf7275cb0580f` |
 | Assistant installé, confirmé par SSH | `daa6746a815a30a567ce2e70babf7518c3454178` ; suivi quotidien actualisé après le jalon |
-| Code applicatif de cette version | `802c5e8218557056ba60674de5056915333413ac` ; le descendant `13fd45b` ajoute de la documentation |
+| Code applicatif installé avant la consigne | `daa6746a815a30a567ce2e70babf7518c3454178` ; la consigne est le lot suivant |
 | Branche de livraison Assistant | `fix/dialogue-course-relevance-2026-10-30` |
 | Lanceur utilisé | `experimental-service/hosted-private-pilot.mjs`, mode opérateur privé |
 | Accès du premier groupe | Quatre comptes activés et service redémarré ; connexion pilote-01 confirmée par l’opérateur, trois autres connexions à vérifier |
@@ -115,4 +115,4 @@ L’accord est enregistré par empreinte de l’identité authentifiée dans le 
 
 Le serveur refuse les modifications et les requêtes métier des testeurs avant accord, y compris depuis un ancien onglet. Accepter ne consomme aucun quota et ne lance ni IA, ni recherche, ni courriel. En cas d’erreur de stockage, les échanges restent bloqués. Les résultats et compteurs existants sont conservés. L’écran ne constitue pas un filtre automatique du contenu : l’utilisateur doit respecter la consigne.
 
-État de ce lot : 278 tests locaux réussis, régressions HTTP avec transports fictifs. Publication et contrôle navigateur du lot à confirmer avant installation. Aucun accord réel ni fichier privé n’est créé par la publication du code. Coût OpenAI API des tests : 0 token / 0 USD. Le suivi du budget pilote reste manuel.
+Code publié de ce lot : `166c353b9f6ec91309e7bc5a9a9d5f6710e12be0`. 278 tests locaux réussis, régressions HTTP avec transports fictifs ; contrôles GitHub Linux/Windows réussis (run 41113329159), suite navigateur complète réussie (run 41113330097). Les quatre identités fictives vérifient l’accord obligatoire, la case et le bouton, le clavier, une erreur de sauvegarde, la reprise et les quotas inchangés. Captures des quatre comptes examinées, dont ordinateur jour et mobile nuit ; artefact 13003634158, SHA-256 76ac0dce9314282f93c4a5d1e73b1bc94f4382182e77c221be44bddad6f648a3. Le premier essai navigateur avait relevé un rappel manquant dans le mode de simulation ; le correctif du client est inclus dans la référence finale. Installation Infomaniak et validation réelle de l’écran encore à effectuer. Installer ce commit après sauvegarde vérifiée du code et des états privés puis redémarrer ASSISTANT ; ne pas relancer la préparation ou l’activation des comptes. Après installation, recharger une session testeur déjà ouverte pour obtenir le nouvel écran. Aucun accord réel ni fichier privé n’est créé par la publication du code. Coût OpenAI API des tests : 0 token / 0 USD. Le suivi du budget pilote reste manuel.
