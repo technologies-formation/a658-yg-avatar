@@ -1,13 +1,13 @@
 # Assistant formation — référence avant pilote
 
-État vérifié le 30 octobre 2026 avec l'opérateur. Ce guide est le point d'entrée de la documentation technique du dépôt Assistant ; il ne remplace pas le document de reprise personnel de l'utilisateur, à actualiser ensuite.
+État vérifié le 30 octobre 2026 avec l'opérateur. Ce guide est le point d'entrée de la documentation technique du dépôt Assistant ; il complète le document de reprise personnel du 30 octobre 2026, remis à l’utilisateur et déclaré sauvegardé. Ce dernier a été rédigé avant la pose du tag ; la confirmation ci-dessous actualise ce point.
 
 ## État courant et références
 
 | Élément | Référence et portée |
 | --- | --- |
 | Nom du jalon retenu | Assistant formation — référence avant pilote |
-| Tag Git prévu | `jalon-assistant-avant-pilote-2026-10-30` ; ne pas le considérer publié sans vérification du tag distant |
+| Tag Git publié et vérifié | `jalon-assistant-avant-pilote-2026-10-30` → `d45b45aace503dbd4ceed3494bcbf7275cb0580f` |
 | Assistant installé, confirmé par SSH | `13fd45b2f90b5a1d594a4ac54936fe7e7d8f2610` |
 | Code applicatif de cette version | `802c5e8218557056ba60674de5056915333413ac` ; le descendant `13fd45b` ajoute de la documentation |
 | Branche de livraison Assistant | `fix/dialogue-course-relevance-2026-10-30` |
@@ -79,8 +79,8 @@ Tant que les testeurs sont inactifs, une restauration de code ne doit pas change
 
 Le nom est retenu et le contrôle fonctionnel ciblé est validé. Cela ne signifie pas que le pilote est ouvert ni que tous les cas métier sont certifiés.
 
-- Terminer et publier cette mise à jour documentaire ; poser puis vérifier le repère Git annoncé. Si le tag distant n'existe pas encore, le signaler explicitement.
-- Compléter ensuite le document de reprise personnel avec sa dernière version fournie par l'utilisateur, en conservant son contenu et sans aucun secret.
+- Documentation publiée ; tag `jalon-assistant-avant-pilote-2026-10-30` créé et vérifié le 30 octobre sur `d45b45aace503dbd4ceed3494bcbf7275cb0580f`. La [publication GitHub](https://github.com/technologies-formation/a658-yg-avatar/releases/tag/jalon-assistant-avant-pilote-2026-10-30) est marquée avant-version ; elle n’active aucun service ni accès.
+- Document personnel autonome du 30 octobre remis ; l’utilisateur a confirmé sa sauvegarde. Les 17 instructions d’origine et la consigne de reprise sans ancien échange sont conservées. À sa prochaine actualisation, remplacer le statut « tag à poser » par la référence publiée ci-dessus.
 - Retrouver et vérifier la sauvegarde privée d'installation et celle de la préparation des accès ; garder leurs emplacements dans les notes privées d'exploitation.
 - Fixer l'enveloppe monétaire du groupe, le seuil d'arrêt et le contrôle effectif du suivi. Les limites 10/3 ne sont pas un plafond USD. Le récapitulatif quotidien et son seuil d'alerte ne constituent pas une coupure automatique ; son activation actuelle n'a pas été recontrôlée ici.
 - Ouvrir ensuite les comptes par l'opération distincte d'activation, redémarrer, vérifier HTTPS et un accès individuel, puis remettre les accès séparément. Ne pas lancer de génération réelle pour simplement tester la connexion.
