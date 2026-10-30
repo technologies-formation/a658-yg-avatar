@@ -95,3 +95,12 @@ Installation : Catalogue d'abord (`server/llmSearch.mjs` et `server/pathwayEngin
 Coût OpenAI API des vérifications : 0 token / 0 $.
 
 État de livraison au 30 octobre : corrections et contrôles locaux terminés ; publication GitHub et installation non réalisées. La revue automatique exige une autorisation explicite de publication du nouveau code dans les deux dépôts publics, même si leur propriété et les droits d'écriture ont été vérifiés via la connexion GitHub. Les contrôles navigateur distants restent donc à exécuter après publication. Chromium n'est pas disponible localement dans cet environnement ; le scénario DOM réussi ne constitue pas une validation visuelle.
+
+
+### Publication autorisée et contrôles distants terminés
+
+Le GO explicite de publication a été reçu. Code publié sur `fix/dialogue-course-relevance-2026-10-30`, commit `3ac02bcaa697d359ecfebebfef438fc100542a81` (arbre identique à la version locale validée). Contrôles GitHub réussis : sécurité Linux/Windows (run 41032139780), suite navigateur complète (run 41032139853), recherche et parcours guidés ordinateur/mobile, refus proxy, reprise, mémoire, exports et courriels avec transports fictifs. Les captures `v2-results-desktop.png` et `v2-results-mobile.png` ont été examinées : appréciation expliquée et métadonnées intégrées à l'interface existante. Cette validation remplace le statut d'attente de publication indiqué plus haut. L'installation Infomaniak n'a pas encore été effectuée.
+
+Catalogue associé : `c807f71e3d118aabfd70a7721ed1d2d64e0506c6`. Installer ses deux modules après vérification des empreintes et sauvegarde, puis redémarrer le Catalogue ; installer ensuite le commit Assistant publié, après sauvegarde du code et des dossiers privés existants, et redémarrer l'Assistant. Ne pas remplacer le formulaire restauré, les fichiers statiques ou les compteurs. Le 403 persistant reste un refus de sécurité : la récupération gratuite bornée ne dispense pas d'un contrôle du proxy en production.
+
+Coût OpenAI API de cette validation : 0 token / 0 $.
