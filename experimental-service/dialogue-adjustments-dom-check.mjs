@@ -38,7 +38,7 @@ try{
  const wait=async(fn,label)=>{const end=Date.now()+12000;while(!fn()){if(Date.now()>end)throw Error('Timeout: '+label+' | '+w.document.getElementById('status').textContent);await new Promise(r=>setTimeout(r,20));}}
  const button=label=>[...w.document.querySelectorAll('button')].find(e=>e.textContent.trim()===label||e.getAttribute('aria-label')===label)
  const click=async(label,ready)=>{assert.ok(button(label),'Bouton absent : '+label);button(label).click();if(ready)await wait(ready,label)}
- const send=async(text,ready)=>{w.document.getElementById('message').value=text;w.document.getElementById('composer').dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));await wait(ready,text)}
+ const send=async(text,ready)=>{w.document.getElementById('message').value=text;w.document.getElementById('composer').dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));await wait(()=>ready()&&!w.document.getElementById('send-message').disabled,text)}
  const question=field=>()=>Boolean(w.document.querySelector('[data-guided-question="'+field+'"]'))
  await click('Rechercher des formations',()=>w.document.getElementById('message').placeholder.startsWith('Un titre'))
  await send('cockpits',()=>Boolean(button('Affiner cette recherche et construire mon parcours')));assert.equal(searches,1);assert.equal(turns,0)

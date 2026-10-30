@@ -12,10 +12,11 @@ import { data } from './result-test-fixtures.mjs'
 const origin = 'https://dialogue-test.invalid'
 const r = references()
 const profile = { personnelCategory: 'TEST-A', role: 'Assistant', objective: 'Organiser les tâches de test', existingSkills: 'Je débute', timeAvailable: '1 à 2 jours' }
-async function fixture(t,{resume=false,mail=null,deviceMemoryEnabled=false,deviceMemoryNow=Date.now,loadCatalogueStatus,guidedDraft=false,courseSearchFetchImpl,dialogueFetchImpl}={}) {
+async function fixture(t,{resume=false,mail=null,deviceMemoryEnabled=false,deviceMemoryNow=Date.now,loadCatalogueStatus,guidedDraft=false,courseSearchFetchImpl,dialogueFetchImpl,tester=false}={}) {
  const dir = mkdtempSync(join(tmpdir(),'avatar-dialogue-interface-')), password = 'TEST_LOCAL_PASSWORD_ONLY'
  const users = await Promise.all(['alice','bob'].map(id=>createPilotCredential({id,username:id,password})))
- const options = { guidedDraft,courseSearchDirectory:guidedDraft?join(dir,'search'):undefined,courseSearchFetchImpl,mail, loadCatalogueStatus, deviceMemoryEnabled,deviceMemoryNow, enabled:true, publicOrigin:origin, users, stateFile:join(dir,'quotas.json'),
+ if(tester)users[0].pilotTester=true;
+ const options = { participantDirectory:join(dir,'participants'),guidedDraft,courseSearchDirectory:guidedDraft?join(dir,'search'):undefined,courseSearchFetchImpl,mail, loadCatalogueStatus, deviceMemoryEnabled,deviceMemoryNow, enabled:true, publicOrigin:origin, users, stateFile:join(dir,'quotas.json'),
   isSecureRequest:req=>req.headers['x-test-secure']==='true', loadProfileReferences:()=>r, preview:data(),...(resume?{resumeDirectory:join(dir,'resume')}:{}) };
  const make=()=>{if(!guidedDraft)return createDialogueSimulationInterface(options);mkdirSync(join(dir,'budget'),{recursive:true,mode:0o700});return createRealDialogueTrialInterface({...options,paidTrialAuthorized:true,apiKey:'FAKE_TEST_KEY_ONLY',budgetDirectory:join(dir,'budget'),fetchImpl:dialogueFetchImpl??(()=>{throw Error('Aucun appel dialogue attendu')})})};let service=make()
  const server = http.createServer((req,res)=>service.handler(req,res));await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve))
@@ -215,4 +216,17 @@ test('suivi HTTP : contexte issu des archives du compte, courriel sans retour au
  const reply=await f.request('/private/dialogue',{body:turn});assert.equal(reply.status,200,JSON.stringify(reply.value));assert.match(reply.value.reply,/Objet/);assert.deepEqual(reply.value.draft.profile,{});assert.equal(paid,1);assert.equal(dialogue,1);assert.equal(f.service.status().total,0);
  const other=await f.request('/private/dialogue',{user:'bob',body:{...turn,requestId:crypto.randomUUID(),expectedRevision:0}});assert.equal(other.status,400);assert.equal(dialogue,1);
  const missing=await f.request('/private/dialogue',{body:{...turn,requestId:crypto.randomUUID(),researchNumber:999}});assert.equal(missing.status,400);assert.equal(dialogue,1);
+});
+
+
+test('quatre accès : quota individuel avant recherche IA, administrateur indépendant, compteurs persistants',async t=>{
+ let searches=0;const json=v=>new Response(JSON.stringify(v),{headers:{'Content-Type':'application/json'}}),version={snapshotDate:'2026-10-29',snapshotHash:'c'.repeat(64)};
+ const f=await fixture(t,{resume:true,guidedDraft:true,tester:true,courseSearchFetchImpl:async url=>{if(url.endsWith('/api/catalogue'))return json({catalogue:version,courses:[]});searches++;return json({ok:true,catalogue:version,results:[],recommendedResults:[],reason:'Aucun cours'});}});
+ let state=(await f.request('/private/dialogue')).value;assert.equal(state.participantQuota.research,0);
+ state=(await f.request('/private/dialogue',{body:{action:'request-mode',intent:'start',requestMode:'search',confirmed:true,expectedRevision:state.draft.revision}})).value;
+ const search=()=>f.request('/private/course-search',{body:{query:'Cockpits',requestId:crypto.randomUUID(),confirmed:true,expectedRevision:state.draft.revision}});
+ for(let i=0;i<3;i++)assert.equal((await search()).status,200);
+ const denied=await search();assert.equal(denied.status,429);assert.equal(denied.value.code,'participant_daily_limit');assert.equal(searches,3);
+ f.reopen();state=(await f.request('/private/dialogue')).value;assert.equal(state.participantQuota.research,3);assert.equal(state.savedPathways.length,3);
+ const bob=(await f.request('/private/dialogue',{user:'bob'})).value;assert.equal(bob.participantQuota,undefined);assert.deepEqual(bob.savedPathways,[]);
 });

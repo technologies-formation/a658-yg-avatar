@@ -104,7 +104,7 @@ export function createHostedDialogueTrial(options = {}) {
     createGateway:({isSecureRequest})=>createRealDialogueTrialInterface({enabled:true,paidTrialAuthorized:true,unlimited:options.unlimited??false,guidedDraft:options.guidedDraft===true,
       courseSearchDirectory:options.guidedDraft?join(options.privateDirectory,'course-search-attempts'):undefined,
       courseSearchFetchImpl:options.pathwayFetchImpl??options.fetchImpl,reportingToken:options.consumption?.token,
-      publicOrigin:options.publicOrigin,users:options.users,isSecureRequest,stateFile:options.stateFile,
+      participantLimits:options.participantLimits,participantDirectory:join(options.privateDirectory,'participant-usage'),publicOrigin:options.publicOrigin,users:options.users,isSecureRequest,stateFile:options.stateFile,
       loadProfileReferences:options.loadProfileReferences,preview:options.preview,loadCatalogueStatus:()=>fetchCatalogueStatus({fetchImpl:options.catalogueStatusFetchImpl??options.fetchImpl??globalThis.fetch}),mail:options.mail,consumption:options.consumption,budgetDirectory:options.budgetDirectory,
       apiKey:options.apiKey,fetchImpl:options.fetchImpl,timeoutMs:30000,resumeDirectory:join(options.privateDirectory,'resume'),deviceMemoryEnabled:options.deviceMemoryEnabled??false,
       ...(pathway?{pathwayTrial:{...pathway,directory:options.validationDirectory,validationAuthorized:options.validationAuthorized,stateFile:options.pathwayStateFile,reportFile:options.pathwayReportFile,fetchImpl:options.consumption?async(url,init)=>{

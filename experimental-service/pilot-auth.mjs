@@ -41,6 +41,9 @@ export function createPilotAuthenticator({
   }
   const fallback = accounts.values().next().value
   const key = randomBytes(32), revoked = new Set(), pending = new Map()
+  let running=0;const queue=[]
+  const acquire=async()=>{if(running>=2)await new Promise(resolve=>queue.push(resolve));else running++}
+  const release=()=>{const next=queue.shift();if(next)next();else running--}
   let stopped = false, attempts = [], lastTime = -Infinity
   const time = () => {
     const current = now()
@@ -74,18 +77,20 @@ export function createPilotAuthenticator({
         let current
         try { current = time() } catch { return null }
         attempts = attempts.filter(instant => instant > current - windowMs)
-        if (attempts.length >= maxAttempts || pending.size >= 1) {
+        if (attempts.length >= maxAttempts || pending.size >= 8) {
           res?.setHeader('Retry-After', String(Math.ceil(windowMs / 1000)))
           return null
         }
         attempts.push(current)
         operation = (async () => {
+          await acquire()
           try {
+            if(stopped)return null
             const actual = await derive(password, Buffer.from(credential.salt, 'hex'), 32, parameters)
             const valid = timingSafeEqual(actual, Buffer.from(credential.hash, 'hex'))
             actual.fill(0)
             return Boolean(account && valid) ? account.id : null
-          } catch { return null }
+          } catch { return null } finally {release()}
         })()
         pending.set(fingerprint, operation)
         operation.finally(() => pending.delete(fingerprint))

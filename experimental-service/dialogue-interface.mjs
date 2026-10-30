@@ -1,3 +1,4 @@
+import {createParticipantUsage} from './participant-usage.mjs'
 import {createResearchContext} from './research-context.mjs'
 import {createCourseSearch} from './course-search.mjs'
 import {readCatalogueVersion} from './catalogue-version.mjs'
@@ -64,6 +65,9 @@ export function createDialogueInterface(options = {}, trial = null) {
   const dialogueMode = trial ? 'real' : 'simulation'
   const courseSearch=options.guidedDraft&&options.courseSearchDirectory?createCourseSearch({directory:options.courseSearchDirectory,fetchImpl:options.courseSearchFetchImpl,reportingToken:options.reportingToken}):null
   const { publicOrigin, users, isSecureRequest, stateFile, loadProfileReferences, preview, timeoutMs = 10000 } = options
+  const participantIds=users.filter(u=>u.pilotTester===true).map(u=>u.id)
+  const participants=participantIds.length?createParticipantUsage({directory:options.participantDirectory,ids:participantIds,now:options.participantNow??Date.now,dialoguePerDay:options.participantLimits?.dialoguePerDay??10,researchPerDay:options.participantLimits?.researchPerDay??3}):null
+  const participantMeta=identity=>{const quota=participants?.status(identity.id);return quota?{participantQuota:quota}:{}}
   const pathwayMode = trial?.pathwaySession ? 'real' : 'simulation'
   const simulation = trial?.pathwaySession ?? createPilotSimulation({ stateFile, maxDailyRequests: 5, maxTotalRequests: 5, singleInstance: true, loadProfileReferences, preview })
   const resume = options.resumeDirectory ? createPrivateResumeStore(options.resumeDirectory) : null
@@ -101,7 +105,7 @@ export function createDialogueInterface(options = {}, trial = null) {
   }
   const gateway = createPilotPrivateHandler({ enabled: true, publicOrigin, session: simulation, users, isSecureRequest,
     maxAttempts: 100, windowMs: 60000,
-    beforePathway: async ({ identity, profile, referenceRevision }) => {
+    beforePathway: async ({ identity, profile, referenceRevision, requestId }) => {
       const value = await entry(identity), draft = value.session.getDraft()
       if(value.pathways.length>=20)fail('invalid_request')
       if(options.guidedDraft&&draft.requestMode!=='pathway')fail('invalid_request')
@@ -111,6 +115,7 @@ export function createDialogueInterface(options = {}, trial = null) {
       let submitted
       try { submitted = normalizePathwayProfile(profile, value.references) } catch { fail('invalid_profile') }
       if (PROFILE_FIELDS.some(k => (accepted[k] || '') !== (submitted[k] || ''))) fail('stale_profile')
+      participants?.reserve(identity.id,'pathway',requestId)
       return {modality:draft.modality,profile:accepted}
     },
     afterPathway: ({identity,profile,referenceRevision,result,confirmedContext}) => {
@@ -118,7 +123,7 @@ export function createDialogueInterface(options = {}, trial = null) {
       const value=sessions.get(identity.id)
       value.pathway=createMessagingSnapshot(confirmedContext.profile,result.mode==='real'?result.result:result.preview,referenceRevision,value.nextNumber++,confirmedContext.modality,result.mode)
       value.pathways.push(value.pathway)
-      return {...metadata,...memoryMeta(identity,value),resumeEnabled:Boolean(resume),resumeSaved:persist(identity,value),savedPathway:value.pathway,savedPathways:value.pathways}
+      return {...metadata,...participantMeta(identity),...memoryMeta(identity,value),resumeEnabled:Boolean(resume),resumeSaved:persist(identity,value),savedPathway:value.pathway,savedPathways:value.pathways}
     },
     serveResource: async (req, res, context) => {
       if(await emailHandler(req,res,context))return true
@@ -138,7 +143,7 @@ export function createDialogueInterface(options = {}, trial = null) {
         if (req.method === 'POST' && req.headers.origin !== publicOrigin) { send(res, 403, { error: 'Origine requise' }); return true }
         const value = await entry(context.identity), session = value.session
         currentEntry = value
-        if (req.method === 'GET') { send(res, 200, { mode: dialogueMode, pathwayMode,...memoryMeta(context.identity,value),...validationState(value), pathwayQuota: simulation.status(), resumeEnabled:Boolean(resume),resumeSaved:value.resumeSaved,savedPathway:value.pathway??null,savedPathways:value.pathways,draft: session.getDraft(), proposal: session.getProposal(), references: value.references, ...(trial ? { usageRecords: session.getUsage(), budget: trial.budgetStatus(), lastError: value.lastError ?? null } : {}) }); return true }
+        if (req.method === 'GET') { participants?.visit(context.identity.id);send(res, 200, { ...participantMeta(context.identity),mode: dialogueMode, pathwayMode,...memoryMeta(context.identity,value),...validationState(value), pathwayQuota: simulation.status(), resumeEnabled:Boolean(resume),resumeSaved:value.resumeSaved,savedPathway:value.pathway??null,savedPathways:value.pathways,draft: session.getDraft(), proposal: session.getProposal(), references: value.references, ...(trial ? { usageRecords: session.getUsage(), budget: trial.budgetStatus(), lastError: value.lastError ?? null } : {}) }); return true }
         if (req.headers['content-type']?.split(';')[0].trim() !== 'application/json') { send(res, 415, { error: 'JSON requis' }); return true }
         const chunks = []; let bytes = 0
         for await (const chunk of req) { bytes += chunk.length; if (bytes > 1024*1024+4096) { send(res, 413, { error: 'Requête trop volumineuse' }); return true } chunks.push(chunk) }
@@ -150,6 +155,7 @@ export function createDialogueInterface(options = {}, trial = null) {
         if(req.url==='/private/course-search'){
           if(value.session.getDraft().requestMode!=='search'||body.expectedRevision!==value.session.getDraft().revision||simulation.status().busy)fail('stale_profile')
           if(value.pathways.length>=20)fail('invalid_request')
+          if(body.confirmed!==true)fail('unconfirmed');participants?.reserve(context.identity.id,'search',body.requestId)
           const found=await courseSearch.search({...body,identity:context.identity.id,signal:context.signal})
           value.pathway=createMessagingSnapshot({objective:body.query.trim()},found,value.references.revision,value.nextNumber++,'','real')
           value.pathways.push(value.pathway)
@@ -177,7 +183,7 @@ export function createDialogueInterface(options = {}, trial = null) {
             if(body.courseCode!==undefined&&!['recommendedSteps','steps','optionalSteps','informationalCourses'].some(key=>(research.result[key]??[]).some(x=>x.course.code===body.courseCode)))fail('invalid_request');
             researchContext=createResearchContext(research,value.pathways,{courseCode:body.courseCode});
           }
-          if(options.guidedDraft&&session.getDraft().requestMode!=='pathway'&&!researchContext)fail('invalid_request');if(trial?.validation)fail('disabled');result = await session.turn({ ...body, researchContext, signal: context.signal }); value.lastError = null }
+          if(options.guidedDraft&&session.getDraft().requestMode!=='pathway'&&!researchContext)fail('invalid_request');if(trial?.validation)fail('disabled');participants?.reserve(context.identity.id,'dialogue',body.requestId);result = await session.turn({ ...body, researchContext, signal: context.signal }); value.lastError = null }
         else if(body.action==='load-case'&&trial?.validation){const c=trial.validation.load(body.caseId,value.references);result={draft:session.editProfile(c.profile,{expectedRevision:body.expectedRevision,modality:c.modality})}}
         else if(body.action==='request-mode'&&options.guidedDraft){
           let research
@@ -201,10 +207,10 @@ export function createDialogueInterface(options = {}, trial = null) {
         }
         else fail('invalid_request')
         if(['turn','request-mode','accept','edit','new-request','load-case','select-research','close-research'].includes(body.action))persist(context.identity,value)
-        if (!context.signal.aborted) send(res, 200, {...memoryMeta(context.identity,value),resumeEnabled:Boolean(resume),resumeSaved:value.resumeSaved, ...result, references:value.references, mode: dialogueMode, pathwayMode,...validationState(value), pathwayQuota: simulation.status(), ...(trial ? { usageRecords: session.getUsage(), budget: trial.budgetStatus() } : {}) })
+        if (!context.signal.aborted) send(res, 200, {...participantMeta(context.identity),...memoryMeta(context.identity,value),resumeEnabled:Boolean(resume),resumeSaved:value.resumeSaved, ...result, references:value.references, mode: dialogueMode, pathwayMode,...validationState(value), pathwayQuota: simulation.status(), ...(trial ? { usageRecords: session.getUsage(), budget: trial.budgetStatus() } : {}) })
       } catch (error) {
-        const code = error instanceof DialogueError || error.code==='resume_unavailable' ? error.code : 'service_unavailable'
-        const status = ['stale_profile', 'stale_proposal', 'proposal_pending', 'references_changed', 'busy', 'duplicate_request'].includes(code) ? 409 : ['quota_exceeded', 'budget_stopped'].includes(code) ? 429 : code === 'timeout' ? 504 : ['disabled','resume_unavailable'].includes(code) ? 503 : 400
+        const code = error instanceof DialogueError || ['resume_unavailable','participant_daily_limit','participant_storage'].includes(error.code) ? error.code : 'service_unavailable'
+        const status = ['stale_profile', 'stale_proposal', 'proposal_pending', 'references_changed', 'busy', 'duplicate_request'].includes(code) ? 409 : ['quota_exceeded', 'budget_stopped','participant_daily_limit'].includes(code) ? 429 : code === 'timeout' ? 504 : ['disabled','resume_unavailable'].includes(code) ? 503 : 400
         const diagnostic = { code, status,
           ...(code==='invalid_response'&&['format','change','modality','field','evidence'].includes(error.validation)?{validation:error.validation}:{}),
           ...(Number.isInteger(error.httpStatus) && error.httpStatus >= 100 && error.httpStatus <= 599 && ['count','generation'].includes(error.stage)
@@ -213,7 +219,7 @@ export function createDialogueInterface(options = {}, trial = null) {
         let usageRecords
         try { if (trial && currentEntry) usageRecords = currentEntry.session.getUsage() } catch {}
         if (!context.signal.aborted && !res.writableEnded) send(res, status, { code,
-          error: code==='resume_unavailable'?'Reprise privée indisponible. Données conservées ; aucune génération lancée.':'Dialogue non abouti. Profil conservé ; aucune relance automatique.', ...diagnostic,
+          error: code==='participant_daily_limit'?'Votre limite quotidienne de test est atteinte. Recherches conservées ; aucun nouvel appel lancé.':code==='resume_unavailable'?'Reprise privée indisponible. Données conservées ; aucune génération lancée.':'Dialogue non abouti. Profil conservé ; aucune relance automatique.', ...diagnostic,
           ...(trial ? { mode: dialogueMode, pathwayQuota: simulation.status(), budget: trial.budgetStatus(), ...(usageRecords ? { usageRecords } : {}) } : {}) })
       }
       return true

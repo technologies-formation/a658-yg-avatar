@@ -1,3 +1,4 @@
+import {completeRefinementProposal} from './refinement-proposal.mjs'
 import {GUIDED_QUESTIONS} from './guided-questions.mjs'
 // Préparation isolée : aucune route, écoute HTTP, clé, variable d’environnement ou destination.
 // Le chemin réel distinct exige une autorisation explicite ; aucun transport implicite.
@@ -53,7 +54,7 @@ export const FOLLOWUP_DIALOGUE_RULES = Object.freeze([
   'Vous pouvez expliquer, comparer, donner un avis prudent et rédiger un courriel complet prêt à relire. Réutilisez les précisions des messages précédents sans revenir au questionnaire.',
   'Les cours, codes, modalités, accès et disponibilités ne peuvent provenir que du résultat fourni. Ne promettez ni accès, ni inscription, ni disponibilité actuelle. Signalez les informations manquantes.',
   'Un courriel est un brouillon : ne prétendez jamais l’avoir envoyé. N’inventez ni nom, ni destinataire, ni engagement. Employez un emplacement à compléter si nécessaire.',
-  'Les précisions explicites peuvent devenir une proposition changes, avec citation exacte et identifiant du message utilisateur. Cette proposition attend une validation humaine : ne prétendez jamais avoir modifié les critères ou le parcours. Conservez les autres critères et le sujet initial. Une génération payante nécessite une confirmation distincte après acceptation.',
+  'Quand la personne demande de préciser ou mettre à jour Ma demande, proposez effectivement les changements étayés au lieu de seulement reformuler. Pour remplacer un filtre, identifiez ses dimensions : changer une entité organisatrice pour une offre exige le retrait explicite de l’entité et la sélection de l’offre ; montrez tous les champs modifiés. Les précisions explicites deviennent une proposition changes, avec citation exacte et identifiant du message utilisateur. Cette proposition attend une validation humaine : ne prétendez jamais avoir modifié les critères ou le parcours. Conservez les autres critères et le sujet initial. Une génération payante nécessite une confirmation distincte après acceptation.',
   'Répondez en 40 à 100 mots par défaut, avec paragraphes courts et une seule question utile. Ne répétez pas les réserves déjà expliquées, sauf si elles changent la décision. Un courriel demandé ou une explication détaillée peut être plus long. Écrivez chaque cours sur sa propre ligne avec son nom en gras ; aucune URL inventée.',
   'Un niveau est propre au domaine concerné. Je débute sur les cockpits ne renseigne pas le niveau Excel. Si le champ existant est simplement Je débute, rattachez-le au besoin initial et demandez séparément les acquis Excel uniquement si nécessaire.',
   'Les recherches précédentes fournies sont des comparaisons de périmètres, pas le résultat actuel. Si aucun cours ne correspond dans une offre ou entité sélectionnée, indiquez ce périmètre et proposez de retirer ou changer le filtre ; une ancienne piste reste à revérifier, sans nouvelle recherche automatique.',
@@ -254,7 +255,8 @@ function createSession(options, realTrial) {
           // Conserver l’usage vérifié même si le contrat métier rejette la réponse.
           usageRecords.push(copy({ requestId, ...usage }))
         }
-        const output = proposalValue(realTrial ? raw.result : raw)
+        let output = proposalValue(realTrial ? raw.result : raw)
+        if(researchContext)output=proposalValue(completeRefinementProposal({output,messages:history,profile,references:contract}))
         history.push({ role: 'assistant', id: 'reply-' + requestId, text: output.reply })
         pending = output.changes.length ? copy({ id: requestId, revision, changes: output.changes }) : null
         if(guidedDraft&&pending&&!researchContext){const next={...profile};for(const change of pending.changes){if(change.field==='modality')modality=change.value;else next[change.field]=change.value}profile=profileValue(next);revision++;pending=null}

@@ -73,7 +73,7 @@ export function createPrivatePathwayHandler({
         }
         if (stopped || controller.signal.aborted) return send(res, 503, { error: 'Service privé désactivé' })
         tickets.delete(body.requestId)
-        const confirmedContext = beforePathway ? await beforePathway({ identity, profile: body.profile, referenceRevision: ticket.revision, signal: controller.signal }) : null
+        const confirmedContext = beforePathway ? await beforePathway({ identity, profile: body.profile, requestId:body.requestId,referenceRevision: ticket.revision, signal: controller.signal }) : null
         const result = await session.buildPathway(body.profile, {
           confirmed: true, referenceRevision: ticket.revision, requestId: body.requestId, signal: controller.signal,
         })
@@ -81,7 +81,7 @@ export function createPrivatePathwayHandler({
         if (!controller.signal.aborted) send(res, 200, { ...result, ...saved })
       } catch (error) {
         const codes = { proposal_pending: 409, stale_profile: 409, references_changed: 409, invalid_profile: 400, busy: 409, duplicate_request: 409,
-          quota_exceeded: 429, disabled: 503, session_unavailable: 503, references_unavailable: 503, timeout: 504 }
+          participant_daily_limit:429,participant_storage:503,quota_exceeded: 429, disabled: 503, session_unavailable: 503, references_unavailable: 503, timeout: 504 }
         const status = codes[error.code] ?? 502
         if (!res.writableEnded && !controller.signal.aborted) send(res, status, {
           error: 'Demande non aboutie ; réponses conservées. Aucune relance automatique.',
