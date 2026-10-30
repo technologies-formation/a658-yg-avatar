@@ -223,6 +223,7 @@ test('quatre accès : quota individuel avant recherche IA, administrateur indép
  let searches=0;const json=v=>new Response(JSON.stringify(v),{headers:{'Content-Type':'application/json'}}),version={snapshotDate:'2026-10-29',snapshotHash:'c'.repeat(64)};
  const f=await fixture(t,{resume:true,guidedDraft:true,tester:true,courseSearchFetchImpl:async url=>{if(url.endsWith('/api/catalogue'))return json({catalogue:version,courses:[]});searches++;return json({ok:true,catalogue:version,results:[],recommendedResults:[],reason:'Aucun cours'});}});
  let state=(await f.request('/private/dialogue')).value;assert.equal(state.participantQuota.research,0);
+ assert.equal((await f.request('/private/dialogue',{body:{action:'accept-confidentiality',accepted:true,version:state.confidentiality.version}})).status,200);
  state=(await f.request('/private/dialogue',{body:{action:'request-mode',intent:'start',requestMode:'search',confirmed:true,expectedRevision:state.draft.revision}})).value;
  const search=()=>f.request('/private/course-search',{body:{query:'Cockpits',requestId:crypto.randomUUID(),confirmed:true,expectedRevision:state.draft.revision}});
  for(let i=0;i<3;i++)assert.equal((await search()).status,200);
@@ -230,3 +231,27 @@ test('quatre accès : quota individuel avant recherche IA, administrateur indép
  f.reopen();state=(await f.request('/private/dialogue')).value;assert.equal(state.participantQuota.research,3);assert.equal(state.savedPathways.length,3);
  const bob=(await f.request('/private/dialogue',{user:'bob'})).value;assert.equal(bob.participantQuota,undefined);assert.deepEqual(bob.savedPathways,[]);
 });
+
+
+test('confidentialité pilote : blocage serveur avant accord, origine, isolation, persistance et aucun quota consommé',async t=>{
+ let searches=0
+ const f=await fixture(t,{resume:true,guidedDraft:true,tester:true,courseSearchFetchImpl:async()=>{searches++;throw Error('Pas de réseau attendu')}})
+ let state=(await f.request('/private/dialogue')).value
+ assert.equal(state.confidentiality.required,true);assert.equal(state.confidentiality.accepted,false)
+ for(const body of [{action:'turn',message:'Besoin réel',paidTrialConfirmed:true,expectedRevision:state.draft.revision},{action:'edit',profile,modality:'Indifférent',expectedRevision:state.draft.revision},{action:'new-request',confirmed:true,expectedRevision:state.draft.revision}]){
+  const denied=await f.request('/private/dialogue',{body});assert.equal(denied.status,409);assert.equal(denied.value.code,'confidentiality_required')
+ }
+ for(const path of ['/private/course-search','/private/pathway','/private/research-email']){
+  const denied=await f.request(path,{body:{confirmed:true}});assert.equal(denied.status,409);assert.equal(denied.value.code,'confidentiality_required')
+ }
+ const accept={action:'accept-confidentiality',accepted:true,version:state.confidentiality.version}
+ assert.equal((await f.request('/private/dialogue',{body:accept,source:'https://other.invalid'})).status,403)
+ assert.equal((await f.request('/private/dialogue',{body:{...accept,accepted:false}})).status,409)
+ assert.equal((await f.request('/private/dialogue',{body:{...accept,version:'obsolete'}})).status,409)
+ const saved=await f.request('/private/dialogue',{body:accept});assert.equal(saved.status,200);assert.equal(saved.value.confidentiality.accepted,true)
+ assert.deepEqual(saved.value.draft,state.draft);assert.equal(saved.value.participantQuota.dialogue,0);assert.equal(saved.value.participantQuota.research,0);assert.equal(searches,0)
+ assert.equal((await f.request('/private/dialogue',{body:accept})).status,200)
+ f.reopen();state=(await f.request('/private/dialogue')).value;assert.equal(state.confidentiality.accepted,true)
+ const edited=await f.request('/private/dialogue',{body:{action:'edit',profile,modality:'Indifférent',expectedRevision:state.draft.revision}});assert.equal(edited.status,200)
+ const admin=(await f.request('/private/dialogue',{user:'bob'})).value;assert.equal(admin.confidentiality,undefined);assert.deepEqual(admin.draft.profile,{})
+})

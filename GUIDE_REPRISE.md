@@ -8,11 +8,11 @@
 | --- | --- |
 | Nom du jalon retenu | Assistant formation — référence avant pilote |
 | Tag Git publié et vérifié | `jalon-assistant-avant-pilote-2026-10-30` → `d45b45aace503dbd4ceed3494bcbf7275cb0580f` |
-| Assistant installé, confirmé par SSH | `13fd45b2f90b5a1d594a4ac54936fe7e7d8f2610` |
+| Assistant installé, confirmé par SSH | `daa6746a815a30a567ce2e70babf7518c3454178` ; suivi quotidien actualisé après le jalon |
 | Code applicatif de cette version | `802c5e8218557056ba60674de5056915333413ac` ; le descendant `13fd45b` ajoute de la documentation |
 | Branche de livraison Assistant | `fix/dialogue-course-relevance-2026-10-30` |
 | Lanceur utilisé | `experimental-service/hosted-private-pilot.mjs`, mode opérateur privé |
-| Accès du premier groupe | Quatre identifiants individuels préparés sur l'hébergement ; zéro compte testeur activé |
+| Accès du premier groupe | Quatre comptes activés et service redémarré ; connexion pilote-01 confirmée par l’opérateur, trois autres connexions à vérifier |
 | Publication anonyme | Non activée ; aucun accès public créé par le jalon |
 | Catalogue | Service séparé ; aucun changement de code Catalogue dans le lot quatre accès et dans cette mise à jour documentaire |
 
@@ -105,3 +105,14 @@ Les documents historiques décrivent leurs jalons datés et leurs lanceurs propr
 ## Évolution suivante du suivi quotidien
 
 Modification autorisée après le jalon : solde théorique à vérifier dans l’objet du courriel, estimation fondée sur les dépenses connues même si certains coûts manquent, avertissement explicite et lien direct vers le solde réel OpenAI. Voir [le suivi quotidien](experimental-service/SUIVI_QUOTIDIEN.md). Le tag avant pilote reste figé sur `d45b45a` ; ce correctif ultérieur doit être installé séparément. La valeur du nouveau repère reste dans la configuration privée, hors Git. Les quatre accès ne sont pas activés par ce lot.
+
+
+## Consigne de confidentialité pour les quatre testeurs
+
+Évolution autorisée : les testeurs décrivent leurs besoins réels de formation sans données confidentielles. À la prochaine installation de ce lot, chaque compte marqué `pilotTester` devra valider la consigne avant de commencer. Une fenêtre présente la consigne, les exemples à éviter et l’information de transmission à l’API OpenAI. La case « J’ai compris et je m’engage à respecter cette consigne » active le bouton « Commencer ». Échap ne ferme pas cette fenêtre ; l’utilisateur peut quitter le site sans accepter.
+
+L’accord est enregistré par empreinte de l’identité authentifiée dans le sous-dossier privé `participant-usage/confidentiality`, avec version de la consigne et date d’acceptation uniquement. Aucun contenu d’échange, nom ou mot de passe n’y est ajouté. Une réouverture ou un redémarrage conserve l’accord du compte ; les quatre accords restent indépendants. Les comptes opérateur non marqués testeurs ne reçoivent pas ce verrou.
+
+Le serveur refuse les modifications et les requêtes métier des testeurs avant accord, y compris depuis un ancien onglet. Accepter ne consomme aucun quota et ne lance ni IA, ni recherche, ni courriel. En cas d’erreur de stockage, les échanges restent bloqués. Les résultats et compteurs existants sont conservés. L’écran ne constitue pas un filtre automatique du contenu : l’utilisateur doit respecter la consigne.
+
+État de ce lot : 278 tests locaux réussis, régressions HTTP avec transports fictifs. Publication et contrôle navigateur du lot à confirmer avant installation. Aucun accord réel ni fichier privé n’est créé par la publication du code. Coût OpenAI API des tests : 0 token / 0 USD. Le suivi du budget pilote reste manuel.

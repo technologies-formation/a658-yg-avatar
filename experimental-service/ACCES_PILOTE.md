@@ -151,3 +151,10 @@ La préparation crée `pilote-01` à `pilote-04`, quatre mots de passe distincts
 La concurrence actuelle de l’authentification utilise au plus deux dérivations scrypt simultanées, avec huit empreintes de demandes en attente au maximum et coalescence des identifiants identiques. Elle remplace la limite historique d’une seule dérivation sans file. La limite de tentatives d’authentification, les refus de transport et les protections scrypt restent appliqués.
 
 Par testeur : dix messages IA et trois recherches/parcours combinés par jour Europe/Paris par défaut, réservations durables avant appel. Le mode opérateur sans plafond et son suivi restent distincts. Ces limites ne sont pas un plafond de dépense en USD. Voir le [guide actuel](../GUIDE_REPRISE.md) pour le jalon, la sauvegarde, la remise individuelle et les conditions avant activation.
+
+
+## Activation confirmée et consigne à installer
+
+L’opérateur a activé les quatre comptes, redémarré le service et confirmé le contrôle HTTPS puis la connexion de pilote-01. Le rapport privé constate les limites 10 messages IA et 3 recherches/parcours par jour et l’ouverture sans tentative IA consommée. Les trois autres connexions individuelles restent à vérifier. Les anciennes mentions « non activé » décrivent les étapes antérieures.
+
+Le lot suivant ajoute la validation obligatoire de la consigne de confidentialité par compte testeur avant les échanges. Il autorise les besoins réels de formation et remplace pour ces comptes l’ancienne demande de données uniquement fictives. L’accord persistant, séparé des quotas et protégé en 0600 dans un dossier 0700, est contrôlé côté serveur ; voir le guide actuel. L’installation de ce lot est distincte de l’activation des comptes déjà réalisée. Ne pas relancer la préparation ni réactiver le lot pour installer ce changement.
