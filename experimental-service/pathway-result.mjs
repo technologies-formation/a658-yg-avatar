@@ -41,6 +41,9 @@ export function validatePathwayResult(data) {
           !Number.isInteger(item.position) || item.position < 1 || !text(item.rationale)) {
         fail('invalid_response', 'Formation retournee non conforme')
       }
+      if(item.relevance!==undefined&&(!object(item.relevance)||!['direct','partial','support'].includes(item.relevance.level)||!text(item.relevance.reason)||item.relevance.reason.length>1000))fail('invalid_response','Appréciation de pertinence invalide')
+      if(item.course.catalogueOffers!==undefined&&(!Array.isArray(item.course.catalogueOffers)||item.course.catalogueOffers.length>100||item.course.catalogueOffers.some(x=>!text(x)||x.length>4000)))fail('invalid_response','Offre de formation invalide')
+      if(item.course.organizingEntity!=null&&(typeof item.course.organizingEntity!=='string'||item.course.organizingEntity.length>4000))fail('invalid_response','Entité organisatrice invalide')
       if (item.course.sourceUrl != null && !officialLink(item.course.sourceUrl)) {
         fail('invalid_response', 'Lien de formation non autorise')
       }

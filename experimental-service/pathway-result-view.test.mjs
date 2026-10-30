@@ -189,3 +189,14 @@ test('modalité explicitée dans le descriptif et temps de planification : aucun
   assert.match(content,/votre hiérarchie/)
   assert.deepEqual(value,before)
 })
+
+
+test('fiches : appréciation expliquée, offre et organisateur officiels, anciens résultats sans score inventé',()=>{
+ const value=data(),item=value.recommendedSteps[0];item.relevance={level:'partial',reason:'Le type de cockpit reste à préciser.'};item.course.catalogueOffers=['OPE'];item.course.organizingEntity='Centre officiel de test';
+ const before=structuredClone(value),rendered=text(renderPathwayResult(document,value));
+ for(const label of ['Correspondance partielle','Le type de cockpit reste à préciser.','Offre de formation','OPE','Entité organisatrice','Centre officiel de test'])assert.ok(rendered.includes(label));
+ assert.deepEqual(value,before);assert.doesNotMatch(rendered,/87 %/);
+ delete item.relevance;delete item.course.catalogueOffers;delete item.course.organizingEntity;
+ const old=text(renderPathwayResult(document,value));assert.match(old,/Correspondance à préciser/);assert.match(old,/Non renseignée/);
+ item.relevance={level:'direct',reason:''};assert.throws(()=>renderPathwayResult(document,value),e=>e.code==='invalid_response');
+});

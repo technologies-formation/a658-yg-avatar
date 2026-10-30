@@ -138,3 +138,19 @@ test('délai et annulation : aucune génération après un comptage tardif', asy
   await assert.rejects(p.respond(payload(2), { signal: cancel.signal }), code('cancelled'))
   assert.equal(f.budget.status().attempts, 1)
 })
+
+
+test('question guidée transmise au modèle réel et contexte de suivi distinct du questionnaire',async t=>{
+ const f=fixture(t),calls=[];
+ const p=provider(f.budget,async(url,init)=>{calls.push(JSON.parse(init.body));return json(url.endsWith('/input_tokens')?{object:'response.input_tokens',input_tokens:1000}:response())},{guidedDraft:true});
+ await p.respond({...payload(),questionField:'role'});
+ const input=JSON.parse(calls.at(-1).input[0].content);
+ assert.deepEqual(input.currentQuestion,{field:'role',text:'Quel est votre métier ou votre fonction ?'});
+ calls.length=0;
+ await p.respond({...payload(2),researchContext:{number:1,summary:'Cockpit RH',profile:{objective:'Cockpits'}}});
+ const body=calls.at(-1),context=JSON.parse(body.input[0].content);
+ assert.equal(context.researchContext.summary,'Cockpit RH');assert.equal(context.currentQuestion,undefined);
+ assert.match(body.instructions,/rédiger un courriel complet/);assert.match(body.instructions,/changes doit rester vide/);
+ assert.doesNotMatch(body.instructions,/Ne fournissez ni cours/);
+ await assert.rejects(p.respond({...payload(3),questionField:'inventé'}),code('invalid_request'));
+});

@@ -64,14 +64,20 @@ export function renderPathwayResult(document, data, { replay = false, preferredM
       add(identity, 'span', item.course.code).className = 'course-code'
       add(identity, 'h4', item.course.title)
       if (!data.searchQuery && label !== 'Étapes recommandées') add(identity, 'span', label === 'Pour information' ? 'Pour information · accès à vérifier' : 'Piste facultative').className = 'course-category'
+      const fit=add(body,'section','');fit.className='course-relevance '+(item.relevance?.level??'unrated');fit.setAttribute('aria-label','Correspondance au besoin');
+      const fitLabels={direct:'Correspondance forte',partial:'Correspondance partielle',support:'Complément utile'};
+      add(fit,'strong',fitLabels[item.relevance?.level]??'Correspondance à préciser');
+      add(fit,'p',item.relevance?.reason??'Cette recherche ne comporte pas encore d’appréciation détaillée. Comparez le contenu du cours à votre objectif avec l’assistant.');
+      const origins=add(body,'dl','');origins.className='course-origins';
+      for(const [label,value]of [['Offre de formation',item.course.catalogueOffers?.join(' ; ')||'Non renseignée'],['Entité organisatrice',item.course.organizingEntity||'Non renseignée']]){const group=add(origins,'div','');add(group,'dt',label);add(group,'dd',value);}
       const metadata = add(body, 'div', ''); metadata.className = 'course-metadata'
       add(metadata, 'span', presentation.duration === 'Non renseignée' ? 'Durée non renseignée' : 'Durée : ' + presentation.duration)
       if (item.course.public) add(metadata, 'span', 'Public : ' + item.course.public)
       add(metadata, 'span', presentation.modality)
       const footer = add(body, 'div', ''); footer.className = 'course-footer'
       if(!data.searchQuery||item.rationale!==SEARCH_RESULT_NOTE){
-      const rationale = add(footer, 'div', ''); rationale.className = 'course-rationale'
-      add(rationale, 'strong', 'Pourquoi ce cours ?')
+      const rationale = add(footer, 'details', ''); rationale.className = 'course-rationale'
+      add(rationale, 'summary', 'Pourquoi ce cours ?')
       add(rationale, 'p', item.rationale)
       }
       const actions = add(footer, 'div', ''); actions.className = 'course-actions'
@@ -116,6 +122,7 @@ export function renderPathwayResult(document, data, { replay = false, preferredM
       add(root, 'p', 'Exemple fictif : les durées des cours ne sont pas comparées à votre temps disponible. Consultez le profil confirmé pour retrouver votre disponibilité.')
     } else {
       const duration = data.durationSummary
+      if(duration.budgetHours!=null)add(root,'p','Convention de calcul : 1 jour = 8 heures ; 1 demi-journée = 4 heures.').className='source-note'
       const metrics = add(root, 'div', '')
       metrics.className = 'duration-metrics'
       const metric = (label, value, tone = 'neutral') => {
@@ -136,7 +143,7 @@ export function renderPathwayResult(document, data, { replay = false, preferredM
           warning.className = 'duration-notice warning'
         } else if (duration.withinBudget === true && duration.durationsKnown === true && duration.verified === true && duration.budgetVerified === true) {
           metric('Dépassement', 'Aucun', 'success')
-          const notice = add(root, 'p', 'Le parcours respecte votre temps disponible.')
+          const notice = add(root, 'p', 'Le parcours respecte votre temps disponible. Les compléments et alternatives ne sont pas compris dans cette durée.')
           notice.className = 'duration-notice success'
         }
       }

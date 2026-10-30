@@ -1,7 +1,7 @@
 name: Avatar browser simulation
 on:
   push:
-    branches: ['feat/avatar-interactive-local', 'feat/avatar-messaging-simulation', 'feat/assistant-recherche-parcours-v2']
+    branches: ['feat/avatar-interactive-local', 'feat/avatar-messaging-simulation', 'feat/assistant-recherche-parcours-v2', 'fix/dialogue-course-relevance-2026-10-30']
     paths:
       - 'index.html'
       - 'experimental-service/**'

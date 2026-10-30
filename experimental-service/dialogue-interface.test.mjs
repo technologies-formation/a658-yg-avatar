@@ -12,12 +12,12 @@ import { data } from './result-test-fixtures.mjs'
 const origin = 'https://dialogue-test.invalid'
 const r = references()
 const profile = { personnelCategory: 'TEST-A', role: 'Assistant', objective: 'Organiser les tâches de test', existingSkills: 'Je débute', timeAvailable: '1 à 2 jours' }
-async function fixture(t,{resume=false,mail=null,deviceMemoryEnabled=false,deviceMemoryNow=Date.now,loadCatalogueStatus,guidedDraft=false,courseSearchFetchImpl}={}) {
+async function fixture(t,{resume=false,mail=null,deviceMemoryEnabled=false,deviceMemoryNow=Date.now,loadCatalogueStatus,guidedDraft=false,courseSearchFetchImpl,dialogueFetchImpl}={}) {
  const dir = mkdtempSync(join(tmpdir(),'avatar-dialogue-interface-')), password = 'TEST_LOCAL_PASSWORD_ONLY'
  const users = await Promise.all(['alice','bob'].map(id=>createPilotCredential({id,username:id,password})))
  const options = { guidedDraft,courseSearchDirectory:guidedDraft?join(dir,'search'):undefined,courseSearchFetchImpl,mail, loadCatalogueStatus, deviceMemoryEnabled,deviceMemoryNow, enabled:true, publicOrigin:origin, users, stateFile:join(dir,'quotas.json'),
   isSecureRequest:req=>req.headers['x-test-secure']==='true', loadProfileReferences:()=>r, preview:data(),...(resume?{resumeDirectory:join(dir,'resume')}:{}) };
- const make=()=>{if(!guidedDraft)return createDialogueSimulationInterface(options);mkdirSync(join(dir,'budget'),{recursive:true,mode:0o700});return createRealDialogueTrialInterface({...options,paidTrialAuthorized:true,apiKey:'FAKE_TEST_KEY_ONLY',budgetDirectory:join(dir,'budget'),fetchImpl:()=>{throw Error('Aucun appel dialogue attendu')}})};let service=make()
+ const make=()=>{if(!guidedDraft)return createDialogueSimulationInterface(options);mkdirSync(join(dir,'budget'),{recursive:true,mode:0o700});return createRealDialogueTrialInterface({...options,paidTrialAuthorized:true,apiKey:'FAKE_TEST_KEY_ONLY',budgetDirectory:join(dir,'budget'),fetchImpl:dialogueFetchImpl??(()=>{throw Error('Aucun appel dialogue attendu')})})};let service=make()
  const server = http.createServer((req,res)=>service.handler(req,res));await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve))
  t.after(async()=>{service.close();server.closeAllConnections();await new Promise(resolve=>server.close(resolve));rmSync(dir,{recursive:true,force:true})})
  const request = (path,{body,user='alice',auth=true,source=origin,secure=true,raw}={})=>new Promise((resolve,reject)=>{
@@ -199,4 +199,20 @@ test('recherche vers parcours : objectif conservé, nouvelle recherche vide et a
  assert.deepEqual(state.draft.profile,{});assert.equal(state.savedPathway,null);assert.equal(state.savedPathways.length,1);assert.equal(calls,1);
  state=(await mode({requestMode:'pathway',fromResearch:number,expectedRevision:state.draft.revision})).value;
  assert.deepEqual(state.draft.profile,{objective:'Cockpit'});assert.equal(calls,1);
+});
+
+
+test('suivi HTTP : contexte issu des archives du compte, courriel sans retour au questionnaire ni recherche',async t=>{
+ let paid=0,dialogue=0;const json=v=>new Response(JSON.stringify(v),{headers:{'Content-Type':'application/json'}}),version={snapshotDate:'2026-10-29',snapshotHash:'b'.repeat(64)};
+ const f=await fixture(t,{resume:true,guidedDraft:true,courseSearchFetchImpl:async url=>{if(url.endsWith('/api/catalogue'))return json({catalogue:version,courses:[{code:'TRT450',sourceUrl:'https://outils.ge.ch/referentiel/formation/CatalogueDescription/TRT450.html',catalogueOffers:['OPE'],organizingEntity:'Centre officiel',officialData:{titleRaw:'Cockpit RH'}}]});paid++;return json({ok:true,catalogue:version,results:[{code:'TRT450'}],recommendedResults:[{code:'TRT450',relevance:{level:'partial',reason:'Cockpit à préciser'}}],reason:'Un cours Cockpit'});},dialogueFetchImpl:async(url,init)=>{
+ if(url.endsWith('/input_tokens'))return json({object:'response.input_tokens',input_tokens:1000});dialogue++;const body=JSON.parse(init.body),input=JSON.parse(body.input[0].content);
+ assert.equal(input.researchContext.recommendedSteps[0].code,'TRT450');assert.equal(input.researchContext.recommendedSteps[0].organizingEntity,'Centre officiel');assert.equal(input.researchContext.summary,'Un cours Cockpit');assert.equal(input.currentQuestion,undefined);assert.match(body.instructions,/courriel complet/);
+ return json({status:'completed',model:'gpt-6-luna',usage:{input_tokens:1000,output_tokens:100},output:[{type:'message',role:'assistant',content:[{type:'output_text',text:JSON.stringify({kind:'recap',reply:'Objet : demande de formation Cockpit RH pour mes objectifs EEDP',changes:[]})}]}]});}});
+ let state=(await f.request('/private/dialogue',{body:{action:'request-mode',requestMode:'search',intent:'start',confirmed:true,expectedRevision:0}})).value;
+ const search=await f.request('/private/course-search',{body:{query:'Cockpits',confirmed:true,requestId:crypto.randomUUID(),expectedRevision:state.draft.revision}});assert.equal(search.status,200);const number=search.value.savedPathway.number;
+ assert.deepEqual(search.value.savedPathway.result.recommendedSteps[0].course.catalogueOffers,['OPE']);assert.equal(search.value.savedPathway.result.recommendedSteps[0].relevance.level,'partial');
+ const turn={action:'turn',requestId:crypto.randomUUID(),message:'Rédigez un mail pour mon EEDP',paidTrialConfirmed:true,researchNumber:number,expectedRevision:state.draft.revision,referenceRevision:r.revision,researchContext:{summary:'FAUX contexte injecté'}};
+ const reply=await f.request('/private/dialogue',{body:turn});assert.equal(reply.status,200,JSON.stringify(reply.value));assert.match(reply.value.reply,/Objet/);assert.deepEqual(reply.value.draft.profile,{});assert.equal(paid,1);assert.equal(dialogue,1);assert.equal(f.service.status().total,0);
+ const other=await f.request('/private/dialogue',{user:'bob',body:{...turn,requestId:crypto.randomUUID(),expectedRevision:0}});assert.equal(other.status,400);assert.equal(dialogue,1);
+ const missing=await f.request('/private/dialogue',{body:{...turn,requestId:crypto.randomUUID(),researchNumber:999}});assert.equal(missing.status,400);assert.equal(dialogue,1);
 });

@@ -17,3 +17,14 @@ export function nextGuidedField(profile,modality,{skipped=[],clarifyObjective=fa
  }
  return null
 }
+
+// Réponses explicites conservées mot pour mot, sans interprétation de niveau ou de statut.
+// Les questions et demandes d'aide restent confiées au dialogue.
+export function directGuidedAnswer(field,text) {
+ const value=String(text).trim();
+ if(!value||/[?\n]/u.test(value)||/^(?:pourquoi|comment|quel|quelle|quels|quelles|est.ce|peux|pouvez|aide|je (?:voudrais|souhaite|veux|ne sais)|j['’]aimerais)\b/iu.test(value))return null;
+ if(field==='role'&&/^[\p{L}\p{N} '’().-]{1,60}$/u.test(value))return value;
+ if(field==='existingSkills'&&/^(?:je (?:n['’]ai jamais|n['’]utilise jamais|débute|debute)|aucune expérience|jamais utilis)/iu.test(value))return value;
+ if(field==='timeAvailable'&&/^(?:j['’]ai\s+|je dispose de\s+)?\d+(?:[,.]\d+)?\s*(?:heures?|jours?|demi.journées?)\b/iu.test(value))return value;
+ return null;
+}

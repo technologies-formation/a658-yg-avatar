@@ -110,3 +110,22 @@ test('responsabilité libre ambiguë : pas de faux statut, brouillon conservé e
  await assert.rejects(session.turn({message:'Chef',questionField:'champ-invente',requestId:'invalid-question-0001',expectedRevision:0,referenceRevision:contract.revision}),e=>e.code==='invalid_request');
  assert.equal(session.status().attemptedTurns,1);
 });
+
+
+test('réponses libres explicites : conservation littérale sans IA, questions préservées',async()=>{
+ const {directGuidedAnswer}=await import('./guided-questions.mjs');
+ for(const [field,text]of [['role','chef'],['existingSkills',"je n'ai jamais utiliser ces cockpits"],['timeAvailable',"j'ai 10 jours"]])assert.equal(directGuidedAnswer(field,text),text);
+ for(const text of ['Comment répondre ?','Je ne sais pas','Pouvez-vous m’aider ?','Pourquoi cette question'])assert.equal(directGuidedAnswer('role',text),null);
+ assert.equal(directGuidedAnswer('managerStatus','chef'),null);
+});
+
+test('suivi du résultat : réponse sans modification du profil ni génération, refus des changements implicites',async()=>{
+ const contract=refs(),initialProfile={role:'Chef',objective:'Cockpits'};let calls=0;
+ const session=createDialogueSession({enabled:true,guidedDraft:true,references:contract,initialProfile,maxTurns:10,timeoutMs:1000,provider:{mode:'simulation',async respond(p){
+  calls++;assert.match(p.rules.join(' '),/rédiger un courriel complet/);assert.equal(p.researchContext.number,1);
+  const m=p.messages.at(-1);return {kind:'recap',reply:'Objet : demande de formation Cockpit RH',changes:calls===1?[]:[{field:'objective',value:'Changer de sujet',evidence:[{messageId:m.id,quote:m.text}]}]};
+ }}});
+ const request={message:'Aidez-moi à rédiger un mail pour mon EEDP',expectedRevision:0,referenceRevision:contract.revision,researchContext:{number:1,summary:'Cockpit RH'}};
+ const result=await session.turn({...request,requestId:'followup-mail-00001'});assert.match(result.reply,/Objet/);assert.deepEqual(result.draft.profile,initialProfile);
+ await assert.rejects(session.turn({...request,requestId:'followup-mail-00002'}),e=>e.code==='invalid_response');assert.deepEqual(session.getDraft().profile,initialProfile);
+});
