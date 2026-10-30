@@ -150,3 +150,12 @@ Correction du défaut constaté lors des essais : lorsqu'une demande explicite d
 6. Validation du jalon stable, repère Git documenté, puis seulement activation des comptes et transmission individuelle des accès. L'accès par mail reste une piste ultérieure, non développée ni activée.
 
 État de cette section : préparation et contrôles locaux ; le jalon de production n'est pas encore validé et les quatre accès réels ne sont pas encore créés ni activés. Coût OpenAI API des tests automatisés : 0 token / 0 $.
+
+
+### Contrôles du lot quatre accès — version publiée
+
+Code publié : `802c5e8218557056ba60674de5056915333413ac`, branche existante `fix/dialogue-course-relevance-2026-10-30`. Validation : 273 tests locaux réussis, scénario DOM/HTTP authentifié réussi, contrôles GitHub Linux/Windows réussis (run 41055416903), suite navigateur ordinateur/mobile réussie (run 41055417164). Les captures de proposition et du récapitulatif mobile ont été examinées. Les tests de quatre comptes, de non-activation, de concurrence et de quota sont des tests automatisés à identités fictives ; aucun testeur réel ni compte réel n'a encore été créé sur l'hébergement. Les essais sur l'IA réelle restent distincts de ces régressions simulées. Coût OpenAI API de ces vérifications : 0 token / 0 $.
+
+L'installation et la préparation privée restent à effectuer. Ne pas lancer `--activate` avant la validation du jalon. Après préparation, conserver aussi une copie protégée du dossier privé `a658-quatre-acces-*` indiqué par la commande : il contient les fiches d'accès et les versions avant/après des comptes. Ce dossier ne doit pas entrer dans Git ou le document de reprise. Tant que les quatre comptes sont inactifs, un retour au code précédent ne modifie pas les accès. Après activation, un retour à un ancien code dépourvu des quotas testeurs exige de retirer préalablement leurs accès et de préserver tous les journaux et recherches ; ne pas restaurer aveuglément un ancien fichier de comptes si d'autres comptes ont évolué.
+
+Le budget monétaire global du groupe et le seuil d'arrêt à retenir doivent être confirmés au jalon : les quotas 10 messages / 3 recherches-parcours par personne et par jour ne garantissent pas une enveloppe en USD. La documentation de reprise technique est à jour dans le dépôt ; le document autonome personnel de l'utilisateur doit encore être fourni puis actualisé avec l'état de production vérifié. Le jalon avant pilote n'est donc pas encore déclaré achevé.
