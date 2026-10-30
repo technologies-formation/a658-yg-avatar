@@ -19,10 +19,10 @@ test('récapitulatif : quinze jours, mois précédents, solde théorique et crit
  const mail=renderDailyReport(model);assert.match(mail.subject,/OpenAI.*≤ 2/);assert.match(mail.text,/Modifier le destinataire/);assert.match(mail.html,/recipient/);const late={...c,startedAt:'2026-10-24T07:00:00.000Z',rows:[]},lateAssistant={...a,startedAt:late.startedAt};const partial=createDailyReportModel({catalogue:late,assistant:lateAssistant,baseline,now:new Date(now())});assert.equal(partial.days.at(-1).available,false);assert.match(renderDailyReport(partial).text,/Non collecté/);assert.match(mail.text,/solde OpenAI reste la référence/)
  assert.doesNotMatch(mail.html,/NaN|undefined/)
 })
-test('récapitulatif : coût inconnu ou repère antérieur interdit un faux solde rassurant',t=>{
+test('récapitulatif : coût inconnu conserve un ordre de grandeur explicitement incomplet',t=>{
  const {catalogue,assistant}=sources(t);catalogue.begin('catalogue','search')
  const c=catalogue.snapshot({since:baseline.at}),a=assistant.snapshot({since:baseline.at});c.unknown=1;c.observedAt=a.observedAt='2026-10-26T07:00:00.000Z'
- const model=createDailyReportModel({catalogue:c,assistant:a,baseline,now:new Date(now())});assert.equal(model.balanceMicroUsd,null);assert.match(renderDailyReport(model).text,/Solde non calculable/)
+ const model=createDailyReportModel({catalogue:c,assistant:a,baseline,now:new Date(now())});assert.equal(model.balanceMicroUsd,9160000);assert.equal(model.incomplete,true);const mail=renderDailyReport(model);assert.match(mail.subject,/Solde théorique \(à vérifier\) : 9,16 \$.*coûts incomplets/);assert.match(mail.text,/peut surestimer/);assert.match(mail.text,/1 tentative\(s\) ont un coût inconnu/)
  a.rows=[{...c.rows[0],app:'assistant',action:'pathway'}];assert.throws(()=>createDailyReportModel({catalogue:c,assistant:a,baseline,now:new Date(now())}))
 })
 test('récapitulatif : un seul envoi même après redémarrage, jours manqués sans rafale, aucune IA',async t=>{
@@ -49,4 +49,35 @@ test('récapitulatif : 08 h Paris, changement d’heure et absence de rattrapage
  current=Date.parse('2026-10-25T07:00:00Z');await w.tick();assert.equal(sends,2)
  current=Date.parse('2026-10-29T12:00:00Z');await w.tick();assert.equal(sends,3)
  await w.tick();assert.equal(sends,3)
+})
+
+
+test('récapitulatif : solde dans objet et lien en tête, collecte partielle, repère futur et solde négatif',t=>{
+ const {catalogue,assistant}=sources(t)
+ const repere={at:'2026-10-24T08:00:00.000Z',balanceMicroUsd:7430000}
+ const c=catalogue.snapshot({since:repere.at}),a=assistant.snapshot({since:repere.at})
+ c.observedAt=a.observedAt='2026-10-26T07:00:00.000Z'
+ const build=()=>createDailyReportModel({catalogue:c,assistant:a,baseline:repere,now:new Date(now())})
+ let model=build(),mail=renderDailyReport(model)
+ assert.equal(mail.subject,'A658-YG · Suivi OpenAI · Solde théorique (à vérifier) : 7,43 $')
+ assert.ok(mail.text.indexOf('Vérifier mon solde réel OpenAI : https://platform.openai.com/settings/organization/billing/overview')<mail.text.indexOf('Hier :'))
+ assert.match(mail.html,/<a href="https:\/\/platform.openai.com\/settings\/organization\/billing\/overview">Vérifier mon solde réel OpenAI<\/a>/)
+ c.startedAt='2026-10-25T07:00:00.000Z';c.knownMicroUsd=100000
+ model=build();assert.equal(model.balanceMicroUsd,7330000);assert.equal(model.incomplete,true)
+ mail=renderDailyReport(model);assert.match(mail.text,/collecte ne couvre pas toute la période/);assert.match(mail.subject,/7,33 \$.*coûts incomplets/)
+ c.startedAt='2026-09-01T07:00:00.000Z';c.observedAt=a.observedAt='2026-10-24T07:00:00.000Z'
+ model=build();assert.equal(model.balanceMicroUsd,null);assert.match(model.subject,/indisponible/);assert.doesNotMatch(model.subject,/7,43/)
+ c.observedAt=a.observedAt='2026-10-26T07:00:00.000Z';c.knownMicroUsd=9000000
+ model=build();assert.equal(model.balanceMicroUsd,-1570000);assert.equal(model.low,true);assert.match(model.subject,/-1,57 \$.*seuil ≤ 2/)
+})
+
+test('récapitulatif : nouveau repère exclut les anciennes tentatives inconnues sans effacer le journal',t=>{
+ const {root}=sources(t);let instant=Date.parse('2026-10-24T07:00:00Z')
+ const c=createConsumptionLedger({directory:join(root,'rebased-c'),now:()=>instant})
+ const a=createConsumptionLedger({directory:join(root,'rebased-a'),now:()=>instant})
+ c.begin('catalogue','search')
+ instant=Date.parse('2026-10-24T09:00:00Z')
+ const model=createDailyReportModel({catalogue:c.snapshot({since:baseline.at}),assistant:a.snapshot({since:baseline.at}),baseline,now:new Date(now())})
+ assert.equal(model.unknown,0);assert.equal(model.balanceMicroUsd,9160000);assert.equal(model.incomplete,false)
+ assert.equal(c.snapshot().unknown,1)
 })

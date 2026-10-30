@@ -100,3 +100,8 @@ Le nom est retenu et le contrôle fonctionnel ciblé est validé. Cela ne signif
 | [Catalogue : guide technique](https://github.com/technologies-formation/catalogue-formations/blob/fix/course-relevance-2026-10-30/GUIDE_REPRISE.md) | Service séparé et références Catalogue |
 
 Les documents historiques décrivent leurs jalons datés et leurs lanceurs propres. Un ancien statut « non déployé » ou un ancien quota n'est pas l'état courant du mode opérateur. En cas de reprise sans conversation, partir de ce guide, vérifier le commit réellement installé et l'état privé avant toute modification.
+
+
+## Évolution suivante du suivi quotidien
+
+Modification autorisée après le jalon : solde théorique à vérifier dans l’objet du courriel, estimation fondée sur les dépenses connues même si certains coûts manquent, avertissement explicite et lien direct vers le solde réel OpenAI. Voir [le suivi quotidien](experimental-service/SUIVI_QUOTIDIEN.md). Le tag avant pilote reste figé sur `d45b45a` ; ce correctif ultérieur doit être installé séparément. La valeur du nouveau repère reste dans la configuration privée, hors Git. Les quatre accès ne sont pas activés par ce lot.

@@ -54,7 +54,7 @@ export function createDailyReporter({config,mail,consumption,fetchImpl,now=Date.
      message=renderDailyReport(createDailyReportModel({catalogue,assistant,baseline:config.baseline,now:instant,thresholdMicroUsd:config.thresholdMicroUsd,configurationFile:config.configurationFile}))
     }finally{clearTimeout(timeout)}
    }catch{
-    message={subject:'A658-YG · Suivi quotidien OpenAI — relevé indisponible',text:'Le relevé de consommation n’a pas pu être établi. Aucun solde théorique fiable ne peut être annoncé. Vérifiez le solde réel : '+BILLING_URL+'. Aucun nouvel appel IA n’a été lancé pour ce suivi.\n\n'+reportRecipientInstructions(config.configurationFile),html:'<p>Le relevé de consommation est indisponible. Aucun solde théorique ne peut être annoncé.</p><p><a href="'+BILLING_URL+'">Vérifier le solde réel OpenAI</a></p><p>'+reportRecipientInstructions('le fichier privé daily-report/config.json')+'</p>'}
+    message={subject:'A658-YG · Suivi OpenAI · Solde théorique (à vérifier) : indisponible',text:'Le relevé de consommation n’a pas pu être établi. Aucun solde théorique fiable ne peut être annoncé. Vérifiez le solde réel : '+BILLING_URL+'. Aucun nouvel appel IA n’a été lancé pour ce suivi.\n\n'+reportRecipientInstructions(config.configurationFile),html:'<p>Le relevé de consommation est indisponible. Aucun solde théorique ne peut être annoncé.</p><p><a href="'+BILLING_URL+'">Vérifier le solde réel OpenAI</a></p><p>'+reportRecipientInstructions('le fichier privé daily-report/config.json')+'</p>'}
    }
    const result=await mail.sendReport({recipient:config.recipient,...message})
    if(result?.accepted!==true)throw Error('Prise en charge non confirmée')
