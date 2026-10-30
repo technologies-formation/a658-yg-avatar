@@ -200,3 +200,8 @@ test('fiches : appréciation expliquée, offre et organisateur officiels, ancien
  const old=text(renderPathwayResult(document,value));assert.match(old,/Correspondance à préciser/);assert.match(old,/Non renseignée/);
  item.relevance={level:'direct',reason:''};assert.throws(()=>renderPathwayResult(document,value),e=>e.code==='invalid_response');
 });
+
+
+test('absence de résultat : nommer le périmètre choisi et proposer de le modifier sans élargissement automatique',()=>{
+ const value={ok:true,summary:'Aucune correspondance',recommendedSteps:[],abstain:true};const rendered=text(renderPathwayResult(document,value,{trainingOrganizers:'DIP-SEM / Secteur Formation'}));assert.match(rendered,/Aucun cours adapté dans le périmètre sélectionné : DIP-SEM/);assert.match(rendered,/modifier ou retirer ces critères/);assert.deepEqual(value.recommendedSteps,[])
+});

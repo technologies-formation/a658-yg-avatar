@@ -1,3 +1,4 @@
+import {createResearchContext} from './research-context.mjs'
 import {createCourseSearch} from './course-search.mjs'
 import {readCatalogueVersion} from './catalogue-version.mjs'
 import {createDeviceMemory} from './device-memory.mjs'
@@ -174,9 +175,7 @@ export function createDialogueInterface(options = {}, trial = null) {
             if(!options.guidedDraft||!Number.isSafeInteger(body.researchNumber))fail('invalid_request');
             const research=value.pathways.find(p=>p.number===body.researchNumber);if(!research)fail('invalid_request');
             if(body.courseCode!==undefined&&!['recommendedSteps','steps','optionalSteps','informationalCourses'].some(key=>(research.result[key]??[]).some(x=>x.course.code===body.courseCode)))fail('invalid_request');
-            const trim=x=>typeof x==='string'?x.slice(0,800):'';
-            const items=key=>(research.result[key]??[]).slice(0,12).map(x=>({code:x.course.code,title:trim(x.course.title),rationale:trim(x.rationale),duration:trim(x.course.duration),public:trim(x.course.public),catalogueOffers:x.course.catalogueOffers,organizingEntity:trim(x.course.organizingEntity),deliveryMode:x.course.deliveryMode,relevance:x.relevance}));
-            researchContext={number:research.number,...(body.courseCode?{selectedCourse:body.courseCode}:{}),profile:research.profile,modality:research.modality,summary:trim(research.result.summary),gaps:(research.result.gaps??[]).map(trim),recommendedSteps:items('recommendedSteps'),optionalSteps:items('optionalSteps'),informationalCourses:items('informationalCourses')};
+            researchContext=createResearchContext(research,value.pathways,{courseCode:body.courseCode});
           }
           if(options.guidedDraft&&session.getDraft().requestMode!=='pathway'&&!researchContext)fail('invalid_request');if(trial?.validation)fail('disabled');result = await session.turn({ ...body, researchContext, signal: context.signal }); value.lastError = null }
         else if(body.action==='load-case'&&trial?.validation){const c=trial.validation.load(body.caseId,value.references);result={draft:session.editProfile(c.profile,{expectedRevision:body.expectedRevision,modality:c.modality})}}

@@ -171,3 +171,18 @@ test('diagnostic borné : ne crée aucune confiance pour un pair refusé', async
   assert.equal((await send('/_avatar_proxy_proof/unknown')).status, 404)
   assert.deepEqual(logs, ['Contrôle HTTPS automatique réussi.'])
 })
+
+test('renouvellement borné : attente partagée avant une seule exécution métier, aucune confiance sans preuve',async()=>{
+ let gate,clock=10000,calls=0,waits=0,currentPeer='192.0.2.10'
+ gate=createProxyAttestation({publicOrigin:origin,now:()=>clock,waitForRefresh:async ms=>{waits++;clock+=ms;currentPeer='192.0.2.11'},requestProbe:async(_origin,path)=>{calls++;const r=response();gate.handleProof(request(currentPeer,'https','proof.invalid',path),r);return r.text}})
+ const targets=Array.from({length:12},()=>request('192.0.2.11'))
+ assert.deepEqual(await Promise.all(targets.map(req=>gate.ensure(req,{waitForRenewal:true}))),Array(12).fill(true));assert.equal(waits,1);assert.equal(calls,12)
+ assert.equal(gate.secure(request('192.0.2.99')),false);assert.equal(await gate.ensure(request('192.0.2.11','http'),{waitForRenewal:true}),false)
+ gate.stop()
+})
+
+test('lot concurrent : la seconde vague tient compte des autres pairs en attente',async()=>{
+ let gate,calls=0,release;const blocker=new Promise(resolve=>release=resolve)
+ gate=createProxyAttestation({publicOrigin:origin,requestProbe:async(_origin,path)=>{const n=++calls;if(n<=4)await blocker;const r=response();gate.handleProof(request(n<=4?'192.0.2.10':'192.0.2.11','https','proof.invalid',path),r);return r.text}})
+ const first=gate.ensure(request('192.0.2.10')),second=gate.ensure(request('192.0.2.11'));release();assert.deepEqual(await Promise.all([first,second]),[true,true]);assert.equal(calls,8);gate.stop()
+})

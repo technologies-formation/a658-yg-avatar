@@ -28,6 +28,7 @@ export function createHostedTransport({ enabled = false, publicOrigin, trustedPr
   // Verrou exclusif : un deuxième processus ne peut pas contourner le quota.
   const lock = stateFile + '.lock'
   mkdirSync(lock, { mode: 0o700 })
+  let renewalTimer=null
   let gateway, server, released = false
   const release = () => { if (!released) { rmdirSync(lock); released = true } }
   try {
@@ -44,7 +45,7 @@ export function createHostedTransport({ enabled = false, publicOrigin, trustedPr
     server = http.createServer((req, res) => {
       if (attestation?.handleProof(req, res)) return
       const handle = async () => {
-        if (attestation) await attestation.ensure(req)
+        if (attestation) await attestation.ensure(req,{waitForRenewal:true})
         // Rejeter avant même le challenge Basic si le transport n'est pas attesté.
         if (!secure(req)) {
           // Diagnostic borné, sans IP, URL, en-tête, identifiant ou contenu utilisateur.
@@ -66,9 +67,10 @@ export function createHostedTransport({ enabled = false, publicOrigin, trustedPr
       })
     })
     server.requestTimeout = 15000; server.headersTimeout = 10000
-    server.setTimeout(socketTimeoutMs, socket => socket.destroy())
-    const cleanup = () => { try { attestation?.stop(); gateway.close?.() } finally { release() } }
+    server.setTimeout(socketTimeoutMs+(attestation?15000:0), socket => socket.destroy())
+    const cleanup = () => { try { clearInterval(renewalTimer);attestation?.stop(); gateway.close?.() } finally { release() } }
     server.on('close', cleanup)
+    if(attestation)server.once('listening',()=>{renewalTimer=setInterval(()=>{attestation.refresh().catch(()=>{})},120000);renewalTimer.unref()})
     // Échec avant écoute : fermer seulement les ressources de cette instance.
     const listenError = () => cleanup()
     server.once('error', listenError)

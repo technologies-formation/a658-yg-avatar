@@ -119,7 +119,7 @@ test('réponses libres explicites : conservation littérale sans IA, questions p
  assert.equal(directGuidedAnswer('managerStatus','chef'),null);
 });
 
-test('suivi du résultat : réponse sans modification du profil ni génération, refus des changements implicites',async()=>{
+test('suivi du résultat : réponse puis proposition étayée sans modification avant validation',async()=>{
  const contract=refs(),initialProfile={role:'Chef',objective:'Cockpits'};let calls=0;
  const session=createDialogueSession({enabled:true,guidedDraft:true,references:contract,initialProfile,maxTurns:10,timeoutMs:1000,provider:{mode:'simulation',async respond(p){
   calls++;assert.match(p.rules.join(' '),/rédiger un courriel complet/);assert.equal(p.researchContext.number,1);
@@ -127,5 +127,17 @@ test('suivi du résultat : réponse sans modification du profil ni génération,
  }}});
  const request={message:'Aidez-moi à rédiger un mail pour mon EEDP',expectedRevision:0,referenceRevision:contract.revision,researchContext:{number:1,summary:'Cockpit RH'}};
  const result=await session.turn({...request,requestId:'followup-mail-00001'});assert.match(result.reply,/Objet/);assert.deepEqual(result.draft.profile,initialProfile);
- await assert.rejects(session.turn({...request,requestId:'followup-mail-00002'}),e=>e.code==='invalid_response');assert.deepEqual(session.getDraft().profile,initialProfile);
+ const proposed=await session.turn({...request,requestId:'followup-mail-00002'});assert.ok(proposed.proposal);assert.deepEqual(session.getDraft().profile,initialProfile);const accepted=session.acceptProposal({proposalId:proposed.proposal.id,expectedRevision:0,confirmed:true});assert.equal(accepted.profile.objective,'Changer de sujet');assert.equal(session.status().attemptedTurns,2);
+});
+
+
+test('suivi : précisions conservées entre essais de même objectif, isolées pour un autre besoin',async()=>{
+ const contract=refs(),seen=[];const session=createDialogueSession({enabled:true,guidedDraft:true,references:contract,maxTurns:10,timeoutMs:1000,provider:{mode:'simulation',async respond(p){seen.push(p.messages.map(x=>x.text));return {kind:'ask',reply:'Quel est votre niveau Excel ?',changes:[]}}}});
+ for(const [number,conversationKey,message]of [[1,'Cockpits','Je dois suivre les absences'],[2,'Cockpits','Que conseiller après ce filtre ?'],[3,'Autre besoin','Autre question']])await session.turn({message,requestId:'continuity-test-'+number,expectedRevision:0,referenceRevision:contract.revision,researchContext:{number,conversationKey}});
+ assert.ok(seen[1].includes('Je dois suivre les absences'));assert.equal(seen[2].includes('Je dois suivre les absences'),false);
+});
+
+test('suivi : niveau Excel jamais déduit d’un débutant Cockpit dans une proposition',async()=>{
+ const contract=refs(),session=createDialogueSession({enabled:true,guidedDraft:true,references:contract,initialProfile:{objective:'Cockpits',existingSkills:'Je débute'},maxTurns:10,timeoutMs:1000,provider:{mode:'simulation',async respond(p){const m=p.messages.at(-1);return {kind:'recap',reply:'Proposition',changes:[{field:'existingSkills',value:'Débutant Excel',evidence:[{messageId:m.id,quote:m.text}]}]}}}});
+ await assert.rejects(session.turn({message:'Je débute sur les cockpits',requestId:'scope-skill-test-001',expectedRevision:0,referenceRevision:contract.revision,researchContext:{number:1}}),e=>e.code==='invalid_response');assert.equal(session.getDraft().profile.existingSkills,'Je débute');
 });

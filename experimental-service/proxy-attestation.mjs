@@ -30,12 +30,13 @@ export function requestHttpsProof(publicOrigin, path, timeoutMs = 3000) {
 }
 
 export function createProxyAttestation({ publicOrigin, requestProbe = requestHttpsProof, now = Date.now,
-  cooldownMs = 5000, validityMs = 600000 } = {}) {
+  cooldownMs = 5000, validityMs = 600000, waitForRefresh = ms => new Promise(resolve=>setTimeout(resolve,ms)) } = {}) {
   const origin = new URL(publicOrigin)
   if (origin.protocol !== 'https:' || origin.origin !== publicOrigin || typeof requestProbe !== 'function' ||
-      typeof now !== 'function' || !Number.isInteger(cooldownMs) || cooldownMs < 1000 ||
+      typeof now !== 'function' || typeof waitForRefresh !== 'function' || !Number.isInteger(cooldownMs) || cooldownMs < 1000 ||
       !Number.isInteger(validityMs) || validityMs < 1000 || validityMs > 3600000) throw Error('Attestation HTTPS explicite requise')
-  const trusted = new Map(), pending = new Map()
+  const trusted = new Map(), pending = new Map(), targets = new Set()
+  let waiting = null
   let inFlight = null, lastProbe = -Infinity, lastTime = -Infinity, stopped = false
   const time = () => { const value = now(); if (!Number.isFinite(value) || value < lastTime) throw Error('Horloge indisponible'); lastTime = value; return value }
   const transport = req => req.headers.host === origin.host && req.headers['x-forwarded-proto'] === 'https' &&
@@ -62,17 +63,18 @@ export function createProxyAttestation({ publicOrigin, requestProbe = requestHtt
   }
   const refresh = target => {
     if (stopped) return Promise.resolve(false)
+    if(target)targets.add(target)
     if (inFlight) return inFlight
     let current
     try { current = time() } catch { return Promise.resolve(false) }
-    if (current - lastProbe < cooldownMs) return Promise.resolve(false)
+    if (current - lastProbe < cooldownMs) {if(target)targets.delete(target);return Promise.resolve(false)}
     lastProbe = current
     // Au plus huit GET, quatre simultanés ; un seul lot partagé pour tous les visiteurs.
     inFlight = (async () => {
       await Promise.all(Array.from({ length: 4 }, proof))
-      if (target && !secure(target) && !stopped) await Promise.all(Array.from({ length: 4 }, proof))
+      if ([...targets].some(req=>!secure(req)) && !stopped) await Promise.all(Array.from({ length: 4 }, proof))
       return target ? secure(target) : trusted.size > 0
-    })().finally(() => { inFlight = null })
+    })().finally(() => { inFlight = null;targets.clear() })
     return inFlight
   }
   return {
@@ -84,9 +86,17 @@ export function createProxyAttestation({ publicOrigin, requestProbe = requestHtt
       if (typeof req.socket.remoteAddress !== 'string' || !isIP(normalize(req.socket.remoteAddress))) return 'peer'
       return 'unverified_peer'
     },
-    async ensure(req) {
+    async ensure(req,{waitForRenewal=false}={}) {
       if (secure(req)) return true
       if (stopped || !transport(req)) return false
+      await refresh(req)
+      if(secure(req)||!waitForRenewal||stopped)return secure(req)
+      // Le même échange attend une seconde preuve gratuite ; il n'atteint le moteur qu'une fois.
+      // Le délai et le lot sont partagés, même lorsque plusieurs requêtes arrivent ensemble.
+      let delay;try{delay=Math.max(0,cooldownMs-(time()-lastProbe))+1}catch{return false}
+      if(!waiting)waiting=Promise.resolve().then(()=>waitForRefresh(delay)).finally(()=>{waiting=null})
+      await waiting
+      if(stopped)return false
       await refresh(req)
       return secure(req)
     },

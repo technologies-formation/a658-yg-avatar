@@ -1,7 +1,7 @@
 // Affichage seul : aucune requête, aucun stockage, aucun HTML issu du résultat.
 import { validatePathwayResult, courseDisplayDetails, SEARCH_RESULT_NOTE, TIME_PLANNING_NOTICE, TIME_EXCESS_NOTICE } from './pathway-result.mjs'
 
-export function renderPathwayResult(document, data, { replay = false, preferredModality = '', objective = '' } = {}) {
+export function renderPathwayResult(document, data, { replay = false, preferredModality = '', objective = '', trainingOffers = '', trainingOrganizers = '' } = {}) {
   const { empty } = validatePathwayResult(data)
   if (!['','Présentiel','En ligne','Indifférent'].includes(preferredModality)) throw Error('Modalité souhaitée invalide')
   const root = document.createElement('section')
@@ -35,6 +35,7 @@ export function renderPathwayResult(document, data, { replay = false, preferredM
   if (replay) add(root, 'p', 'Données de test pour vérifier l’affichage ; elles ne répondent pas à ton profil. Aucun appel au moteur ni à OpenAI.')
   add(root, 'p', data.summary)
   if (data.interpretedGoal) add(root, 'p', 'Objectif interprété : ' + data.interpretedGoal)
+  if((data.abstain||empty)&&(trainingOffers||trainingOrganizers))add(root,'p','Aucun cours adapté dans le périmètre sélectionné : '+[trainingOffers,trainingOrganizers].filter(Boolean).join(' ; ')+'. Vous pouvez modifier ou retirer ces critères dans Ma demande.').className='scope-result-note'
   if (data.abstain) add(root, 'p', data.searchQuery?'Aucune formation correspondante n’a été trouvée. Vous pouvez préciser ou élargir votre recherche.':'Le moteur ne propose pas de parcours adapté à cette demande.')
   else if (empty) add(root, 'p', 'Aucune formation proposée dans ce résultat.')
   for (const [label, items] of [

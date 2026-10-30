@@ -150,7 +150,7 @@ test('question guidée transmise au modèle réel et contexte de suivi distinct 
  await p.respond({...payload(2),researchContext:{number:1,summary:'Cockpit RH',profile:{objective:'Cockpits'}}});
  const body=calls.at(-1),context=JSON.parse(body.input[0].content);
  assert.equal(context.researchContext.summary,'Cockpit RH');assert.equal(context.currentQuestion,undefined);
- assert.match(body.instructions,/rédiger un courriel complet/);assert.match(body.instructions,/changes doit rester vide/);
+ assert.match(body.instructions,/rédiger un courriel complet/);assert.match(body.instructions,/validation humaine/);
  assert.doesNotMatch(body.instructions,/Ne fournissez ni cours/);
  await assert.rejects(p.respond({...payload(3),questionField:'inventé'}),code('invalid_request'));
 });
