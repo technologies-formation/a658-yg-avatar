@@ -1,7 +1,7 @@
 // Présentation du courriel avec données synthétiques uniquement ; aucun envoi ni accès distant.
 import assert from 'node:assert/strict'
 import {mkdirSync,writeFileSync} from 'node:fs'
-import {createDailyReportModel,renderDailyReport} from './daily-report-model.mjs'
+import {createDailyReportModel,renderDailyReport,renderParticipantReport} from './daily-report-model.mjs'
 const {chromium}=await import(process.env.AVATAR_PLAYWRIGHT_MODULE||'playwright')
 const baseline={at:'2026-09-01T12:00:00.000Z',balanceMicroUsd:10000000}
 const source=()=>({version:1,startedAt:'2026-09-01T10:00:00.000Z',observedAt:'2026-10-26T07:00:00.000Z',since:baseline.at,knownMicroUsd:0,unknown:0,rows:[]})
@@ -11,6 +11,7 @@ assistant.rows.push({day:'2026-10-25',app:'assistant',action:'dialogue',requests
 catalogue.knownMicroUsd=8200000
 catalogue.unknown=1
 const message=renderDailyReport(createDailyReportModel({catalogue,assistant,baseline,now:new Date('2026-10-26T07:00:00Z'),configurationFile:'/private/daily-report/config.json'}))
+message.html+=renderParticipantReport(Array.from({length:4},(_,i)=>({username:'pilote-0'+(i+1),totalDialogue:i,totalSearches:2,totalPathways:1,totalUsed:i+3,totalLimit:70,remaining:67-i})),'2026-11-02T07:00:00.000Z').html
 const browser=await chromium.launch({headless:true});mkdirSync('visual-check',{recursive:true})
 try{for(const [name,width]of [['desktop',900],['mobile',390],['small-mobile',320]]){
  const page=await browser.newPage({viewport:{width,height:900}}),requests=[],errors=[]
@@ -19,6 +20,8 @@ try{for(const [name,width]of [['desktop',900],['mobile',390],['small-mobile',320
  assert.equal(await page.locator('table').first().locator('tbody tr').count(),15)
  assert.match(await page.locator('body').innerText(),/Solde théorique \(à vérifier\)/)
  assert.match(await page.locator('body').innerText(),/Modifier le destinataire/)
+ assert.match(await page.locator('body').innerText(),/pilote-04/)
+ assert.equal(await page.locator('table').last().locator('tbody tr').count(),4)
  assert.match(await page.locator('body').innerText(),/peut surestimer/)
  assert.match(message.subject,/Solde théorique \(à vérifier\).*coûts incomplets/)
  assert.equal(await page.getByRole('link',{name:'Vérifier mon solde réel OpenAI',exact:true}).getAttribute('href'),'https://platform.openai.com/settings/organization/billing/overview')

@@ -67,7 +67,7 @@ export function createDialogueInterface(options = {}, trial = null) {
   const courseSearch=options.guidedDraft&&options.courseSearchDirectory?createCourseSearch({directory:options.courseSearchDirectory,fetchImpl:options.courseSearchFetchImpl,reportingToken:options.reportingToken}):null
   const { publicOrigin, users, isSecureRequest, stateFile, loadProfileReferences, preview, timeoutMs = 10000 } = options
   const participantIds=users.filter(u=>u.pilotTester===true).map(u=>u.id)
-  const participants=participantIds.length?createParticipantUsage({directory:options.participantDirectory,ids:participantIds,now:options.participantNow??Date.now,dialoguePerDay:options.participantLimits?.dialoguePerDay??10,researchPerDay:options.participantLimits?.researchPerDay??3}):null
+  const participants=participantIds.length?createParticipantUsage({directory:options.participantDirectory,ids:participantIds,now:options.participantNow??Date.now,totalLimit:options.participantLimits?.totalLimit??70}):null
   const confidentiality=participantIds.length?createParticipantConsent({directory:join(options.participantDirectory,'confidentiality'),ids:participantIds}):null
   const participantMeta=identity=>{const quota=participants?.status(identity.id);return quota?{participantQuota:quota,confidentiality:confidentiality.status(identity.id)}:{}}
   const requireConfidentiality=identity=>{const state=confidentiality?.status(identity.id);if(state?.required&&!state.accepted)fail('confidentiality_required')}
@@ -170,7 +170,7 @@ export function createDialogueInterface(options = {}, trial = null) {
           value.pathway=createMessagingSnapshot({objective:body.query.trim()},found,value.references.revision,value.nextNumber++,'','real')
           value.pathways.push(value.pathway)
           const saved=persist(context.identity,value)
-          if(!context.signal.aborted)send(res,200,{savedPathway:value.pathway,savedPathways:value.pathways,resumeSaved:saved,resumeEnabled:Boolean(resume),...memoryMeta(context.identity,value)})
+          if(!context.signal.aborted)send(res,200,{...participantMeta(context.identity),savedPathway:value.pathway,savedPathways:value.pathways,resumeSaved:saved,resumeEnabled:Boolean(resume),...memoryMeta(context.identity,value)})
           return true
         }
         if(body.action==='accept-confidentiality'){}
@@ -220,17 +220,18 @@ export function createDialogueInterface(options = {}, trial = null) {
         if(['turn','request-mode','accept','edit','new-request','load-case','select-research','close-research'].includes(body.action))persist(context.identity,value)
         if (!context.signal.aborted) send(res, 200, {...participantMeta(context.identity),...memoryMeta(context.identity,value),resumeEnabled:Boolean(resume),resumeSaved:value.resumeSaved, ...result, references:value.references, mode: dialogueMode, pathwayMode,...validationState(value), pathwayQuota: simulation.status(), ...(trial ? { usageRecords: session.getUsage(), budget: trial.budgetStatus() } : {}) })
       } catch (error) {
-        const code = error instanceof DialogueError || ['confidentiality_required','confidentiality_storage','resume_unavailable','participant_daily_limit','participant_storage'].includes(error.code) ? error.code : 'service_unavailable'
-        const status = ['confidentiality_required','stale_profile', 'stale_proposal', 'proposal_pending', 'references_changed', 'busy', 'duplicate_request'].includes(code) ? 409 : ['quota_exceeded', 'budget_stopped','participant_daily_limit'].includes(code) ? 429 : code === 'timeout' ? 504 : ['disabled','resume_unavailable','confidentiality_storage'].includes(code) ? 503 : 400
+        const code = error instanceof DialogueError || ['confidentiality_required','confidentiality_storage','resume_unavailable','participant_credit_exhausted','participant_storage'].includes(error.code) ? error.code : 'service_unavailable'
+        const status = ['confidentiality_required','stale_profile', 'stale_proposal', 'proposal_pending', 'references_changed', 'busy', 'duplicate_request'].includes(code) ? 409 : ['quota_exceeded', 'budget_stopped','participant_credit_exhausted'].includes(code) ? 429 : code === 'timeout' ? 504 : ['disabled','resume_unavailable','confidentiality_storage'].includes(code) ? 503 : 400
         const diagnostic = { code, status,
           ...(code==='invalid_response'&&['format','change','modality','field','evidence'].includes(error.validation)?{validation:error.validation}:{}),
           ...(Number.isInteger(error.httpStatus) && error.httpStatus >= 100 && error.httpStatus <= 599 && ['count','generation'].includes(error.stage)
             ? { httpStatus: error.httpStatus, stage: error.stage } : {}) }
         if (currentEntry) currentEntry.lastError = diagnostic
-        let usageRecords
+        let usageRecords,participantQuota
+        try{participantQuota=participants?.status(context.identity.id)}catch{}
         try { if (trial && currentEntry) usageRecords = currentEntry.session.getUsage() } catch {}
-        if (!context.signal.aborted && !res.writableEnded) send(res, status, { code,
-          error: code==='confidentiality_required'?'Validez la consigne de confidentialité avant de commencer.':code==='participant_daily_limit'?'Votre limite quotidienne de test est atteinte. Recherches conservées ; aucun nouvel appel lancé.':code==='resume_unavailable'?'Reprise privée indisponible. Données conservées ; aucune génération lancée.':'Dialogue non abouti. Profil conservé ; aucune relance automatique.', ...diagnostic,
+        if (!context.signal.aborted && !res.writableEnded) send(res, status, { code,...(participantQuota?{participantQuota}:{}),
+          error: code==='confidentiality_required'?'Validez la consigne de confidentialité avant de commencer.':code==='participant_credit_exhausted'?'Votre crédit de test est épuisé. Recherches conservées ; aucun nouvel appel lancé.':code==='resume_unavailable'?'Reprise privée indisponible. Données conservées ; aucune génération lancée.':'Dialogue non abouti. Profil conservé ; aucune relance automatique.', ...diagnostic,
           ...(trial ? { mode: dialogueMode, pathwayQuota: simulation.status(), budget: trial.budgetStatus(), ...(usageRecords ? { usageRecords } : {}) } : {}) })
       }
       return true

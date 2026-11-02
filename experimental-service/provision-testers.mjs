@@ -19,7 +19,7 @@ export async function provisionFourTesters({configFile,siteDirectory}={}){
  for(const username of testerNames){const password=randomBytes(24).toString('base64url');credentials.push({...await createPilotCredential({id:username,username,password}),pilotTester:true});access.push({username,password})}
  const backup=mkdtempSync(join(dirname(options.privateDirectory),'a658-quatre-acces-'));chmodSync(backup,0o700)
  writeFileSync(join(backup,'users-before.json'),before,{mode:0o600,flag:'wx'});if(privateText(join(backup,'users-before.json'))!==before)throw Error('Sauvegarde des accès non vérifiée')
- for(const x of access)writeFileSync(join(backup,x.username+'.txt'),'A658-YG — Pilote individuel\nAdresse : '+options.publicOrigin+'/private/\nIdentifiant : '+x.username+'\nMot de passe : '+x.password+'\nLimites : 10 messages IA et 3 recherches/parcours par jour.\n',{mode:0o600,flag:'wx'})
+ for(const x of access)writeFileSync(join(backup,x.username+'.txt'),'A658-YG — Pilote individuel\nAdresse : '+options.publicOrigin+'/private/\nIdentifiant : '+x.username+'\nMot de passe : '+x.password+'\nCrédit : 70 utilisations au total (messages IA, recherches et parcours), sans limite de durée. Les tentatives non abouties restent comptées.\n',{mode:0o600,flag:'wx'})
  const after=JSON.stringify([...options.users,...credentials],null,2)+'\n'
  writeFileSync(join(backup,'users-after.json'),after,{mode:0o600,flag:'wx'});
  writeFileSync(join(options.privateDirectory,'tester-batch.json'),JSON.stringify({version:1,directory:backup}),{mode:0o600,flag:'wx'});

@@ -81,3 +81,19 @@ test('récapitulatif : nouveau repère exclut les anciennes tentatives inconnues
  assert.equal(model.unknown,0);assert.equal(model.balanceMicroUsd,9160000);assert.equal(model.incomplete,false)
  assert.equal(c.snapshot().unknown,1)
 })
+
+test('courriel : quatre crédits individuels, totaux séparés et rendu sans contenu des échanges',async t=>{
+ const {root,catalogue,assistant}=sources(t);let sent
+ const rows=Array.from({length:4},(_,i)=>({username:'pilote-0'+(i+1),totalDialogue:i,totalSearches:2,totalPathways:1,totalUsed:i+3,totalLimit:70,remaining:67-i}))
+ const {renderParticipantReport}=await import('./daily-report-model.mjs')
+ const result=renderParticipantReport(rows,'2026-11-02T07:00:00.000Z');assert.match(result.text,/pilote-01 \| 0 \| 2 \| 1 \| 3 \| 67 \/ 70/);assert.match(result.html,/pilote-04/);assert.doesNotMatch(result.html,/undefined|NaN/)
+ assert.throws(()=>renderParticipantReport([{...rows[0],remaining:70}],'2026-11-02T07:00:00.000Z'))
+ const options={config:{directory:join(root,'pilot-report'),recipient:'report@example.invalid',hour:8,baseline},now,consumption:{ledger:assistant,token:'a'.repeat(43)},participantReport:()=>rows,fetchImpl:async()=>new Response(JSON.stringify(catalogue.snapshot({since:baseline.at})),{headers:{'content-type':'application/json'}}),mail:{async sendReport(message){sent=message;return {accepted:true}}}}
+ assert.equal((await createDailyReporter(options).tick()).sent,true);assert.match(sent.text,/pilote-04/);assert.match(sent.html,/Messages IA/);assert.match(sent.subject,/Solde théorique/)
+})
+test('suivi pilote indépendant : conservé en panne du catalogue, panne de compteurs jamais assimilée à zéro',async t=>{
+ const {root,assistant}=sources(t);let sent
+ const options={config:{directory:join(root,'pilot-fallback'),recipient:'report@example.invalid',hour:8,baseline},now,consumption:{ledger:assistant,token:'a'.repeat(43)},participantReport:()=>[{username:'pilote-01',totalDialogue:1,totalSearches:0,totalPathways:0,totalUsed:1,totalLimit:70,remaining:69}],fetchImpl:async()=>{throw Error('Aucun réseau')},mail:{async sendReport(message){sent=message;return {accepted:true}}}}
+ await createDailyReporter(options).tick();assert.match(sent.text,/pilote-01.*69 \/ 70/);assert.match(sent.subject,/indisponible/)
+ await createDailyReporter({...options,config:{...options.config,directory:join(root,'pilot-error')},participantReport:()=>{throw Error('PRIVATE_PATH')}}).tick();assert.match(sent.text,/comptes pilotes indisponible/);assert.doesNotMatch(sent.text,/PRIVATE_PATH|pilote-01/)
+})

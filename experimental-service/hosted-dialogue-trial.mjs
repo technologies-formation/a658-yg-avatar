@@ -1,3 +1,4 @@
+import {createParticipantUsage} from './participant-usage.mjs'
 import {fetchCatalogueStatus} from './catalogue-status.mjs'
 import {readDailyReportEnvironment,createDailyReporter} from './daily-report.mjs'
 import {readConsumptionEnvironment} from './consumption-ledger.mjs'
@@ -99,7 +100,13 @@ export function createHostedDialogueTrial(options = {}) {
   const pathway = options.pathwayTrial?.enabled ? options.pathwayTrial : null
   if (pathway && pathway.paidTrialAuthorized !== true) throw Error('Essai de parcours non activé explicitement')
   if(pathway?.series&&options.validationAuthorized!==true)throw Error('Validation distincte non autorisée au lancement')
-  const reporter=options.dailyReport?createDailyReporter({config:options.dailyReport,mail:options.mail,consumption:options.consumption,fetchImpl:options.reportFetchImpl}):null
+  const testerUsers=options.users.filter(user=>user.pilotTester===true)
+  const participantReport=()=>{
+    if(!testerUsers.length)return []
+    const usage=createParticipantUsage({directory:join(options.privateDirectory,'participant-usage'),ids:testerUsers.map(user=>user.id),totalLimit:options.participantLimits?.totalLimit??70})
+    return testerUsers.map(user=>({username:user.username,...usage.report(user.id)}))
+  }
+  const reporter=options.dailyReport?createDailyReporter({config:options.dailyReport,mail:options.mail,consumption:options.consumption,fetchImpl:options.reportFetchImpl,participantReport}):null
   const hosted=createHostedTransport({...options,responseTimeoutMs:pathway?210000:35000,socketTimeoutMs:pathway?215000:40000,
     createGateway:({isSecureRequest})=>createRealDialogueTrialInterface({enabled:true,paidTrialAuthorized:true,unlimited:options.unlimited??false,guidedDraft:options.guidedDraft===true,
       courseSearchDirectory:options.guidedDraft?join(options.privateDirectory,'course-search-attempts'):undefined,

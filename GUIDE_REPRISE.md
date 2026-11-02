@@ -2,6 +2,20 @@
 
 État vérifié le 30 octobre 2026 avec l'opérateur. Ce guide est le point d'entrée de la documentation technique du dépôt Assistant ; il complète le document de reprise personnel du 30 octobre 2026, remis à l’utilisateur et déclaré sauvegardé. Ce dernier a été rédigé avant la pose du tag ; la confirmation ci-dessous actualise ce point.
 
+## Évolution du pilote — 2 novembre 2026
+
+Décision validée : remplacer les quotas quotidiens des quatre testeurs par **70 utilisations cumulées par compte, sans expiration**. Une tentative de message IA, recherche ou parcours consomme une unité commune. Les tentatives non abouties restent comptées ; une consultation, édition manuelle, acceptation de confidentialité ou ouverture ne consomme rien. Les appels techniques internes ne sont pas les unités de ce crédit. Le crédit n’est pas un budget en dollars ; aucun coût fixe de 0,023 USD n’est établi.
+
+Le registre existant est conservé au même emplacement, avec ses événements version 1 : les utilisations antérieures sont déduites, aucun compteur remis à zéro. Les accès, mots de passe, résultats et consentements sont conservés. Le compte opérateur reste indépendant. Le seuil financier manuel convenu de 5 USD n’est pas modifié par cette évolution ; aucun arrêt monétaire automatique n’est ajouté.
+
+Le suivi privé `provision-testers.mjs --report CONFIG` fournit `totalDialogue`, `totalSearches`, `totalPathways`, `totalUsed`, `totalLimit`, `remaining` et la dernière connexion lorsqu’elle est connue. `totalResearch` conserve son sens historique (recherches + parcours). Les champs journaliers conservés sont uniquement informatifs, sans plafond quotidien.
+
+Le courriel quotidien existant reçoit un tableau des comptes marqués `pilotTester`, cumul depuis le début, avec les trois catégories et le crédit restant. Il garde l’objet avec solde théorique et le lien OpenAI, un seul envoi quotidien, sans appel IA supplémentaire. Le tableau pilote reste disponible si la collecte des coûts Catalogue échoue ; une lecture de compteurs en erreur est explicitement indiquée indisponible, jamais assimilée à zéro. Aucun contenu de conversation ni secret n’est inclus. Les valeurs sont observées au moment du courriel, indépendamment de la période financière close à la veille.
+
+La limite existante de 20 recherches enregistrées simultanément reste en place : on peut fermer des résultats pour libérer une place, sans récupérer de crédit consommé. Une erreur avant réservation du crédit n’est pas débitée ; les événements réservés restent comptés même si aucun résultat n’aboutit. Le service utilise une instance unique ; les réservations synchrones précèdent les traitements asynchrones.
+
+**État de livraison : 281 tests Node locaux réussis, publication et contrôles navigateur en cours ; installation serveur non vérifiée.** Après publication et contrôles : sauvegarder le code installé, déployer la version publiée puis redémarrer ASSISTANT dans le Manager. Ne pas relancer la création ou l’activation des comptes et ne jamais remplacer les fichiers privés par ceux de la préparation initiale (un mot de passe a été renouvelé). Les anciennes fiches privées d’accès peuvent encore mentionner les anciens quotas ; leur mise à jour éventuelle doit préserver strictement les identifiants et secrets. Le document Word personnel du 30 octobre est antérieur à cette évolution et doit être actualisé lors de la prochaine mise à jour autonome.
+
 ## État courant et références
 
 | Élément | Référence et portée |

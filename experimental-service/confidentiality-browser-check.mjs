@@ -47,7 +47,8 @@ try{
   await page.reload();await page.getByRole('button',{name:'Rechercher des formations',exact:true}).waitFor()
   assert.equal(await page.locator('#confidentiality-dialog').count(),0);assert.equal(accepts,index===0?2:1)
   const state=JSON.parse((await query(user,'/private/dialogue','GET')).body.toString())
-  assert.equal(state.confidentiality.accepted,true);assert.equal(state.participantQuota.dialogue,0);assert.equal(state.participantQuota.research,0)
+  assert.equal(state.confidentiality.accepted,true);assert.equal(state.participantQuota.dialogue,0);assert.equal(state.participantQuota.research,0);assert.equal(state.participantQuota.remaining,70)
+  assert.match(await page.locator('#participant-quota').innerText(),/70\/70 utilisations restantes/)
   await page.close()
  }
  console.log('Quatre comptes : consigne obligatoire, clavier, jour/nuit, erreur conservée, acceptation et reprise sans quota IA.')

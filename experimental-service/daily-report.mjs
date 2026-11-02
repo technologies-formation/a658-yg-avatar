@@ -5,7 +5,7 @@ import {randomUUID,randomBytes} from 'node:crypto'
 import {pathToFileURL} from 'node:url'
 import {protectedDirectory,readPrivateJson,consumptionDay,reportingTokenMatches} from './consumption-ledger.mjs'
 import {emailAddress} from './research-email.mjs'
-import {createDailyReportModel,renderDailyReport,BILLING_URL,reportRecipientInstructions} from './daily-report-model.mjs'
+import {createDailyReportModel,renderDailyReport,renderParticipantReport,BILLING_URL,reportRecipientInstructions} from './daily-report-model.mjs'
 const origin='https://api.a658yg-catalogue.ch'
 export function prepareDailyReport(privateDirectory,recipient){
  emailAddress(recipient);protectedDirectory(privateDirectory)
@@ -34,7 +34,7 @@ export async function collectCatalogueConsumption({token,since,fetchImpl=globalT
  for await(const chunk of response.body??[]){bytes+=chunk.length;if(bytes>2*1024*1024)throw Error('Relevé trop volumineux');chunks.push(chunk)}
  return JSON.parse(Buffer.concat(chunks).toString('utf8'))
 }
-export function createDailyReporter({config,mail,consumption,fetchImpl,now=Date.now,setIntervalImpl=setInterval,clearIntervalImpl=clearInterval}={}){
+export function createDailyReporter({config,mail,consumption,fetchImpl,participantReport,now=Date.now,setIntervalImpl=setInterval,clearIntervalImpl=clearInterval}={}){
  if(!config||!mail?.sendReport||!consumption?.ledger||!reportingTokenMatches(consumption.token,consumption.token))throw Error('Assemblage du récapitulatif incomplet')
  protectedDirectory(config.directory);let busy=false,timer=null,stopped=false
  async function tick(){
@@ -55,6 +55,12 @@ export function createDailyReporter({config,mail,consumption,fetchImpl,now=Date.
     }finally{clearTimeout(timeout)}
    }catch{
     message={subject:'A658-YG · Suivi OpenAI · Solde théorique (à vérifier) : indisponible',text:'Le relevé de consommation n’a pas pu être établi. Aucun solde théorique fiable ne peut être annoncé. Vérifiez le solde réel : '+BILLING_URL+'. Aucun nouvel appel IA n’a été lancé pour ce suivi.\n\n'+reportRecipientInstructions(config.configurationFile),html:'<p>Le relevé de consommation est indisponible. Aucun solde théorique ne peut être annoncé.</p><p><a href="'+BILLING_URL+'">Vérifier le solde réel OpenAI</a></p><p>'+reportRecipientInstructions('le fichier privé daily-report/config.json')+'</p>'}
+   }
+   if(participantReport){
+    let pilot
+    try{pilot=renderParticipantReport(await participantReport(),instant.toISOString())}
+    catch{pilot={text:'Suivi des comptes pilotes indisponible. Aucun compteur nul supposé.',html:'<p>Suivi des comptes pilotes indisponible. Aucun compteur nul supposé.</p>'}}
+    message.text+='\n\n'+pilot.text;message.html+=pilot.html
    }
    const result=await mail.sendReport({recipient:config.recipient,...message})
    if(result?.accepted!==true)throw Error('Prise en charge non confirmée')
