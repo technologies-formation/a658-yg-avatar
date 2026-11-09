@@ -8,7 +8,7 @@ import { createDialogueBudget } from './dialogue-budget.mjs'
 import { createOpenAIDialogueProvider } from './openai-dialogue.mjs'
 import { createRealDialogueTrialSession } from './dialogue-session.mjs'
 import { createRealSession } from './real-session.mjs'
-import { readPrivatePilotLaunch } from './hosted-private-pilot.mjs'
+import { readPrivatePilotLaunch, readInfomaniakPort } from './hosted-private-pilot.mjs'
 import { HOSTED_ORIGIN } from './hosted-transport.mjs'
 import { references, referenceResponse } from './reference-test-fixtures.mjs'
 import { data } from './result-test-fixtures.mjs'
@@ -110,4 +110,11 @@ test('pilote : activation de lancement explicite avant clé, compteurs et config
   assert.throws(() => readPrivatePilotLaunch(file, site, env, site), /privé/)
   assert.equal(readFileSync(file, 'utf8'), before)
   assert.equal(readFileSync(join(counter, 'quotas.json'), 'utf8'), quota)
+})
+
+
+test('pilote Infomaniak : port dynamique validé avec repli local compatible', () => {
+  assert.equal(readInfomaniakPort({ PORT: '43127' }), 43127)
+  assert.equal(readInfomaniakPort({}), 3000)
+  for (const PORT of ['', '0', '65536', '3000x', ' 3000']) assert.throws(() => readInfomaniakPort({ PORT }), /PORT Infomaniak invalide/)
 })

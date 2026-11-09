@@ -1,0 +1,13 @@
+{
+  "name": "a658-yg-avatar",
+  "version": "0.0.0-private",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "scripts": {
+    "start": "node experimental-service/infomaniak-private-pilot.mjs",
+    "test:infomaniak": "node --test experimental-service/infomaniak-private-pilot.test.mjs experimental-service/private-unlimited.test.mjs experimental-service/proxy-attestation.test.mjs"
+  }
+}

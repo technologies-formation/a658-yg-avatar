@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { basename, dirname, join, resolve } from 'node:path'
-import { prepareInfomaniakPrivatePilot } from './infomaniak-private-pilot.mjs'
+import { prepareInfomaniakPrivatePilot, infomaniakStartupDiagnostic } from './infomaniak-private-pilot.mjs'
 
 test('lanceur Infomaniak court : trois fichiers privés, activations explicites et aucun secret retourné', () => {
   const configFile = resolve('private-fixture', 'config.json')
@@ -40,4 +40,12 @@ test('lanceur Infomaniak court : refus avant lecture pour paramètres relatifs o
   assert.throws(() => prepareInfomaniakPrivatePilot({ configFile: resolve('private-fixture', 'config.json'),
     pathwayDirectory: 'existing-pathway', environment: {}, loadFile }))
   assert.equal(loads, 0)
+})
+
+
+test('lanceur Infomaniak court : diagnostic borné et sur une seule ligne', () => {
+  const diagnostic = infomaniakStartupDiagnostic(Error('PORT invalide\nSECRET=<masqué>'))
+  assert.equal(diagnostic.includes('\n'), false)
+  assert.ok(diagnostic.length <= 240)
+  assert.match(diagnostic, /^PORT invalide SECRET=?masqué?$/)
 })

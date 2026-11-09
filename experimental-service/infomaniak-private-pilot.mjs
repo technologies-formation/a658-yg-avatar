@@ -29,13 +29,18 @@ export function prepareInfomaniakPrivatePilot({ configFile, pathwayDirectory, en
   }
 }
 
+export function infomaniakStartupDiagnostic(error) {
+  const message = error instanceof Error ? error.message : 'erreur inconnue'
+  return message.slice(0, 240).replace(/[\r\n\t]/g, ' ').replace(/[^\p{L}\p{N} ._:/()'’\-]/gu, '?')
+}
+
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   try {
     const prepared = prepareInfomaniakPrivatePilot({ configFile: process.argv[2], pathwayDirectory: process.argv[3] })
     process.argv = [process.execPath, prepared.launcher, ...prepared.args]
     await import(pathToFileURL(prepared.launcher).href)
-  } catch {
-    console.error('Pilote non démarré : vérifier le lanceur court et les fichiers privés.')
+  } catch (error) {
+    console.error('Pilote non démarré : ' + infomaniakStartupDiagnostic(error))
     process.exitCode = 1
   }
 }
