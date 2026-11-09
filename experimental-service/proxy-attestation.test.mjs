@@ -8,6 +8,7 @@ import https from 'node:https'
 import http from 'node:http'
 import { createProxyAttestation, requestHttpsProof } from './proxy-attestation.mjs'
 import { createHostedSimulation, HOSTED_ORIGIN } from './hosted-simulation.mjs'
+import { HOSTED_PROXY_HOST } from './hosted-transport.mjs'
 import { createPilotCredential } from './pilot-auth.mjs'
 import { references } from './reference-test-fixtures.mjs'
 import { data } from './result-test-fixtures.mjs'
@@ -150,6 +151,8 @@ test('intégration : preuve indépendante avant challenge Basic, accès et quota
   const challenge = await send('/private/'); assert.equal(challenge.status, 401); assert.match(challenge.headers['www-authenticate'], /Basic/)
   const page = await send('/private/', 'Basic ' + Buffer.from('tester:' + password).toString('base64'))
   assert.equal(page.status, 200); assert.match(page.text, /simulation uniquement/)
+  const proxied = await send('/private/', 'Basic ' + Buffer.from('tester:' + password).toString('base64'), 'https', { host: HOSTED_PROXY_HOST })
+  assert.equal(proxied.status, 200); assert.match(proxied.text, /simulation uniquement/)
   assert.equal(service.status().total, 2)
   assert.equal((await send('/_avatar_proxy_proof/guess')).status, 404)
 })

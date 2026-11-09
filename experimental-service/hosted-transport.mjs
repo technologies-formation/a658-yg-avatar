@@ -69,6 +69,9 @@ export function createHostedTransport({ enabled = false, publicOrigin, trustedPr
           res.writeHead(403, { 'Content-Type': api ? 'application/json; charset=utf-8' : 'text/plain; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' })
           return res.end(api ? JSON.stringify({ code: 'secure_transport_required' }) : 'Transport HTTPS via proxy de confiance requis')
         }
+        // Infomaniak transmet son Host de prévisualisation au backend. Après preuve HTTPS et pair attesté seulement,
+        // normaliser vers l'origine publique attendue par les contrôles applicatifs de même origine.
+        if (req.headers.host === HOSTED_PROXY_HOST) req.headers.host = new URL(publicOrigin).host
         res.setHeader('Strict-Transport-Security', 'max-age=86400')
         await gateway.handler(req, res)
       }
