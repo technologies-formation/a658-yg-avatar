@@ -47,5 +47,5 @@ test('lanceur Infomaniak court : diagnostic borné et sur une seule ligne', () =
   const diagnostic = infomaniakStartupDiagnostic(Error('PORT invalide\nSECRET=<masqué>'))
   assert.equal(diagnostic.includes('\n'), false)
   assert.ok(diagnostic.length <= 240)
-  assert.match(diagnostic, /^PORT invalide SECRET=?masqué?$/)
+  assert.equal(diagnostic, 'PORT invalide SECRET??masqué?')
 })
