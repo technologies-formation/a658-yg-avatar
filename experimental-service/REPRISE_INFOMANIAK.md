@@ -83,4 +83,3 @@ compteurs et suivi sont conservés. Coût OpenAI API de l'intervention : 0 token
   Node.js, commande, attestation HTTPS, authentification et navigation externe.
 - Toute automatisation future des verrous doit vérifier l'absence de processus et
   l'âge du verrou ; aucun effacement automatique aveugle n'est autorisé.
-
