@@ -1,6 +1,14 @@
-# Assistant formation — référence avant pilote
+# Assistant formation — référence du pilote privé
 
-État vérifié le 30 octobre 2026 avec l'opérateur. Ce guide est le point d'entrée de la documentation technique du dépôt Assistant ; il complète le document de reprise personnel du 30 octobre 2026, remis à l’utilisateur et déclaré sauvegardé. Ce dernier a été rédigé avant la pose du tag ; la confirmation ci-dessous actualise ce point.
+État applicatif vérifié le 9 novembre 2026 avec l'opérateur. Ce guide est le point d'entrée de la documentation technique du dépôt Assistant ; il complète le document de reprise personnel du 30 octobre 2026, remis à l’utilisateur et déclaré sauvegardé. Ce document personnel reste antérieur aux évolutions et à l'incident décrits ci-dessous.
+
+## Jalon Infomaniak — 9 novembre 2026
+
+Le pilote privé est de nouveau fonctionnel après la maintenance Infomaniak. Le commit installé et confirmé par SSH est `d25b8205a6c3ec3c54e283fec78368c216d431d1`. Le Manager utilise Node.js 24, le port 3000 et la commande `npm start --` avec les chemins privés existants. Après redémarrage, les journaux confirment la conservation des compteurs et la réussite du contrôle HTTPS du proxy. L'opérateur a vérifié l'ouverture par lien externe, l'authentification et l'affichage de l'assistant avec son historique conservé.
+
+L'incident associait un port 3000 occupé alors que le Manager indiquait Arrêté, des verrous anciens, un `Host` technique transmis par le proxy et un refus trop large des navigations externes. Le code accepte désormais le nom technique exact uniquement après preuve HTTPS et autorise seulement la navigation principale sûre vers `/private/` ; les API, écritures et origines étrangères restent bloquées. Tests de régression : 9/9 ciblés et 19/19 Infomaniak. Coût OpenAI API de la réparation et des contrôles : 0 token / 0 $.
+
+La procédure vérifiée, les faits, les limites et les mesures préventives sont consignés dans [Reprise Infomaniak](experimental-service/REPRISE_INFOMANIAK.md). En cas d'incident, suivre cette procédure une étape à la fois ; ne pas multiplier les Run, changer de port au hasard, supprimer un verrou sans contrôle ou lancer un second serveur depuis SSH.
 
 ## Évolution du pilote — 2 novembre 2026
 
@@ -20,12 +28,11 @@ La limite existante de 20 recherches enregistrées simultanément reste en place
 
 | Élément | Référence et portée |
 | --- | --- |
-| Nom du jalon retenu | Assistant formation — référence avant pilote |
+| Nom du jalon retenu | Assistant formation — pilote privé rétabli après maintenance Infomaniak |
 | Tag Git publié et vérifié | `jalon-assistant-avant-pilote-2026-10-30` → `d45b45aace503dbd4ceed3494bcbf7275cb0580f` |
-| Assistant installé, confirmé par SSH | `daa6746a815a30a567ce2e70babf7518c3454178` ; suivi quotidien actualisé après le jalon |
-| Code applicatif installé avant la consigne | `daa6746a815a30a567ce2e70babf7518c3454178` ; la consigne est le lot suivant |
-| Branche de livraison Assistant | `fix/dialogue-course-relevance-2026-10-30` |
-| Lanceur utilisé | `experimental-service/hosted-private-pilot.mjs`, mode opérateur privé |
+| Assistant installé, confirmé par SSH et navigateur | `d25b8205a6c3ec3c54e283fec78368c216d431d1` |
+| Branche de livraison Assistant | `fix/proxy-host-diagnostic-2026-11-09` ; PR #5 vers `fix/dialogue-course-relevance-2026-10-30` |
+| Lanceur utilisé | `experimental-service/infomaniak-private-pilot.mjs`, qui charge le mode opérateur privé existant |
 | Accès du premier groupe | Quatre comptes activés et service redémarré ; connexion pilote-01 confirmée par l’opérateur, trois autres connexions à vérifier |
 | Publication anonyme | Non activée ; aucun accès public créé par le jalon |
 | Catalogue | Service séparé ; aucun changement de code Catalogue dans le lot quatre accès et dans cette mise à jour documentaire |
@@ -110,6 +117,7 @@ Le nom est retenu et le contrôle fonctionnel ciblé est validé. Cela ne signif
 | [Accès pilote](experimental-service/ACCES_PILOTE.md) | Authentification et préparation des quatre accès |
 | [Reprise privée](experimental-service/REPRISE_PRIVEE.md) | Persistance des critères/résultats et limites de mémoire |
 | [Attestation HTTPS](experimental-service/PROXY_ATTESTATION.md) | Transport, refus et absence de relance payante |
+| [Reprise Infomaniak](experimental-service/REPRISE_INFOMANIAK.md) | Incident du 9 novembre, configuration vérifiée, récupération et prévention |
 | [Suivi quotidien](experimental-service/SUIVI_QUOTIDIEN.md) | Consommation agrégée, alertes et limites budgétaires |
 | [Catalogue : guide technique](https://github.com/technologies-formation/catalogue-formations/blob/fix/course-relevance-2026-10-30/GUIDE_REPRISE.md) | Service séparé et références Catalogue |
 

@@ -26,11 +26,15 @@ export function createPrivatePathwayHandler({
     stop() { stopped = true; tickets.clear(); session.stop() },
     async handler(req, res) {
       if (stopped) return send(res, 503, { error: 'Service privé désactivé' })
+      const crossSite = req.headers['sec-fetch-site'] === 'cross-site'
+      const externalPageNavigation = crossSite && req.method === 'GET' &&
+        (req.url === '/private/' || req.url === '/private') && !req.headers.origin &&
+        req.headers['sec-fetch-mode'] === 'navigate' && req.headers['sec-fetch-dest'] === 'document'
       // Ne jamais déduire l’identité d’un en-tête transmis par le navigateur.
       // authenticate est fourni par l’intégration serveur du futur hébergement.
       if (req.headers.host !== origin.host ||
           (req.headers.origin && req.headers.origin !== publicOrigin) ||
-          req.headers['sec-fetch-site'] === 'cross-site') return send(res, 403, { error: 'Origine refusée' })
+          (crossSite && !externalPageNavigation)) return send(res, 403, { error: 'Origine refusée' })
       let identity
       try { identity = await authenticate(req, res) } catch {}
       if (!identity || typeof identity.id !== 'string' || !identity.id.trim() || identity.id.length > 256) {

@@ -8,7 +8,13 @@ import { createPilotPrivateHandler } from './pilot-private.mjs'
 import { createPrivateResources } from './private-resources.mjs'
 
 export const HOSTED_ORIGIN = 'https://avatar.a658yg-catalogue.ch'
+export const HOSTED_PROXY_HOST = 'aqsvp5bhvmw.preview.hosting-ik.com'
 const address = value => value?.startsWith('::ffff:') ? value.slice(7) : value
+const diagnosticHost = value => {
+  const text = Array.isArray(value) ? value.join(',') : value
+  if (typeof text !== 'string' || !text) return 'absent'
+  return text.slice(0, 255).replace(/[^A-Za-z0-9._:,\- \[\]]/g, '?')
+}
 export function secureProxyCheck(trustedProxyAddresses) {
   if (!Array.isArray(trustedProxyAddresses) || !trustedProxyAddresses.length || trustedProxyAddresses.length > 16 ||
       trustedProxyAddresses.some(ip => typeof ip !== 'string' || !isIP(ip))) throw Error('Adresses IP exactes du proxy requises')
@@ -18,11 +24,13 @@ export function secureProxyCheck(trustedProxyAddresses) {
 
 export function createHostedTransport({ enabled = false, publicOrigin, trustedProxyAddresses, users, stateFile,
   createSession, renderPage, createGateway = null, responseTimeoutMs = 10000, socketTimeoutMs = 15000, proxyVerification = 'exact-addresses', requestProbe,
-  reportTransportRefusal = reason => console.warn('Contrôle HTTPS refusé : ' + reason) } = {}) {
+  reportTransportRefusal = (reason, diagnostic) => console.warn('Contrôle HTTPS refusé : ' + reason +
+    (diagnostic ? ' ; host=' + diagnostic.host + ' ; x-forwarded-host=' + diagnostic.forwardedHost : '')) } = {}) {
   if (enabled !== true || publicOrigin !== HOSTED_ORIGIN) throw Error('Activation et origine distante explicites requises')
   if (createGateway !== null && typeof createGateway !== 'function') throw Error('Fabrique privée invalide')
   if (!['exact-addresses', 'self-https'].includes(proxyVerification)) throw Error('Mode de proxy inconnu')
-  const attestation = proxyVerification === 'self-https' ? createProxyAttestation({ publicOrigin, requestProbe }) : null
+  const attestation = proxyVerification === 'self-https' ? createProxyAttestation({ publicOrigin, requestProbe,
+    proxyHosts: [HOSTED_PROXY_HOST] }) : null
   const secure = attestation ? attestation.secure : secureProxyCheck(trustedProxyAddresses)
   if (typeof stateFile !== 'string' || !isAbsolute(stateFile)) throw Error('État privé absolu requis')
   // Verrou exclusif : un deuxième processus ne peut pas contourner le quota.
@@ -48,16 +56,22 @@ export function createHostedTransport({ enabled = false, publicOrigin, trustedPr
         if (attestation) await attestation.ensure(req,{waitForRenewal:true})
         // Rejeter avant même le challenge Basic si le transport n'est pas attesté.
         if (!secure(req)) {
-          // Diagnostic borné, sans IP, URL, en-tête, identifiant ou contenu utilisateur.
+          // Diagnostic borné : Host et X-Forwarded-Host nettoyés seulement en cas d'écart ; jamais d'IP, URL, identifiant ou contenu.
           const now = Date.now()
           if (now - lastRefusalLog >= 5000) {
             lastRefusalLog = now
-            try { reportTransportRefusal(attestation ? attestation.refusalReason(req) : 'exact_address_check') } catch {}
+            const reason = attestation ? attestation.refusalReason(req) : 'exact_address_check'
+            const diagnostic = reason === 'host' ? { host: diagnosticHost(req.headers.host),
+              forwardedHost: diagnosticHost(req.headers['x-forwarded-host']) } : undefined
+            try { reportTransportRefusal(reason, diagnostic) } catch {}
           }
           const api = ['/private/dialogue', '/private/pathway', '/private/course-search', '/private/profile-references', '/private/catalogue-status'].includes(req.url?.split('?')[0]) || req.headers.accept?.includes('application/json')
           res.writeHead(403, { 'Content-Type': api ? 'application/json; charset=utf-8' : 'text/plain; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' })
           return res.end(api ? JSON.stringify({ code: 'secure_transport_required' }) : 'Transport HTTPS via proxy de confiance requis')
         }
+        // Infomaniak transmet son Host de prévisualisation au backend. Après preuve HTTPS et pair attesté seulement,
+        // normaliser vers l'origine publique attendue par les contrôles applicatifs de même origine.
+        if (req.headers.host === HOSTED_PROXY_HOST) req.headers.host = new URL(publicOrigin).host
         res.setHeader('Strict-Transport-Security', 'max-age=86400')
         await gateway.handler(req, res)
       }

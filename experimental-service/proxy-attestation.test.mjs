@@ -8,6 +8,7 @@ import https from 'node:https'
 import http from 'node:http'
 import { createProxyAttestation, requestHttpsProof } from './proxy-attestation.mjs'
 import { createHostedSimulation, HOSTED_ORIGIN } from './hosted-simulation.mjs'
+import { HOSTED_PROXY_HOST } from './hosted-transport.mjs'
 import { createPilotCredential } from './pilot-auth.mjs'
 import { references } from './reference-test-fixtures.mjs'
 import { data } from './result-test-fixtures.mjs'
@@ -44,6 +45,18 @@ test('preuve HTTPS : pair appris uniquement après retour vérifié, rotation sa
   const replay = response(); assert.equal(f.gate.handleProof(request('192.0.2.99', 'https', 'proof.invalid', f.path()), replay), true)
   assert.equal(replay.status, 404); assert.equal(f.gate.secure(request('192.0.2.99')), false)
   f.gate.stop(); assert.equal(f.gate.secure(other), false)
+})
+
+test('Host interne Infomaniak : accepté seulement s’il est exact et si le pair a été attesté par HTTPS', async () => {
+  const proxyHost = 'preview-one.hosting-ik.com'
+  const f = fixture({ proxyHosts: [proxyHost] })
+  const preview = request('192.0.2.10', 'https', proxyHost)
+  assert.equal(f.gate.secure(preview), false)
+  assert.equal(await f.gate.ensure(preview), true)
+  assert.equal(f.gate.secure(preview), true)
+  assert.equal(f.gate.secure(request('192.0.2.10', 'https', 'preview-two.hosting-ik.com')), false)
+  assert.equal(f.gate.secure(request('192.0.2.99', 'https', proxyHost)), false)
+  assert.throws(() => createProxyAttestation({ publicOrigin: origin, proxyHosts: ['preview/incorrect'] }))
 })
 
 test('aucune confiance à partir d’un visiteur, d’un nonce inconnu ou d’un accusé falsifié', async () => {
@@ -109,18 +122,21 @@ test('intégration : preuve indépendante avant challenge Basic, accès et quota
   const stateFile = join(dir, 'quotas.json')
   writeFileSync(stateFile, JSON.stringify({ day: Math.floor(Date.now() / 86400000), daily: 2, total: 2, stopped: false }), { mode: 0o600 })
   let service
-  const send = (path, auth = '', proto = 'https') => new Promise((resolve, reject) => {
+  const send = (path, auth = '', proto = 'https', extraHeaders = {}) => new Promise((resolve, reject) => {
     const req = http.request({ hostname: '127.0.0.1', port: service.server.address().port, path,
-      headers: { host: 'avatar.a658yg-catalogue.ch', 'x-forwarded-proto': proto, authorization: auth } }, res => {
+      headers: { host: 'avatar.a658yg-catalogue.ch', 'x-forwarded-proto': proto, authorization: auth, ...extraHeaders } }, res => {
       let text = ''; res.setEncoding('utf8'); res.on('data', chunk => { text += chunk }); res.on('end', () => resolve({ status: res.statusCode, headers: res.headers, text }))
     }); req.on('error', reject); req.end()
   })
   const refusals = []
-  service = createHostedSimulation({ enabled: true, publicOrigin: HOSTED_ORIGIN, proxyVerification: 'self-https', reportTransportRefusal: reason => refusals.push(reason),
+  service = createHostedSimulation({ enabled: true, publicOrigin: HOSTED_ORIGIN, proxyVerification: 'self-https', reportTransportRefusal: (reason, detail) => refusals.push({ reason, detail }),
     users: [user], stateFile, loadProfileReferences: () => references(), preview: data(),
     requestProbe: async (_origin, path) => { const res = await send(path); assert.equal(res.status, 200); return res.text } })
   t.after(async () => { try { await service.close() } finally { rmSync(dir, { recursive: true, force: true }) } })
   await new Promise(resolve => service.server.listen(0, '127.0.0.1', resolve))
+  const wrongHost = await send('/private/', '', 'https', { host: 'internal.proxy.invalid:3000',
+    'x-forwarded-host': 'avatar.a658yg-catalogue.ch/unexpected' })
+  assert.equal(wrongHost.status, 403); assert.equal(wrongHost.headers['www-authenticate'], undefined)
   const before = await send('/private/', '', 'http'); assert.equal(before.status, 403); assert.equal(before.headers['www-authenticate'], undefined)
   for (const path of ['/private/dialogue','/private/pathway','/private/course-search','/private/profile-references','/private/catalogue-status']) {
     const blocked = await send(path, 'Basic ' + Buffer.from('tester:' + password).toString('base64'), 'http')
@@ -129,10 +145,14 @@ test('intégration : preuve indépendante avant challenge Basic, accès et quota
     assert.equal(blocked.headers['cache-control'], 'no-store')
     assert.deepEqual(JSON.parse(blocked.text), {code:'secure_transport_required'})
   }
-  assert.deepEqual(refusals, ['protocol']) // Rafale limitée, sans valeur d'en-tête ni compte.
+  assert.deepEqual(refusals, [{ reason: 'host', detail: { host: 'internal.proxy.invalid:3000',
+    forwardedHost: 'avatar.a658yg-catalogue.ch?unexpected' } }])
+  assert.doesNotMatch(JSON.stringify(refusals), /Basic|tester|password|authorization/i) // Rafale limitée, sans accès ni contenu.
   const challenge = await send('/private/'); assert.equal(challenge.status, 401); assert.match(challenge.headers['www-authenticate'], /Basic/)
   const page = await send('/private/', 'Basic ' + Buffer.from('tester:' + password).toString('base64'))
   assert.equal(page.status, 200); assert.match(page.text, /simulation uniquement/)
+  const proxied = await send('/private/', 'Basic ' + Buffer.from('tester:' + password).toString('base64'), 'https', { host: HOSTED_PROXY_HOST })
+  assert.equal(proxied.status, 200); assert.match(proxied.text, /simulation uniquement/)
   assert.equal(service.status().total, 2)
   assert.equal((await send('/_avatar_proxy_proof/guess')).status, 404)
 })

@@ -4,6 +4,14 @@ import { join, relative, isAbsolute } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { readHostedDialogueTrialConfig, readDialogueTrialLaunch, createHostedDialogueTrial } from './hosted-dialogue-trial.mjs'
 
+export function readInfomaniakPort(environment = process.env) {
+  const raw = environment.PORT ?? '3000'
+  if (typeof raw !== 'string' || !/^[0-9]{1,5}$/.test(raw)) throw Error('PORT Infomaniak invalide')
+  const port = Number(raw)
+  if (!Number.isSafeInteger(port) || port < 1 || port > 65535) throw Error('PORT Infomaniak invalide')
+  return port
+}
+
 export function readPrivatePilotLaunch(configFile, siteDirectory, environment, pathwayDirectory) {
   if (environment.AVATAR_PRIVATE_UNLIMITED_ENABLED !== 'true') throw Error('Activation du pilote sans plafond absente')
   const prepared = readHostedDialogueTrialConfig(configFile, siteDirectory)
@@ -37,12 +45,13 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     for (const event of ['SIGINT', 'SIGTERM']) process.once(event, () => {
       service.close().catch(() => { process.exitCode = 1 })
     })
-    service.server.listen(3000, '0.0.0.0', async () => {
+    service.server.listen(readInfomaniakPort(), '0.0.0.0', async () => {
       console.log('Assistant privé : dialogue IA et recherches sans plafond d’essais. Compteurs et suivi conservés. Aucun appel payant à l’ouverture.')
       console.log(await service.attestProxy() ? 'Contrôle HTTPS du proxy réussi.' : 'Contrôle HTTPS indisponible ; accès bloqué.')
     })
-  } catch {
-    console.error('Pilote non démarré : vérifier l’activation et les compteurs privés existants.')
+  } catch (error) {
+    const detail = error instanceof Error ? error.message.slice(0, 240).replace(/[\r\n\t]/g, ' ') : 'erreur inconnue'
+    console.error('Pilote non démarré : ' + detail)
     process.exitCode = 1
   }
 }

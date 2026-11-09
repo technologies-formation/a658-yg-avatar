@@ -26,7 +26,7 @@ async function setup(t, options = {}) {
   const url = 'http://127.0.0.1:' + server.address().port
   const request = (path = '/private/profile-references', init = {}) => new Promise((resolve, reject) => {
     const req = http.request(url + path, { method: init.method ?? 'GET',
-      headers: { Host: 'avatar.example.invalid', Origin: origin, ...init.headers } }, res => {
+      headers: { Host: 'avatar.example.invalid', ...(init.omitOrigin ? {} : { Origin: origin }), ...init.headers } }, res => {
       const chunks = []; res.on('data', chunk => chunks.push(chunk))
       res.on('end', () => resolve(new Response(Buffer.concat(chunks), { status: res.statusCode, headers: res.headers })))
     })
@@ -55,6 +55,21 @@ test('identité vérifiée et origine : refus avant référentiel, quota ou mote
   assert.equal((await app.request(undefined, { headers: { Origin: 'https://autre.invalid' } })).status, 403)
   assert.equal((await app.request(undefined, { headers: { Host: 'autre.invalid' } })).status, 403)
   assert.equal((await app.request(undefined, { headers: { 'Sec-Fetch-Site': 'cross-site' } })).status, 403)
+  assert.equal(app.calls.length, 0)
+})
+
+test('navigation externe : seule la page privée GET de premier niveau est admise', async t => {
+  const app = await setup(t, { config: { serveResource: async (req, res) => {
+    if (req.method !== 'GET' || req.url !== '/private/') return false
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' }); res.end('page privée'); return true
+  } } })
+  const navigation = { omitOrigin: true, headers: {
+    'Sec-Fetch-Site': 'cross-site', 'Sec-Fetch-Mode': 'navigate', 'Sec-Fetch-Dest': 'document',
+  } }
+  assert.equal((await app.request('/private/', navigation)).status, 200)
+  assert.equal((await app.request('/private/profile-references', navigation)).status, 403)
+  assert.equal((await app.request('/private/', { omitOrigin: true, headers: { 'Sec-Fetch-Site': 'cross-site' } })).status, 403)
+  assert.equal((await app.request('/private/', { ...navigation, headers: { ...navigation.headers, Origin: 'https://autre.invalid' } })).status, 403)
   assert.equal(app.calls.length, 0)
 })
 
