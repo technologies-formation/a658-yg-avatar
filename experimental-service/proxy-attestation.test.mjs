@@ -46,6 +46,18 @@ test('preuve HTTPS : pair appris uniquement après retour vérifié, rotation sa
   f.gate.stop(); assert.equal(f.gate.secure(other), false)
 })
 
+test('Host interne Infomaniak : accepté seulement s’il est exact et si le pair a été attesté par HTTPS', async () => {
+  const proxyHost = 'preview-one.hosting-ik.com'
+  const f = fixture({ proxyHosts: [proxyHost] })
+  const preview = request('192.0.2.10', 'https', proxyHost)
+  assert.equal(f.gate.secure(preview), false)
+  assert.equal(await f.gate.ensure(preview), true)
+  assert.equal(f.gate.secure(preview), true)
+  assert.equal(f.gate.secure(request('192.0.2.10', 'https', 'preview-two.hosting-ik.com')), false)
+  assert.equal(f.gate.secure(request('192.0.2.99', 'https', proxyHost)), false)
+  assert.throws(() => createProxyAttestation({ publicOrigin: origin, proxyHosts: ['preview/incorrect'] }))
+})
+
 test('aucune confiance à partir d’un visiteur, d’un nonce inconnu ou d’un accusé falsifié', async () => {
   const f = fixture(), attacker = request('192.0.2.99')
   assert.equal(await f.gate.ensure(attacker), false)

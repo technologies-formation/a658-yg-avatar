@@ -30,16 +30,20 @@ export function requestHttpsProof(publicOrigin, path, timeoutMs = 3000) {
 }
 
 export function createProxyAttestation({ publicOrigin, requestProbe = requestHttpsProof, now = Date.now,
-  cooldownMs = 5000, validityMs = 600000, waitForRefresh = ms => new Promise(resolve=>setTimeout(resolve,ms)) } = {}) {
+  cooldownMs = 5000, validityMs = 600000, proxyHosts = [], waitForRefresh = ms => new Promise(resolve=>setTimeout(resolve,ms)) } = {}) {
   const origin = new URL(publicOrigin)
   if (origin.protocol !== 'https:' || origin.origin !== publicOrigin || typeof requestProbe !== 'function' ||
       typeof now !== 'function' || typeof waitForRefresh !== 'function' || !Number.isInteger(cooldownMs) || cooldownMs < 1000 ||
-      !Number.isInteger(validityMs) || validityMs < 1000 || validityMs > 3600000) throw Error('Attestation HTTPS explicite requise')
+      !Number.isInteger(validityMs) || validityMs < 1000 || validityMs > 3600000 || !Array.isArray(proxyHosts) ||
+      proxyHosts.length > 4 || proxyHosts.some(host => typeof host !== 'string' || !/^[a-z0-9.-]+(?::[0-9]{1,5})?$/.test(host))) {
+    throw Error('Attestation HTTPS explicite requise')
+  }
+  const acceptedHosts = new Set([origin.host, ...proxyHosts])
   const trusted = new Map(), pending = new Map(), targets = new Set()
   let waiting = null
   let inFlight = null, lastProbe = -Infinity, lastTime = -Infinity, stopped = false
   const time = () => { const value = now(); if (!Number.isFinite(value) || value < lastTime) throw Error('Horloge indisponible'); lastTime = value; return value }
-  const transport = req => req.headers.host === origin.host && req.headers['x-forwarded-proto'] === 'https' &&
+  const transport = req => acceptedHosts.has(req.headers.host) && req.headers['x-forwarded-proto'] === 'https' &&
     typeof req.socket.remoteAddress === 'string' && isIP(normalize(req.socket.remoteAddress)) !== 0
   const secure = req => {
     try { return !stopped && transport(req) && (trusted.get(normalize(req.socket.remoteAddress)) ?? -Infinity) > time() }
@@ -81,7 +85,7 @@ export function createProxyAttestation({ publicOrigin, requestProbe = requestHtt
     secure,
     refusalReason(req) {
       if (stopped) return 'stopped'
-      if (req.headers.host !== origin.host) return 'host'
+      if (!acceptedHosts.has(req.headers.host)) return 'host'
       if (req.headers['x-forwarded-proto'] !== 'https') return 'protocol'
       if (typeof req.socket.remoteAddress !== 'string' || !isIP(normalize(req.socket.remoteAddress))) return 'peer'
       return 'unverified_peer'

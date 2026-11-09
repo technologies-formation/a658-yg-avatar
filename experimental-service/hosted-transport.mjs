@@ -8,6 +8,7 @@ import { createPilotPrivateHandler } from './pilot-private.mjs'
 import { createPrivateResources } from './private-resources.mjs'
 
 export const HOSTED_ORIGIN = 'https://avatar.a658yg-catalogue.ch'
+export const HOSTED_PROXY_HOST = 'aqsvp5bhvmw.preview.hosting-ik.com'
 const address = value => value?.startsWith('::ffff:') ? value.slice(7) : value
 const diagnosticHost = value => {
   const text = Array.isArray(value) ? value.join(',') : value
@@ -28,7 +29,8 @@ export function createHostedTransport({ enabled = false, publicOrigin, trustedPr
   if (enabled !== true || publicOrigin !== HOSTED_ORIGIN) throw Error('Activation et origine distante explicites requises')
   if (createGateway !== null && typeof createGateway !== 'function') throw Error('Fabrique privée invalide')
   if (!['exact-addresses', 'self-https'].includes(proxyVerification)) throw Error('Mode de proxy inconnu')
-  const attestation = proxyVerification === 'self-https' ? createProxyAttestation({ publicOrigin, requestProbe }) : null
+  const attestation = proxyVerification === 'self-https' ? createProxyAttestation({ publicOrigin, requestProbe,
+    proxyHosts: [HOSTED_PROXY_HOST] }) : null
   const secure = attestation ? attestation.secure : secureProxyCheck(trustedProxyAddresses)
   if (typeof stateFile !== 'string' || !isAbsolute(stateFile)) throw Error('État privé absolu requis')
   // Verrou exclusif : un deuxième processus ne peut pas contourner le quota.
