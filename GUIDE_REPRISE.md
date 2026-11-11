@@ -96,6 +96,41 @@ Utiliser le gestionnaire Node.js de l'hébergement pour redémarrer ou arrêter 
 
 Tant que les testeurs sont inactifs, une restauration de code ne doit pas changer leurs accès. Après activation, retirer leurs comptes avant de revenir à un code antérieur sans quotas testeurs. Préserver les états créés depuis la sauvegarde ; ne pas remplacer aveuglément `users.json`, ni restaurer des compteurs anciens pour récupérer des tentatives. Une procédure de coupure doit rester disponible à l'opérateur pendant le pilote.
 
+## Contrôle GitHub et Codespaces
+
+À chaque jalon, audit GitHub ou opération de ménage, consulter directement la page
+des Codespaces du compte. Un courriel d'expiration est un signal utile, mais ne doit
+jamais être l'unique moyen de surveillance : il peut ne pas être lu à temps. Relever
+le nom du Codespace, son dépôt, sa branche, son échéance et la date du contrôle,
+sans recopier de secret ni de contenu utilisateur.
+
+Avant de laisser expirer ou de supprimer un Codespace, vérifier dans son terminal,
+une étape à la fois :
+
+1. `git status --short --branch` pour les fichiers suivis ou non suivis ;
+2. `git branch -vv` pour la branche courante et son amont ;
+3. `git log --oneline --decorate @{u}..HEAD` lorsqu'un amont est configuré, afin
+   d'identifier les commits locaux non poussés ;
+4. `git diff --stat` puis, si nécessaire, le contenu exact des différences ;
+5. la présence sur GitHub du commit ou de la branche à conserver avant toute
+   suppression.
+
+Une suppression automatique peut intervenir même si des changements ne sont pas
+poussés. Ouvrir de nouveau le Codespace réinitialise son délai de conservation ;
+l'option « Keep codespace », lorsqu'elle est disponible, évite l'expiration mais
+peut conserver un coût de stockage. Démarrer un Codespace peut également consommer
+des ressources : effectuer seulement le contrôle nécessaire puis l'arrêter.
+
+La suppression d'un Codespace ne supprime pas les commits déjà poussés et n'arrête
+ni GitHub Pages ni Infomaniak. En revanche, elle détruit l'environnement et peut
+faire perdre fichiers, commits ou notes restés uniquement dans cet espace. Après
+chaque contrôle, consigner uniquement le résultat utile : propre, éléments poussés,
+éléments exportés ou décision explicite de laisser expirer.
+
+Le compte GitHub doit aussi conserver une authentification à deux facteurs active.
+Les codes de récupération restent hors dépôt, hors Codespaces, hors chat et dans
+un emplacement privé distinct.
+
 ## Achèvement du jalon et ouverture : étapes restantes
 
 Le nom est retenu et le contrôle fonctionnel ciblé est validé. Cela ne signifie pas que le pilote est ouvert ni que tous les cas métier sont certifiés.
