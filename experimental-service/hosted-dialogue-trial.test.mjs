@@ -9,6 +9,7 @@ import { HOSTED_ORIGIN } from './hosted-transport.mjs'
 import { createPilotCredential } from './pilot-auth.mjs'
 import { references } from './reference-test-fixtures.mjs'
 import { data } from './result-test-fixtures.mjs'
+import { acquireInstanceLock } from './instance-lock.mjs'
 function fixture(t){
  const root=mkdtempSync(join(tmpdir(),'avatar-hosted-real-dialogue-')),site=join(root,'site'),directory=join(root,'private')
  let cleanup=()=>{};mkdirSync(site);mkdirSync(directory,{mode:0o700});t.after(async()=>{await cleanup();rmSync(root,{recursive:true,force:true})})
@@ -79,6 +80,28 @@ test('port occupé : libérer les nouveaux verrous sans toucher au serveur actif
  // Une autre instance peut préparer l’écoute, sans suppression de verrou manuelle.
  const retry=createHostedDialogueTrial(active);await new Promise(resolve=>retry.server.listen(0,'127.0.0.1',resolve));await retry.close()
  assert.equal(readFileSync(join(options.budgetDirectory,'attempt-01.json'),'utf8'),saved)
+})
+
+test('arrêt brutal : récupérer les deux verrous propriétaires périmés et conserver compteurs et budget',async t=>{
+ const f=fixture(t),prepared=prepareHostedDialogueTrial(f.file,f.site),options=readHostedDialogueTrialConfig(prepared.configFile,f.site)
+ const user=await createPilotCredential({id:'tester',username:'tester',password:'FAKE_CRASH_RECOVERY_PASSWORD'})
+ const oldTransport=acquireInstanceLock({path:options.stateFile+'.lock',pid:999001,host:'retired-container',
+  token:'11111111-1111-4111-8111-111111111111',heartbeatMs:0})
+ const oldBudget=acquireInstanceLock({path:join(options.budgetDirectory,'.dialogue-lock'),pid:999002,host:'retired-container',
+  token:'22222222-2222-4222-8222-222222222222',heartbeatMs:0})
+ writeFileSync(options.stateFile,JSON.stringify({day:20749,daily:4,total:4,stopped:false}),{mode:0o600})
+ writeFileSync(join(options.budgetDirectory,'attempt-01.json'),JSON.stringify({requestHash:'a'.repeat(64),reservedMicroUsd:10000}),{mode:0o600})
+ const active={...options,enabled:true,paidTrialAuthorized:true,billingReviewed:true,apiKey:'FAKE_CRASH_RECOVERY_KEY',
+  proxyVerification:'exact-addresses',trustedProxyAddresses:['127.0.0.1'],users:[user],fetchImpl:async()=>{throw Error('transport non attendu')}}
+ const service=createHostedDialogueTrial(active);f.setCleanup(async()=>{if(service.server.listening)await service.close()})
+ await new Promise(resolve=>service.server.listen(0,'127.0.0.1',resolve))
+ assert.equal(oldTransport.release(),false);assert.equal(oldBudget.release(),false)
+ assert.equal(JSON.parse(readFileSync(options.stateFile,'utf8')).total,4)
+ assert.equal(JSON.parse(readFileSync(join(options.budgetDirectory,'attempt-01.json'),'utf8')).reservedMicroUsd,10000)
+ assert.equal(existsSync(join(options.stateFile+'.lock','owner.json')),true)
+ assert.equal(existsSync(join(options.budgetDirectory,'.dialogue-lock','owner.json')),true)
+ await service.close()
+ assert.equal(existsSync(options.stateFile+'.lock'),false);assert.equal(existsSync(join(options.budgetDirectory,'.dialogue-lock')),false)
 })
 
 

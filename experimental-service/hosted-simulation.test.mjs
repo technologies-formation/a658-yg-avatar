@@ -47,7 +47,10 @@ test('HTTP hébergé : ressources protégées, confirmation, cinq simulations, q
   const dir = temp(t), user = await createPilotCredential({ id: 'tester', username: 'tester', password })
   let service = await start(options(dir, user))
   t.after(async () => { try { if (service.server.listening) await service.close() } finally { rmSync(dir, { recursive: true, force: true }) } })
-  assert.throws(() => createHostedSimulation(options(dir, user)), /EEXIST/)
+  assert.throws(
+    () => createHostedSimulation(options(dir, user)),
+    error => error?.code === 'instance_locked' && error?.reason === 'actif'
+  )
   for (const proto of ['http', 'https,http', '']) {
     const result = await request(service.server, { headers: { 'x-forwarded-proto': proto } })
     assert.equal(result.status, 403); assert.equal(result.headers['www-authenticate'], undefined)

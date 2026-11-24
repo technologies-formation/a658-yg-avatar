@@ -1,8 +1,8 @@
 // Transport privé partagé : authentification, proxy attesté et verrou exclusif.
 import http from 'node:http'
 import { isIP } from 'node:net'
-import { mkdirSync, rmdirSync } from 'node:fs'
 import { isAbsolute } from 'node:path'
+import { acquireInstanceLock } from './instance-lock.mjs'
 import { createProxyAttestation } from './proxy-attestation.mjs'
 import { createPilotPrivateHandler } from './pilot-private.mjs'
 import { createPrivateResources } from './private-resources.mjs'
@@ -24,10 +24,12 @@ export function secureProxyCheck(trustedProxyAddresses) {
 
 export function createHostedTransport({ enabled = false, publicOrigin, trustedProxyAddresses, users, stateFile,
   createSession, renderPage, createGateway = null, responseTimeoutMs = 10000, socketTimeoutMs = 15000, proxyVerification = 'exact-addresses', requestProbe,
+  acquireLock = acquireInstanceLock,
   reportTransportRefusal = (reason, diagnostic) => console.warn('Contrôle HTTPS refusé : ' + reason +
     (diagnostic ? ' ; host=' + diagnostic.host + ' ; x-forwarded-host=' + diagnostic.forwardedHost : '')) } = {}) {
   if (enabled !== true || publicOrigin !== HOSTED_ORIGIN) throw Error('Activation et origine distante explicites requises')
   if (createGateway !== null && typeof createGateway !== 'function') throw Error('Fabrique privée invalide')
+  if (typeof acquireLock !== 'function') throw Error('Fabrique de verrou invalide')
   if (!['exact-addresses', 'self-https'].includes(proxyVerification)) throw Error('Mode de proxy inconnu')
   const attestation = proxyVerification === 'self-https' ? createProxyAttestation({ publicOrigin, requestProbe,
     proxyHosts: [HOSTED_PROXY_HOST] }) : null
@@ -35,10 +37,12 @@ export function createHostedTransport({ enabled = false, publicOrigin, trustedPr
   if (typeof stateFile !== 'string' || !isAbsolute(stateFile)) throw Error('État privé absolu requis')
   // Verrou exclusif : un deuxième processus ne peut pas contourner le quota.
   const lock = stateFile + '.lock'
-  mkdirSync(lock, { mode: 0o700 })
+  const instanceLock = acquireLock({ path: lock,
+    onRecovered: ({ ageMs }) => console.warn('Verrou de transport périmé récupéré ; âge=' + Math.floor(ageMs / 1000) + 's.'),
+    onHeartbeatError: error => console.error('Renouvellement du verrou de transport impossible : ' + error.message) })
   let renewalTimer=null
   let gateway, server, released = false
-  const release = () => { if (!released) { rmdirSync(lock); released = true } }
+  const release = () => { if (!released) { instanceLock.release(); released = true } }
   try {
     let status
     if (createGateway) {
@@ -91,6 +95,7 @@ export function createHostedTransport({ enabled = false, publicOrigin, trustedPr
     server.once('listening', () => server.removeListener('error', listenError))
     // close() est une fermeture technique ; stop() est une révocation persistante.
     return { server, attestProxy: () => attestation?.refresh() ?? Promise.resolve(true), status, stop: gateway.stop, revoke: gateway.revoke,
+      emergencyRelease: cleanup,
       close: () => new Promise((accept, reject) => {
         server.close(error => { if (error) reject(error); else accept() })
         server.closeAllConnections()

@@ -57,7 +57,10 @@ for (const outcome of ['success', 'error', 'timeout']) {
     }
     t.after(async () => { if (service?.server.listening) await service.close(); rmSync(dir, { recursive: true, force: true }) })
     await start()
-    assert.throws(() => createHostedReal(options), /EEXIST/)
+    assert.throws(
+      () => createHostedReal(options),
+      error => error?.code === 'instance_locked' && error?.reason === 'actif'
+    )
     assert.equal(service.server.timeout, 215000)
     const forbidden = await request(service.server, '/', { headers: { 'x-forwarded-proto': 'http' } })
     assert.equal(forbidden.status, 403); assert.equal(forbidden.headers['www-authenticate'], undefined)
