@@ -42,7 +42,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       console.error('Pilote non démarré : écoute refusée. Compteurs conservés.')
       process.exitCode = 1
     })
-    for (const event of ['SIGINT', 'SIGTERM']) process.once(event, () => {
+    process.once('exit', () => service.emergencyRelease())
+    for (const event of ['SIGINT', 'SIGTERM', 'SIGHUP']) process.once(event, () => {
       service.close().catch(() => { process.exitCode = 1 })
     })
     service.server.listen(readInfomaniakPort(), '0.0.0.0', async () => {

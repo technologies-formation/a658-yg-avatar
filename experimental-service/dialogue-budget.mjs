@@ -1,24 +1,34 @@
 // Registre distinct, append-only : aucune création de dossier ni remise à zéro implicite.
-import { openSync, closeSync, writeFileSync, readFileSync, fsyncSync, lstatSync, readdirSync, realpathSync, unlinkSync } from 'node:fs'
+import { openSync, closeSync, writeFileSync, readFileSync, fsyncSync, lstatSync, readdirSync, realpathSync } from 'node:fs'
 import { isAbsolute, resolve, join } from 'node:path'
 import { createHash } from 'node:crypto'
 import { DialogueError } from './dialogue-session.mjs'
+import { acquireInstanceLock, InstanceLockError } from './instance-lock.mjs'
 const fail = code => { throw new DialogueError(code) }
 export const TRIAL_POLICY = Object.freeze({ model: 'gpt-6-luna', maxAttempts: 10, maxReservedMicroUsd: 100000,
   reserveMicroUsd: 10000, maxInputTokens: 30000, maxOutputTokens: 2000, pricingDate: '2026-10-23' })
-export function createDialogueBudget({ directory, singleInstance = false, unlimited = false } = {}) {
+export function createDialogueBudget({ directory, singleInstance = false, unlimited = false, acquireLock = acquireInstanceLock } = {}) {
   if (typeof unlimited !== 'boolean' || typeof directory !== 'string' || !isAbsolute(directory) || singleInstance !== true) fail('budget_configuration')
   const stat = lstatSync(directory)
   if (!stat.isDirectory() || stat.isSymbolicLink() || (stat.mode & 0o077) || realpathSync(directory) !== resolve(directory)) fail('budget_directory')
-  const lock = join(directory, '.dialogue-lock'); let fd
-  try { fd = openSync(lock, 'wx', 0o600) } catch { fail('budget_locked') }
+  const lock = join(directory, '.dialogue-lock'); let instanceLock
+  try {
+    instanceLock = acquireLock({ path: lock,
+      onRecovered: ({ ageMs }) => console.warn('Verrou de budget périmé récupéré ; âge=' + Math.floor(ageMs / 1000) + 's.'),
+      onHeartbeatError: error => console.error('Renouvellement du verrou de budget impossible : ' + error.message) })
+  } catch (error) {
+    if (error instanceof InstanceLockError) {
+      const value = new DialogueError('budget_locked'); value.message = 'budget_locked : ' + error.message; value.cause = error; throw value
+    }
+    throw error
+  }
   let closed = false, blocked = false
   const records = []
   const checkFile = path => {
     const info = lstatSync(path)
     if (!info.isFile() || info.isSymbolicLink() || info.size > 512 || (info.mode & 0o077)) fail('budget_corrupt')
   }
-  const release = () => { if (!closed) { closed = true; closeSync(fd); unlinkSync(lock) } }
+  const release = () => { if (!closed) { closed = true; instanceLock.release() } }
   try {
     for (const name of readdirSync(directory).filter(x => x.startsWith('attempt-')).sort((a,b)=>parseInt(a.slice(8),10)-parseInt(b.slice(8),10))) {
       if (name !== 'attempt-' + String(records.length + 1).padStart(2, '0') + '.json') fail('budget_corrupt')

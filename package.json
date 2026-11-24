@@ -8,6 +8,7 @@
   },
   "scripts": {
     "start": "node experimental-service/infomaniak-private-pilot.mjs",
+    "check:availability": "node experimental-service/check-private-availability.mjs",
     "test:infomaniak": "node --test experimental-service/infomaniak-private-pilot.test.mjs experimental-service/private-unlimited.test.mjs experimental-service/proxy-attestation.test.mjs"
   }
 }
