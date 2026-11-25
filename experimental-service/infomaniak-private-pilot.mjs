@@ -10,6 +10,7 @@ const activation = Object.freeze({
   AVATAR_PRIVATE_UNLIMITED_ENABLED: 'true',
   AVATAR_MAIL_ENABLED: 'true',
   A658_DAILY_REPORT_ENABLED: 'true',
+  A658_PEER_MONITOR_ENABLED: 'true',
   AVATAR_DEVICE_MEMORY_ENABLED: 'true',
 })
 
