@@ -12,6 +12,7 @@ import { createRealDialogueTrialInterface } from './dialogue-real-trial.mjs'
 import {VALIDATION_SERIES} from './pathway-validation.mjs'
 import {readHostedEmail} from './research-email.mjs'
 import { TRIAL_POLICY } from './dialogue-budget.mjs'
+import {createAssistantPeerMonitoring} from './peer-monitoring.mjs'
 
 export function readHostedDialogueTrialConfig(configFile, siteDirectory) {
   const options = readHostedConfig(configFile, siteDirectory)
@@ -107,6 +108,8 @@ export function createHostedDialogueTrial(options = {}) {
     return testerUsers.map(user=>({username:user.username,...usage.report(user.id)}))
   }
   const reporter=options.dailyReport?createDailyReporter({config:options.dailyReport,mail:options.mail,consumption:options.consumption,fetchImpl:options.reportFetchImpl,participantReport}):null
+  const peerMonitor=createAssistantPeerMonitoring({enabled:options.peerMonitorEnabled,mail:options.mail,recipient:options.dailyReport?.recipient,
+    fetchImpl:options.peerMonitorFetchImpl??options.fetchImpl??globalThis.fetch})
   const hosted=createHostedTransport({...options,responseTimeoutMs:pathway?210000:35000,socketTimeoutMs:pathway?215000:40000,
     createGateway:({isSecureRequest})=>createRealDialogueTrialInterface({enabled:true,paidTrialAuthorized:true,unlimited:options.unlimited??false,guidedDraft:options.guidedDraft===true,
       courseSearchDirectory:options.guidedDraft?join(options.privateDirectory,'course-search-attempts'):undefined,
@@ -122,6 +125,9 @@ export function createHostedDialogueTrial(options = {}) {
   if(reporter){
     hosted.server.once('listening',()=>reporter.start());hosted.server.once('close',()=>reporter.stop())
   }
+  if(peerMonitor){
+    hosted.server.once('listening',()=>peerMonitor.start());hosted.server.once('close',()=>peerMonitor.stop())
+  }
   return hosted
 }
 
@@ -134,7 +140,7 @@ export function readDialogueTrialLaunch(configFile,siteDirectory,environment) {
   if(options.pathwayTrial?.series&&environment.AVATAR_PATHWAY_VALIDATION_ENABLED!=='true')throw Error('Activation distincte de validation absente')
   const apiKey=environment.AVATAR_DIALOGUE_OPENAI_API_KEY
   if (typeof apiKey !== 'string' || !apiKey.trim() || /\s/.test(apiKey)) throw Error('Clé serveur distincte absente')
-  return {...options,apiKey,deviceMemoryEnabled:environment.AVATAR_DEVICE_MEMORY_ENABLED==='true',dailyReport:readDailyReportEnvironment(environment,options.privateDirectory),consumption:readConsumptionEnvironment(environment,{defaultDirectory:join(options.privateDirectory,'consumption'),siteDirectory}),mail:readHostedEmail(environment,options.privateDirectory),validationAuthorized:options.pathwayTrial?.series?true:false}
+  return {...options,apiKey,deviceMemoryEnabled:environment.AVATAR_DEVICE_MEMORY_ENABLED==='true',peerMonitorEnabled:environment.A658_PEER_MONITOR_ENABLED==='true',dailyReport:readDailyReportEnvironment(environment,options.privateDirectory),consumption:readConsumptionEnvironment(environment,{defaultDirectory:join(options.privateDirectory,'consumption'),siteDirectory}),mail:readHostedEmail(environment,options.privateDirectory),validationAuthorized:options.pathwayTrial?.series?true:false}
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   try {
